@@ -54,22 +54,21 @@ jobs:
         uses: jurplel/install-qt-action@v4
         with:
           version: '6.6.3'
-          arch: 'win64_msvc2022_64'
+          arch: 'msvc2022_64'
+          host: 'windows'
 
       - name: Export Qt path
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
-          Write-Host "QT6_DIR=$env:QT6_DIR"
-          Write-Host "Qt_DIR=$env:Qt_DIR"
+          Write-Host "QTDIR=$env:QTDIR"
+          Write-Host "Qt6_DIR=$env:Qt6_DIR"
           Write-Host "CMAKE_PREFIX_PATH=$env:CMAKE_PREFIX_PATH"
-          Get-ChildItem Env: | Where-Object { $_.Name -match "Qt|QT|CMAKE" } | Sort-Object Name
-          if ($env:Qt6_DIR) {
+          Get-ChildItem Env: | Where-Object { $_.Name -match "Qt|QT|QTDIR|CMAKE" } | Sort-Object Name
+          if ($env:QTDIR) {
+            echo "CMAKE_PREFIX_PATH=$env:QTDIR" >> $env:GITHUB_ENV
+          } elseif ($env:Qt6_DIR) {
             echo "CMAKE_PREFIX_PATH=$env:Qt6_DIR" >> $env:GITHUB_ENV
-          } elseif ($env:QT6_DIR) {
-            echo "CMAKE_PREFIX_PATH=$env:QT6_DIR" >> $env:GITHUB_ENV
-          } elseif ($env:Qt_DIR) {
-            echo "CMAKE_PREFIX_PATH=$env:Qt_DIR" >> $env:GITHUB_ENV
           } else {
             Write-Error "No Qt installation environment variable found."
           }
