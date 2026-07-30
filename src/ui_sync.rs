@@ -293,7 +293,8 @@ pub fn refresh_ui(filter_type: &str, filter_id: Option<i64>) {
         let new_active = if playing_track_id != 0 {
             if let Some(list_lock) = CURRENT_TRACK_LIST.get() {
                 if let Some(list) = list_lock.try_lock() {
-                    list.iter().position(|t| t.id == playing_track_id)
+                    list.iter()
+                        .position(|t| t.id == playing_track_id)
                         .unwrap_or(*CURRENT_INDEX.lock())
                 } else {
                     *CURRENT_INDEX.lock()
@@ -355,7 +356,8 @@ pub fn refresh_albums_view() {
     let albums_opt = if let Some(db) = GLOBAL_DB.get() { db.get_all_albums().ok() } else { None };
     bridge::clear_albums();
     if let Some(albums) = albums_opt {
-        let track_paths: std::collections::HashMap<i64, String> = if let Some(db) = GLOBAL_DB.get() {
+        let track_paths: std::collections::HashMap<i64, String> = if let Some(db) = GLOBAL_DB.get()
+        {
             db.get_track_paths_batch(&albums.iter().map(|a| a.id).collect::<Vec<_>>())
                 .unwrap_or_default()
         } else {
@@ -363,10 +365,8 @@ pub fn refresh_albums_view() {
         };
         for a in albums {
             let year = a.year.unwrap_or(0);
-            let cover_path = track_paths
-                .get(&a.id)
-                .and_then(|path| cached_cover_path(path))
-                .unwrap_or_default();
+            let cover_path =
+                track_paths.get(&a.id).and_then(|path| cached_cover_path(path)).unwrap_or_default();
             bridge::add_album(
                 a.id as i32,
                 &a.album,
@@ -389,17 +389,16 @@ pub fn refresh_artists_view() {
     let artists_opt = if let Some(db) = GLOBAL_DB.get() { db.get_all_artists().ok() } else { None };
     bridge::clear_artists();
     if let Some(artists) = artists_opt {
-        let track_paths: std::collections::HashMap<i64, String> = if let Some(db) = GLOBAL_DB.get() {
+        let track_paths: std::collections::HashMap<i64, String> = if let Some(db) = GLOBAL_DB.get()
+        {
             db.get_track_paths_batch(&artists.iter().map(|a| a.id).collect::<Vec<_>>())
                 .unwrap_or_default()
         } else {
             std::collections::HashMap::new()
         };
         for a in artists {
-            let cover_path = track_paths
-                .get(&a.id)
-                .and_then(|path| cached_cover_path(path))
-                .unwrap_or_default();
+            let cover_path =
+                track_paths.get(&a.id).and_then(|path| cached_cover_path(path)).unwrap_or_default();
             bridge::add_artist(a.id as i32, &a.artist, a.album_count, a.track_count, &cover_path);
         }
     }

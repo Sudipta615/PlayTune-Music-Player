@@ -524,8 +524,12 @@ fn main() {
                 false
             };
             // Check if the user has ever explicitly configured folders via the UI
-            let folders_configured = arc_db.get_setting("folders_configured").ok().flatten()
-                .map(|v| v == "1").unwrap_or(false);
+            let folders_configured = arc_db
+                .get_setting("folders_configured")
+                .ok()
+                .flatten()
+                .map(|v| v == "1")
+                .unwrap_or(false);
             if !has_stored_folders && !folders_configured {
                 if let Some(doc_dir) = dirs::audio_dir() {
                     if !lib_config.watch_dirs.contains(&doc_dir) {

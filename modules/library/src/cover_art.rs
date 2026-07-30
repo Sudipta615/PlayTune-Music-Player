@@ -96,13 +96,7 @@ impl LibraryManager {
         let mut hasher = Sha256::new();
         hasher.update(&final_bytes);
         let data_hash = format!("{:x}", hasher.finalize());
-        Some(CoverArtData {
-            data: final_bytes,
-            mime_type,
-            data_hash,
-            width,
-            height,
-        })
+        Some(CoverArtData { data: final_bytes, mime_type, data_hash, width, height })
     }
 
     pub fn extract_cover_art(

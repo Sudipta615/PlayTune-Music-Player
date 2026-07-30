@@ -452,13 +452,13 @@ pub fn extract_cover_art_to_cache(path: &Path) -> Option<String> {
                             };
                             match scaled.write_to(&mut buf, format) {
                                 Ok(_) => buf.into_inner(),
-                                Err(_) => data,  // fallback: raw bytes
+                                Err(_) => data, // fallback: raw bytes
                             }
                         } else {
                             data
                         }
                     }
-                    None => data,  // fallback: raw bytes
+                    None => data, // fallback: raw bytes
                 }
             };
             let out_path = cache_dir.join(format!("{}.{}", hash_id, ext_str));

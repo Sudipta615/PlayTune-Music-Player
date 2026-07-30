@@ -161,7 +161,8 @@ pub struct FfiSongRow {
 
 // Sanity check: the struct must be exactly 5 pointers + 4 ints.
 const _: () = assert!(
-    std::mem::size_of::<FfiSongRow>() == 5 * std::mem::size_of::<*const c_char>() + 4 * std::mem::size_of::<c_int>(),
+    std::mem::size_of::<FfiSongRow>()
+        == 5 * std::mem::size_of::<*const c_char>() + 4 * std::mem::size_of::<c_int>(),
     "FfiSongRow layout mismatch — check C++ SongRowFfi"
 );
 

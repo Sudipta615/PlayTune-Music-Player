@@ -303,7 +303,9 @@ impl FftVisualizerTap {
             Ok(g) => g,
             Err(_) => return,
         };
-        for (slot, &raw) in output.smoothed_bars.iter_mut().take(bar_count).zip(new_bars.iter().take(bar_count)) {
+        for (slot, &raw) in
+            output.smoothed_bars.iter_mut().take(bar_count).zip(new_bars.iter().take(bar_count))
+        {
             if raw > *slot {
                 *slot = *slot * 0.4 + raw * 0.6; // fast attack
             } else {

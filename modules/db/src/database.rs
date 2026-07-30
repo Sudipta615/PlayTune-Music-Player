@@ -530,7 +530,10 @@ impl PlayTuneDb {
         )
     }
 
-    pub fn get_track_paths_batch(&self, ids: &[i64]) -> Result<std::collections::HashMap<i64, String>, DbError> {
+    pub fn get_track_paths_batch(
+        &self,
+        ids: &[i64],
+    ) -> Result<std::collections::HashMap<i64, String>, DbError> {
         if ids.is_empty() {
             return Ok(std::collections::HashMap::new());
         }
@@ -543,9 +546,7 @@ impl PlayTuneDb {
         }
         let params_ref: Vec<&dyn rusqlite::ToSql> = params.iter().map(|b| b.as_ref()).collect();
         let mut stmt = conn.prepare_cached(&sql)?;
-        let rows = stmt.query_map(params_ref.as_slice(), |row| {
-            Ok((row.get(0)?, row.get(1)?))
-        })?;
+        let rows = stmt.query_map(params_ref.as_slice(), |row| Ok((row.get(0)?, row.get(1)?)))?;
         let mut map = std::collections::HashMap::new();
         for row in rows {
             let (id, path): (i64, String) = row?;

@@ -147,13 +147,18 @@ pub extern "C" fn rust_delete_folder(folder_id: std::ffi::c_int) {
 
         // Check if the current track was in the deleted folder
         let current_track_gone = old_track_id.map_or(false, |old_id| {
-            CURRENT_TRACK_LIST.get().and_then(|l| l.try_lock()).map_or(true, |list| {
-                !list.iter().any(|t| t.id == old_id)
-            })
+            CURRENT_TRACK_LIST
+                .get()
+                .and_then(|l| l.try_lock())
+                .map_or(true, |list| !list.iter().any(|t| t.id == old_id))
         });
 
         if current_track_gone
-            || CURRENT_TRACK_LIST.get().and_then(|l| l.try_lock()).map(|l| l.is_empty()).unwrap_or(true)
+            || CURRENT_TRACK_LIST
+                .get()
+                .and_then(|l| l.try_lock())
+                .map(|l| l.is_empty())
+                .unwrap_or(true)
         {
             rust_stop_inner();
             bridge::set_track_info("", "", "", "");
@@ -184,7 +189,13 @@ pub extern "C" fn rust_remove_from_library(track_id: std::ffi::c_int) {
 
         // If the deleted track was the currently playing one, stop playback
         let was_current = old_track_id.map_or(false, |old_id| old_id == track_id_removed);
-        if was_current || CURRENT_TRACK_LIST.get().and_then(|l| l.try_lock()).map(|l| l.is_empty()).unwrap_or(true) {
+        if was_current
+            || CURRENT_TRACK_LIST
+                .get()
+                .and_then(|l| l.try_lock())
+                .map(|l| l.is_empty())
+                .unwrap_or(true)
+        {
             rust_stop_inner();
             bridge::set_track_info("", "", "", "");
             bridge::clear_queue();
