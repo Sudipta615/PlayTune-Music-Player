@@ -17,6 +17,9 @@ pub mod mpris;
 // Re-exports: maintain backward-compatible public API
 use std::sync::mpsc::{self, SyncSender};
 
+#[cfg(target_os = "linux")]
+use std::sync::Arc;
+
 pub use media_control::CrossPlatformMediaControls;
 pub use media_keys::MediaKeyReceiver;
 pub use notifications::{applescript_escape, xml_escape};

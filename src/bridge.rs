@@ -429,11 +429,13 @@ pub fn add_song(
 ///   * one cross-thread Qt signal emission per track (each ~30 µs),
 ///   * one `clearSongs` + `insertRow` + `setCellWidget` per track,
 ///   * one synchronous cover load + decode per track on the GUI thread.
+///
 /// For 10 000 tracks that summed to ~5 s of UI freeze + ~676 MB of
 /// pixmap memory. With `set_songs_batch`, the entire payload crosses
 /// the FFI once, the C++ side does a single transactional rebuild
 /// (signals blocked, updates disabled), and covers are loaded lazily
 /// by the CoverLoader when each row scrolls into view.
+///
 pub fn set_songs_batch(rows: &[SongRowArg]) {
     if rows.is_empty() {
         unsafe { ffi::set_songs_batch(std::ptr::null(), 0) };
