@@ -1375,7 +1375,7 @@ void MainWindow::forceAppIcon() {
         if (px.isNull()) continue;
         QImage img = px.toImage().convertToFormat(QImage::Format_ARGB32);
         if (img.isNull()) continue;
-        HICON hIcon = img.createHICON();
+        HICON hIcon = img.toHICON();
         if (hIcon) {
             if (size <= 32) {
                 SendMessage(hwnd, WM_SETICON, ICON_SMALL, reinterpret_cast<LPARAM>(hIcon));

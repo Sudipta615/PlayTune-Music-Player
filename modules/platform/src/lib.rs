@@ -15,10 +15,7 @@ mod types;
 pub mod mpris;
 
 // Re-exports: maintain backward-compatible public API
-use std::sync::{
-    mpsc::{self, SyncSender},
-    Arc,
-};
+use std::sync::mpsc::{self, SyncSender};
 
 pub use media_control::CrossPlatformMediaControls;
 pub use media_keys::MediaKeyReceiver;

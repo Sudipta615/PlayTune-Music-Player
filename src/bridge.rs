@@ -205,8 +205,10 @@ mod ffi {
             duration: *const c_char,
             cover_path: *const c_char,
         );
-        /// Batch replace the entire songs table. `rows` points to `count`
-        /// contiguous `FfiSongRow` entries. See set_songs_batch() below.
+        /// Batch replace the entire songs table.
+        ///
+        /// `rows` points to `count` contiguous `FfiSongRow` entries.
+        /// See `set_songs_batch()` below.
         pub fn set_songs_batch(rows: *const FfiSongRow, count: c_int);
         pub fn clear_folders();
         pub fn add_folder(id: c_int, path: *const c_char, name: *const c_char, track_count: c_int);

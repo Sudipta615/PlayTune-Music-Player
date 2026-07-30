@@ -146,7 +146,7 @@ pub extern "C" fn rust_delete_folder(folder_id: std::ffi::c_int) {
         refresh_ui("all", None);
 
         // Check if the current track was in the deleted folder
-        let current_track_gone = old_track_id.map_or(false, |old_id| {
+        let current_track_gone = old_track_id.is_some_and(|old_id| {
             CURRENT_TRACK_LIST
                 .get()
                 .and_then(|l| l.try_lock())
@@ -188,7 +188,7 @@ pub extern "C" fn rust_remove_from_library(track_id: std::ffi::c_int) {
         refresh_folders_view();
 
         // If the deleted track was the currently playing one, stop playback
-        let was_current = old_track_id.map_or(false, |old_id| old_id == track_id_removed);
+        let was_current = old_track_id == Some(track_id_removed);
         if was_current
             || CURRENT_TRACK_LIST
                 .get()

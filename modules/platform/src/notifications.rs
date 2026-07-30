@@ -142,6 +142,7 @@ pub fn xml_escape(s: &str) -> String {
         .replace('\'', "&apos;")
 }
 
+#[cfg(target_os = "linux")]
 fn escape_notify_markup(s: &str) -> String {
     s.replace('&', "&amp;").replace('<', "&lt;").replace('>', "&gt;")
 }
