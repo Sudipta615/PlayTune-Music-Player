@@ -1,3 +1,5 @@
+use std::path::PathBuf;
+
 fn main() {
     // 1. Build the Qt6 GUI via CMake.
     let mut cmake_cfg = cmake::Config::new("modules/gui");
@@ -62,7 +64,7 @@ fn main() {
             }
             println!(
                 "cargo:warning=Emitted explicit Qt6 link directives from CMAKE_PREFIX_PATH={}",
-                lib_dir.display()
+                prefix.display()
             );
         } else {
             println!("cargo:warning=No Qt6 link path found (neither pkg-config nor CMAKE_PREFIX_PATH/QT6_DIR is set).");
