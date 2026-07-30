@@ -29,8 +29,20 @@ fn main() {
             std::env::var_os("CMAKE_PREFIX_PATH").or_else(|| std::env::var_os("QT6_DIR"));
 
         if let Some(prefix) = qt_prefix {
-            let lib_dir = std::path::Path::new(&prefix).join("lib");
-            println!("cargo:rustc-link-search=native={}", lib_dir.display());
+            let prefix = PathBuf::from(prefix);
+
+            let candidates = [
+                prefix.join("lib"),
+                prefix.join("lib64"),
+                prefix.join("msvc2019_64/lib"),
+                prefix.join("msvc2022_64/lib"),
+            ];
+
+            for dir in candidates {
+                if dir.exists() {
+                    println!("cargo:rustc-link-search=native={}", dir.display());
+                }
+            }
             // Emit link directives for the three Qt6 libs we actually use.
             // The CMake build already links them into the static lib via
             // target_link_libraries(... PUBLIC Qt6::Widgets ...), but a
