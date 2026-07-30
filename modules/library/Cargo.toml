@@ -1,0 +1,22 @@
+[package]
+name = "library"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+config = { path = "../config" }
+db = { path = "../db" }
+engine = { path = "../engine" }
+log = { workspace = true }
+thiserror = { workspace = true }
+walkdir = { workspace = true }
+symphonia = { workspace = true }
+image = { workspace = true }
+crc32fast = { workspace = true }
+chrono = { workspace = true }
+glob = { workspace = true }
+parking_lot = { workspace = true }
+dirs = { workspace = true }
+sha2 = "0.10"
+lofty = "0.21"
+serde = { workspace = true }

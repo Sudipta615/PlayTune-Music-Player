@@ -1,0 +1,10 @@
+[Desktop Entry]
+Name=PlayTune
+Comment=Audiophile Fidelity Music Player
+Exec=playtune
+Icon=playtune
+Terminal=false
+Type=Application
+Categories=AudioVideo;Audio;Player;Qt;
+Keywords=Music;Player;Audio;DSP;Audiophile;
+StartupWMClass=playtune

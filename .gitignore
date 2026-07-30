@@ -1,0 +1,36 @@
+# Rust target directory
+/target/
+
+# Cargo binary caches
+**/*.rs.bk
+/.cargo/config.toml.local
+
+# C++ & CMake build artifacts (generated during build.rs / module build)
+build/
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+Makefile
+*.ninja
+*.o
+*.a
+*.so
+*.dylib
+*.dll
+*.exe
+*.lib
+*.pdb
+*.ilk
+*.exp
+*.user
+
+# IDE and Editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*.tmp
+
+# Operating System files
+.DS_Store
+Thumbs.db

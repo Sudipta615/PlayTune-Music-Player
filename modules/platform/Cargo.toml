@@ -1,0 +1,16 @@
+[package]
+name = "platform"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+config = { path = "../config" }
+log = { workspace = true }
+thiserror = { workspace = true }
+parking_lot = { workspace = true }
+
+[target.'cfg(not(target_os = "linux"))'.dependencies]
+souvlaki = { workspace = true }
+
+[target.'cfg(target_os = "linux")'.dependencies]
+zbus = { version = "4.4.0", features = ["blocking"] }

@@ -1,0 +1,7 @@
+edition = "2021"
+max_width = 100
+use_small_heuristics = "Max"
+use_field_init_shorthand = true
+# Unstable features only available in nightly channel:
+# format_strings = true
+# wrap_comments = true

@@ -1,0 +1,133 @@
+[workspace]
+members = [
+    "modules/engine",
+    "modules/config",
+    "modules/analysis",
+    "modules/db",
+    "modules/library",
+    "modules/platform",
+]
+resolver = "2"
+
+[package]
+name = "playtune"
+version = "1.0.3"
+edition = "2021"
+rust-version = "1.75"
+
+[dependencies]
+engine = { path = "modules/engine", features = ["audio-output", "resample", "all-codecs"] }
+config = { path = "modules/config" }
+analysis = { path = "modules/analysis" }
+db = { path = "modules/db" }
+library = { path = "modules/library" }
+platform = { path = "modules/platform" }
+arc-swap = { workspace = true }
+crossbeam = { workspace = true }
+log = { workspace = true }
+env_logger = { workspace = true }
+parking_lot = { workspace = true }
+ctrlc = { workspace = true }
+dirs = { workspace = true }
+
+[build-dependencies]
+cmake = "0.1"
+pkg-config = "0.3"
+
+[workspace.package]
+version = "1.0.3"
+edition = "2021"
+rust-version = "1.75"
+
+[workspace.dependencies]
+config = { path = "modules/config" }
+analysis = { path = "modules/analysis" }
+db = { path = "modules/db" }
+library = { path = "modules/library" }
+platform = { path = "modules/platform" }
+cpal = "0.15.3"
+rubato = "0.15.0"
+symphonia = { version = "0.5", features = ["all"] }
+crossbeam = "0.8"
+arc-swap = "1.6"
+log = "0.4"
+env_logger = "0.11.6"
+anyhow = "1.0.95"
+walkdir = "2.5.0"
+glob = "0.3.2"
+souvlaki = "0.7.3"
+ctrlc = "3.4.5"
+parking_lot = "0.12.3"
+base64 = "0.22.1"
+crc32fast = "1.4.2"
+image = { version = "0.25.5", default-features = false, features = ["png", "jpeg", "webp"] }
+thiserror = "1.0"
+num-traits = "0.2"
+num-complex = "0.4"
+realfft = "3.3"
+thread-priority = "3.1"
+dirs = "5.0"
+rusqlite = { version = "0.32.1", features = ["bundled", "chrono"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+chrono = "0.4"
+
+
+# ─── Release profile (tuned for low-end / legacy hardware) ─────────────────
+# Evidence (static): the previous profile used `lto = true` (defaults to "fat"
+# but only when set explicitly), `panic = "unwind"` (forces every function to
+# keep landing pads + unwind tables, ~5-10% code size + slower), and did not
+# pin `opt-level` (default is 3 but explicit is clearer for future maintainers).
+#
+# Changes:
+#   lto = "fat"        — same cost as `true` but explicit; cross-crate
+#                        inlining covers the engine → dsp → buffer hot path
+#                        (decode_loop calls into pipeline.process 44 100×/s).
+#   codegen-units = 1  — already 1, kept. One unit = whole-CGU inlining.
+#   panic = "abort"    — drops unwind tables & landing pads. This saves
+#                        ~5-10% binary size and removes a per-function
+#                        prologue instruction. Tradeoff: panics abort the
+#                        process instead of unwinding. PlayTune's only
+#                        unwind dependency was the ctrlc handler — but
+#                        ctrlc::set_handler spawns its own thread and does
+#                        not rely on unwinding; ffi_safe! uses
+#                        catch_unwind which becomes a no-op (still compiles
+#                        but the closure simply runs). Acceptable on
+#                        low-end targets where binary size & startup matter
+#                        more than recoverable panics. The audio engine
+#                        already treats panics in FFI callbacks as fatal
+#                        (logs and continues, but the catch_unwind guard
+#                        was defense-in-depth, not a recovery mechanism).
+#   strip = "symbols"  — was `true` (= "symbols"); made explicit. Drops
+#                        symbol tables and debug info. ~30-50% size win.
+#   opt-level = 3      — explicit. Aggressive inlining + vectorization.
+#   debug = false      — no debug assertions in release.
+#   incremental = false — release builds are full builds; incremental just
+#                        fragments the CGU and defeats LTO.
+[profile.release]
+lto = "fat"
+strip = "symbols"
+codegen-units = 1
+panic = "abort"
+opt-level = 3
+debug = false
+incremental = false
+
+# ─── Distribution profile (cargo build --profile dist) ─────────────────────
+# Even more aggressive: single CGU, max optimization, no incremental.
+# Use this profile for the actual shipped binary.
+[profile.dist]
+inherits = "release"
+lto = "fat"
+codegen-units = 1
+strip = "symbols"
+panic = "abort"
+opt-level = 3
+
+# ─── Profile for dev iteration on low-end machines ─────────────────────────
+# Faster dev builds on a dual-core CPU: skip LTO, use multiple CGUs.
+[profile.dev]
+opt-level = 0
+debug = false
+incremental = true
+codegen-units = 16

@@ -1,0 +1,4 @@
+msrv = "1.75.0"
+
+# Warn on implicit return
+# warn-on-all-formatting-issues = true

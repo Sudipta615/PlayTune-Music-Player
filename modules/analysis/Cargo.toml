@@ -1,0 +1,8 @@
+[package]
+name = "analysis"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+realfft.workspace = true
+num-complex.workspace = true

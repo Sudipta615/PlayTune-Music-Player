@@ -1,0 +1,39 @@
+<RCC>
+    <qresource prefix="/">
+        <file>resources/style.qss</file>
+        <file>resources/icons/playtune_logo.png</file>
+        <file>resources/icons/home.png</file>
+        <file>resources/icons/albums.png</file>
+        <file>resources/icons/artists.png</file>
+        <file>resources/icons/folders.png</file>
+        <file>resources/icons/favorites.png</file>
+        <file>resources/icons/recently_played.png</file>
+        <file>resources/icons/most_played.png</file>
+        <file>resources/icons/settings.png</file>
+        <file>resources/icons/plus.png</file>
+        <file>resources/icons/play.png</file>
+        <file>resources/icons/pause.png</file>
+        <file>resources/icons/prev.png</file>
+        <file>resources/icons/next.png</file>
+        <file>resources/icons/repeat.png</file>
+        <file>resources/icons/shuffle.png</file>
+        <file>resources/icons/equalizer.png</file>
+        <file>resources/icons/volume.png</file>
+        <file>resources/icons/search.png</file>
+        <file>resources/icons/more.png</file>
+        <file>resources/icons/list.png</file>
+        <file>resources/icons/grid.png</file>
+        <file>resources/icons/info.png</file>
+        <file>resources/icons/reset.png</file>
+        <file>resources/icons/close.png</file>
+        <file>resources/images/cover_midnight_dreams.png</file>
+        <file>resources/images/cover_echoes.png</file>
+        <file>resources/images/cover_starlight.png</file>
+        <file>resources/images/cover_endless_road.png</file>
+        <file>resources/images/cover_breathe_again.png</file>
+        <file>resources/images/cover_sailing_home.png</file>
+        <file>resources/images/cover_letting_go.png</file>
+        <file>resources/images/cover_golden_hours.png</file>
+        <file>resources/images/cover_night_drive.png</file>
+    </qresource>
+</RCC>
