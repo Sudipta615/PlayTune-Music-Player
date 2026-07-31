@@ -62,10 +62,6 @@ fn main() {
                     println!("cargo:rustc-link-lib=dylib={}", lib);
                 }
             }
-            println!(
-                "cargo:warning=Emitted explicit Qt6 link directives from CMAKE_PREFIX_PATH={}",
-                prefix.display()
-            );
         } else {
             println!("cargo:warning=No Qt6 link path found (neither pkg-config nor CMAKE_PREFIX_PATH/QT6_DIR is set).");
             println!("cargo:warning=The build will likely fail at link time with 'undefined reference to Qt6* symbols'.");
@@ -88,7 +84,11 @@ fn main() {
     if cfg!(target_os = "macos") {
         println!("cargo:rustc-link-lib=dylib=c++");
     } else if cfg!(target_env = "msvc") {
-        // MSVC links the C++ runtime automatically; no explicit flag needed.
+        // MSVC links the C runtime automatically, but the C++ standard
+        // library (msvcp140) is NOT — it must be linked explicitly.
+        // Without this, linking the CMake-built C++ static library
+        // (playtune_gui) fails with LNK1120 (unresolved externals).
+        println!("cargo:rustc-link-lib=dylib=msvcp140");
     } else {
         println!("cargo:rustc-link-lib=dylib=stdc++");
     }
