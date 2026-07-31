@@ -30,8 +30,6 @@ fn add_msvc_runtime_search_paths() {
     if let Some(tool) = cc::windows_registry::find_tool(&target, "cl.exe") {
         let mut root = tool.path().to_path_buf();
 
-        // ...\VC\Tools\MSVC\<ver>\bin\HostX64\x64\cl.exe
-        // Pop back to ...\VC\Tools\MSVC\<ver>
         for _ in 0..4 {
             root.pop();
         }
@@ -41,7 +39,6 @@ fn add_msvc_runtime_search_paths() {
 }
 
 fn main() {
-    // 1. Build the Qt6 GUI via CMake.
     let mut cmake_cfg = cmake::Config::new("modules/gui");
     if std::env::var_os("CMAKE_GENERATOR").is_none() {
         if cfg!(target_os = "windows") {
@@ -52,26 +49,28 @@ fn main() {
     }
     let dst = cmake_cfg.build();
 
-    // 2. Link our custom static library.
     println!("cargo:rustc-link-search=native={}/lib", dst.display());
     println!("cargo:rustc-link-search=native={}/lib64", dst.display());
     println!("cargo:rustc-link-lib=static=playtune_gui");
 
-    // 3. Link Qt6 libraries via pkg-config (Linux) or via CMAKE_PREFIX_PATH
-    //    fallback (macOS / Windows).
     let config = pkg_config::Config::new();
     let mut qt_found = true;
+
     if let Err(e) = config.probe("Qt6Widgets") {
         println!("cargo:warning=Failed to find Qt6Widgets via pkg-config: {}", e);
         println!("cargo:warning=On macOS/Windows, set CMAKE_PREFIX_PATH to your Qt6 install.");
         println!("cargo:warning=On Linux, install qt6-widgets-dev or equivalent.");
         qt_found = false;
 
-        let qt_prefixes: Vec<PathBuf> = std::env::var_os("CMAKE_PREFIX_PATH")
-            .into_iter()
-            .flat_map(|v| std::env::split_paths(&v))
-            .chain(std::env::var_os("QT6_DIR").into_iter().map(PathBuf::from))
-            .collect();
+        let mut qt_prefixes: Vec<PathBuf> = Vec::new();
+
+        if let Some(v) = std::env::var_os("CMAKE_PREFIX_PATH") {
+            qt_prefixes.extend(std::env::split_paths(&v));
+        }
+
+        if let Some(v) = std::env::var_os("QT6_DIR") {
+            qt_prefixes.push(PathBuf::from(v));
+        }
 
         if qt_prefixes.is_empty() {
             println!("cargo:warning=No Qt6 link path found (neither pkg-config nor CMAKE_PREFIX_PATH/QT6_DIR is set).");
@@ -114,7 +113,6 @@ fn main() {
         }
     }
 
-    // 4. Link C++ Standard Library.
     if cfg!(target_os = "macos") {
         println!("cargo:rustc-link-lib=dylib=c++");
     } else if cfg!(target_env = "msvc") {
@@ -124,7 +122,6 @@ fn main() {
         println!("cargo:rustc-link-lib=dylib=stdc++");
     }
 
-    // Re-run build if C++ files or build script change.
     println!("cargo:rerun-if-changed=build.rs");
     println!("cargo:rerun-if-changed=modules/gui");
 }
