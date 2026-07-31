@@ -117,7 +117,10 @@ fn main() {
         println!("cargo:rustc-link-lib=dylib=c++");
     } else if cfg!(target_env = "msvc") {
         add_msvc_runtime_search_paths();
-        println!("cargo:rustc-link-lib=dylib=msvcp140");
+        // Note: the DLL is named msvcp140.dll, but its import library is
+        // named msvcprt.lib (not msvcp140.lib) — linking "msvcp140" here
+        // causes LNK1181 because no such .lib file exists.
+        println!("cargo:rustc-link-lib=dylib=msvcprt");
     } else {
         println!("cargo:rustc-link-lib=dylib=stdc++");
     }
