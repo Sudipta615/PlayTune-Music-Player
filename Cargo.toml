@@ -29,6 +29,7 @@ env_logger = { workspace = true }
 parking_lot = { workspace = true }
 ctrlc = { workspace = true }
 dirs = { workspace = true }
+cc = "1.0.87"
 
 [build-dependencies]
 cmake = "0.1"
