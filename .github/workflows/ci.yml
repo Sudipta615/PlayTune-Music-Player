@@ -54,7 +54,7 @@ jobs:
         uses: jurplel/install-qt-action@v4
         with:
           version: '6.8.3'
-          arch: 'msvc2022_64'
+          arch: 'win64_msvc2022_64'
           host: 'windows'
 
       - name: Export Qt path
