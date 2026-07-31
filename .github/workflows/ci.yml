@@ -61,14 +61,11 @@ jobs:
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
-          Write-Host "QTDIR=$env:QTDIR"
-          Write-Host "Qt6_DIR=$env:Qt6_DIR"
+          Write-Host "QT_ROOT_DIR=$env:QT_ROOT_DIR"
           Write-Host "CMAKE_PREFIX_PATH=$env:CMAKE_PREFIX_PATH"
-          Get-ChildItem Env: | Where-Object { $_.Name -match "Qt|QT|QTDIR|CMAKE" } | Sort-Object Name
-          if ($env:QTDIR) {
-            echo "CMAKE_PREFIX_PATH=$env:QTDIR" >> $env:GITHUB_ENV
-          } elseif ($env:Qt6_DIR) {
-            echo "CMAKE_PREFIX_PATH=$env:Qt6_DIR" >> $env:GITHUB_ENV
+          Get-ChildItem Env: | Where-Object { $_.Name -match "Qt|QT|CMAKE" } | Sort-Object Name
+          if ($env:QT_ROOT_DIR) {
+            echo "CMAKE_PREFIX_PATH=$env:QT_ROOT_DIR" >> $env:GITHUB_ENV
           } else {
             Write-Error "No Qt installation environment variable found."
           }
