@@ -84,11 +84,10 @@ fn main() {
     if cfg!(target_os = "macos") {
         println!("cargo:rustc-link-lib=dylib=c++");
     } else if cfg!(target_env = "msvc") {
-        // MSVC links the C and C++ runtimes automatically (via msvcrt/msvcprt
-        // and #pragma comment(lib) directives emitted by MSVC C++ headers).
-        // Emitting a manual link directive like `msvcp140` causes link.exe
-        // to search for `msvcp140.lib` (which does not exist; the MSVC import
-        // library is named `msvcprt.lib`), resulting in LNK1181 linker errors.
+        // On MSVC, the C++ Standard Library import library is `msvcprt.lib`
+        // (unlike GCC's `stdc++` or Clang/macOS's `c++`). We must link it
+        // explicitly so that C++ stdlib symbols in `playtune_gui.lib` (std::string,
+        // std::vector, etc.) are resolved by link.exe without LNK1120 errors.
         if let Some(tool) = cc::windows_registry::find_tool(
             &std::env::var("TARGET").unwrap_or_else(|_| "x86_64-pc-windows-msvc".to_string()),
             "cl.exe",
@@ -103,6 +102,8 @@ fn main() {
                 }
             }
         }
+
+        println!("cargo:rustc-link-lib=msvcprt");
     } else {
         println!("cargo:rustc-link-lib=dylib=stdc++");
     }
