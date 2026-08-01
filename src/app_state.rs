@@ -34,7 +34,19 @@ where
 {
     match thread::Builder::new().name(name.to_string()).spawn(f) {
         Ok(handle) => {
-            WORKER_HANDLES.lock().push(handle);
+            let mut handles = WORKER_HANDLES.lock();
+            // Drain finished handles before appending the new one. Without
+            // this, every nav click or search that spawns a worker adds a
+            // permanently-dead JoinHandle to the Vec. After 1 000 tab
+            // switches the Vec grows to 1 000 entries; the shutdown join
+            // loop then takes proportionally longer and the mutex is held
+            // for a write on every spawn even for a read-heavy check.
+            //
+            // `is_finished()` is O(1) and does not block. We use
+            // `retain` (in-place filter) so no reallocation is needed
+            // when the Vec is already at capacity with live handles.
+            handles.retain(|h| !h.is_finished());
+            handles.push(handle);
         }
         Err(e) => {
             log::error!(

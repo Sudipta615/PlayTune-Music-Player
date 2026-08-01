@@ -127,7 +127,7 @@ void NowPlayingCard::setupUi() {
     m_timeElapsed->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
     m_timeElapsed->setToolTip("Elapsed Playback Time");
 
-    m_seekBar = new QSlider(Qt::Horizontal, this);
+    m_seekBar = new ClickableSlider(Qt::Horizontal, this);
     m_seekBar->setRange(0, 1000);
     m_seekBar->setValue(350);
     m_seekBar->setToolTip("Seek Playback Position (Click or Drag / Shift+← / Shift+→)");
@@ -142,6 +142,15 @@ void NowPlayingCard::setupUi() {
     seekLayout->addWidget(m_seekBar);
     seekLayout->addWidget(m_timeTotal);
     rightLayout->addLayout(seekLayout);
+
+    // Connect waveform visualizer click gesture
+    connect(m_visualizer, &WaveformVisualizer::seekRequested, this, [this](double ratio) {
+        if (m_totalDuration > 0.0) {
+            m_seekBar->setValue(static_cast<int>(ratio * m_seekBar->maximum()));
+            m_timeElapsed->setText(formatTime(ratio * m_totalDuration));
+            emit seekRequested(ratio * m_totalDuration);
+        }
+    });
 
     // Connect slider gestures
     connect(m_seekBar, &QSlider::sliderPressed, this, [this]() {

@@ -63,7 +63,7 @@ private:
     QLabel* m_albumLabel = nullptr;
 
     WaveformVisualizer* m_visualizer = nullptr;
-    QSlider* m_seekBar = nullptr;
+    ClickableSlider* m_seekBar = nullptr;
     QLabel* m_timeElapsed = nullptr;
     QLabel* m_timeTotal = nullptr;
 

@@ -638,6 +638,64 @@ impl PlayTuneDb {
         Ok(id)
     }
 
+    /// Insert or update a batch of tracks inside a **caller-supplied**
+    /// `rusqlite::Transaction`. Callers must wrap multiple calls (or a loop)
+    /// in a single transaction via `with_transaction` to avoid per-row fsync.
+    ///
+    /// Returns a Vec of `(original_index, track_id)` pairs so cover-art can
+    /// be associated with the correct DB id after the batch commits.
+    ///
+    /// # Why a separate tx-aware variant?
+    ///
+    /// `add_or_update_track_with_lyrics` acquires the mutex and commits once
+    /// per call. For a 250-track batch on HDD that means 250 WAL syncs
+    /// (≈ 5 ms each = 1.25 s of blocking I/O). By sharing a single
+    /// transaction, the entire batch flushes in one sync (< 50 ms).
+    pub fn insert_tracks_batch_tx<'tx>(
+        tx: &rusqlite::Transaction<'tx>,
+        tracks: &[(
+            &str,         // path
+            &str,         // title
+            &str,         // artist
+            &str,         // album
+            f64,          // duration_secs
+            &str,         // duration_str
+            Option<i64>,  // folder_id
+            i64,          // file_modified
+            Option<&str>, // lyrics_synced
+            Option<&str>, // lyrics_unsynced
+            Option<i32>,  // track_number
+        )],
+    ) -> Result<Vec<(usize, i64)>, DbError> {
+        let mut ids: Vec<(usize, i64)> = Vec::with_capacity(tracks.len());
+        // Prepare once, execute N times — avoids re-parsing the SQL
+        // statement on every row.
+        let mut insert_stmt = tx.prepare_cached(
+            "INSERT INTO tracks \
+             (path, title, artist, album, duration_secs, duration_str, folder_id, file_modified, \
+              lyrics_synced, lyrics_unsynced, track_number) \
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) \
+             ON CONFLICT(path) DO UPDATE SET \
+                title = excluded.title, \
+                artist = excluded.artist, \
+                album = excluded.album, \
+                duration_secs = excluded.duration_secs, \
+                duration_str = excluded.duration_str, \
+                folder_id = excluded.folder_id, \
+                file_modified = excluded.file_modified, \
+                lyrics_synced = COALESCE(excluded.lyrics_synced, tracks.lyrics_synced), \
+                lyrics_unsynced = COALESCE(excluded.lyrics_unsynced, tracks.lyrics_unsynced), \
+                track_number = excluded.track_number",
+        )?;
+        let mut select_stmt = tx.prepare_cached("SELECT id FROM tracks WHERE path = ?")?;
+        for (i, t) in tracks.iter().enumerate() {
+            insert_stmt.execute(params![t.0, t.1, t.2, t.3, t.4, t.5, t.6, t.7, t.8, t.9, t.10])?;
+            let id: i64 = select_stmt.query_row(params![t.0], |row| row.get(0))?;
+            ids.push((i, id));
+        }
+        Ok(ids)
+    }
+
     /// Toggle the favorite flag of a track atomically.
     pub fn toggle_favorite(&self, track_id: i64) -> Result<bool, DbError> {
         let mut conn = self.conn.lock();
@@ -722,7 +780,14 @@ impl PlayTuneDb {
     /// Remove tracks whose `path` is not in `existing_paths`. Used by the
     /// scanner to garbage-collect entries for files deleted outside the app.
     /// Returns the number of removed rows.
-    pub fn cleanup_missing_tracks(&self, _existing_paths: &[&str]) -> Result<usize, DbError> {
+    ///
+    /// `existing_paths` is the set of audio file paths found on disk during
+    /// the scan. We use a HashSet for O(1) membership checks instead of
+    /// calling `Path::is_file()` per row — which would issue one `stat()`
+    /// syscall per tracked file (10 000 stat()s = 100 ms–1 s on HDD).
+    pub fn cleanup_missing_tracks(&self, existing_paths: &[&str]) -> Result<usize, DbError> {
+        // Build a set of on-disk paths once for O(1) lookups.
+        let on_disk: std::collections::HashSet<&str> = existing_paths.iter().copied().collect();
         let conn = self.conn.lock();
         let mut stale_ids: Vec<i64> = Vec::new();
         {
@@ -731,7 +796,9 @@ impl PlayTuneDb {
                 stmt.query_map([], |row| Ok((row.get::<_, i64>(0)?, row.get::<_, String>(1)?)))?;
             for r in rows {
                 let (id, path) = r?;
-                if !std::path::Path::new(&path).is_file() {
+                // Stale = path was tracked in DB but is NOT in the freshly-
+                // scanned on-disk set. This avoids per-file stat() calls.
+                if !on_disk.contains(path.as_str()) {
                     stale_ids.push(id);
                 }
             }
@@ -876,18 +943,19 @@ impl PlayTuneDb {
     }
 
     /// Return all playlists ordered by name. `track_count` and `duration_secs`
-    /// are computed on the fly via subselects so they always reflect the
-    /// current track table state.
+    /// are computed via a single LEFT JOIN + GROUP BY, which SQLite executes
+    /// in one pass (vs. two correlated subqueries per row in the old version).
     pub fn get_all_playlists(&self) -> Result<Vec<PlaylistRecord>, DbError> {
         let conn = self.conn.lock();
         let mut stmt = conn.prepare_cached(
-            "SELECT p.id, p.name,
-                    (SELECT COUNT(*) FROM playlist_tracks pt WHERE pt.playlist_id = p.id),
-                    COALESCE((SELECT SUM(t.duration_secs) FROM playlist_tracks pt
-                              JOIN tracks t ON t.id = pt.track_id
-                              WHERE pt.playlist_id = p.id), 0),
-                    IFNULL(p.created_at, '')
-             FROM playlists p
+            "SELECT p.id, p.name, \
+                    COUNT(pt.track_id) AS track_count, \
+                    COALESCE(SUM(t.duration_secs), 0.0) AS total_secs, \
+                    IFNULL(p.created_at, '') \
+             FROM playlists p \
+             LEFT JOIN playlist_tracks pt ON pt.playlist_id = p.id \
+             LEFT JOIN tracks t ON t.id = pt.track_id \
+             GROUP BY p.id \
              ORDER BY p.name ASC",
         )?;
         let rows = stmt.query_map([], |row| {

@@ -2,8 +2,8 @@ use crate::app_state::spawn_worker;
 use crate::bridge;
 use crate::ffi_safe;
 use crate::ui_sync::{
-    populate_gui_state, refresh_albums_view, refresh_artists_view, refresh_folders_view,
-    refresh_playlists_view, refresh_ui,
+    next_nav_gen, populate_gui_state, refresh_albums_view, refresh_artists_view,
+    refresh_folders_view, refresh_playlists_view, refresh_ui_gen,
 };
 
 pub extern "C" fn rust_nav_tab(tab_id: std::ffi::c_int) {
@@ -14,35 +14,43 @@ pub extern "C" fn rust_nav_tab(tab_id: std::ffi::c_int) {
 
 pub fn rust_nav_tab_inner(tab_id: std::ffi::c_int) {
     log::info!("Navigation tab switched: {}", tab_id);
+    // Increment the generation counter BEFORE spawning a worker. Any
+    // in-flight worker from a previous nav click will see the new value and
+    // exit before issuing FFI calls, so we never push stale data.
+    let gen = next_nav_gen();
     match tab_id {
         0 => {
             // Home → Songs Table (all tracks)
             // Switch view immediately for instant UI feedback.
             bridge::switch_view(0);
             // Load data in background to avoid freezing the GUI.
-            spawn_worker("playtune-nav-home", || {
-                refresh_ui("all", None);
+            spawn_worker("playtune-nav-home", move || {
+                refresh_ui_gen("all", None, gen);
             });
         }
         1 => {
             // Albums tab — show the AlbumsViewWidget (page 3 of the stack).
             bridge::switch_view(3);
-            spawn_worker("playtune-nav-albums", || {
+            spawn_worker("playtune-nav-albums", move || {
                 refresh_albums_view();
             });
         }
         2 => {
             // Artists tab — show the ArtistsViewWidget (page 4 of the stack).
             bridge::switch_view(4);
-            spawn_worker("playtune-nav-artists", || {
+            spawn_worker("playtune-nav-artists", move || {
                 refresh_artists_view();
             });
         }
         3 => {
-            // Folders view
+            // Folders view.
+            // Previously this called refresh_ui("all") AND refresh_folders_view().
+            // The refresh_ui("all") was redundant — the Home tab already
+            // populated the song list; calling it again here triggered a
+            // full DB query + 10 000-row FFI rebuild every time the user
+            // clicked the Folders tab, causing visible CPU spikes.
             bridge::switch_view(2);
             spawn_worker("playtune-nav-folders", || {
-                refresh_ui("all", None);
                 refresh_folders_view();
             });
         }
@@ -53,22 +61,22 @@ pub fn rust_nav_tab_inner(tab_id: std::ffi::c_int) {
         5 => {
             // Favorites
             bridge::switch_view(0);
-            spawn_worker("playtune-nav-favs", || {
-                refresh_ui("favorites", None);
+            spawn_worker("playtune-nav-favs", move || {
+                refresh_ui_gen("favorites", None, gen);
             });
         }
         6 => {
             // Recently Played
             bridge::switch_view(0);
-            spawn_worker("playtune-nav-recent", || {
-                refresh_ui("recently_played", None);
+            spawn_worker("playtune-nav-recent", move || {
+                refresh_ui_gen("recently_played", None, gen);
             });
         }
         7 => {
             // Most Played
             bridge::switch_view(0);
-            spawn_worker("playtune-nav-most", || {
-                refresh_ui("most_played", None);
+            spawn_worker("playtune-nav-most", move || {
+                refresh_ui_gen("most_played", None, gen);
             });
         }
         _ => {}

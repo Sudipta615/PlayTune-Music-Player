@@ -30,13 +30,15 @@ inline QString roundedKey(const QString& path, int size, int radius) {
     return QStringLiteral("covr:%1:%2:%3").arg(size).arg(radius).arg(path);
 }
 
-/// Load + decode a pixmap off the GUI thread. The result is delivered to
-/// the singleton via QMetaObject::invokeMethod on the GUI thread, which
-/// then emits coverReady so every interested widget receives it.
+/// Load + decode a pixmap off the GUI thread. The result is staged via
+/// CoverLoader::stageDelivery() (also GUI-thread) so the flush timer can
+/// batch-deliver all completed loads in one 16 ms tick instead of posting
+/// individual QueuedConnection events for each.
 ///
-/// Note: we decode to QImage (not QPixmap) on the worker thread because
-/// QPixmap has GUI-thread affinity on X11. The QImage→QPixmap conversion
-/// + QPixmapCache insert happen on the GUI thread in the delivery lambda.
+/// Using a DEDICATED pool (m_pool, max 2 threads) rather than the global
+/// QThreadPool prevents fast scrolling from queuing thousands of tasks that
+/// saturate all CPU cores — two threads is enough to keep the visible rows
+/// loaded without starving other work.
 class CoverLoadTask : public QRunnable {
 public:
     CoverLoadTask(const QString& path, int size, QPointer<CoverLoader> owner)
@@ -57,14 +59,9 @@ public:
             image = reader.read();
         }
 
-        // Deliver on the GUI thread. If the singleton has been destroyed
-        // (app shutdown), the QPointer is null and we skip emission.
+        // Stage delivery on the GUI thread. If the singleton has been
+        // destroyed (app shutdown), the QPointer is null and we skip.
         if (!m_owner) return;
-        // Capture `image` by copy (QImage uses implicit sharing, so the
-        // copy is just a refcount increment — O(1)). We must NOT use
-        // std::move here because QMetaObject::invokeMethod with
-        // Qt::QueuedConnection requires the lambda to be copyable (it
-        // copies the lambda into a QFunctorSlotObject).
         QMetaObject::invokeMethod(
             m_owner.data(),
             [owner = m_owner, path = m_path, size = m_size, image]() {
@@ -73,15 +70,16 @@ public:
                 if (!image.isNull()) {
                     pix = QPixmap::fromImage(image);
                     if (!pix.isNull()) {
-                        // Insert into the QPixmapCache so future lookups
-                        // (sync or async) hit the cache instead of re-
-                        // decoding. This must happen on the GUI thread
-                        // because QPixmap has GUI-thread affinity on X11.
+                        // Insert into QPixmapCache on the GUI thread
+                        // (QPixmap has GUI-thread affinity on X11).
                         QPixmapCache::insert(cacheKey(path, size), pix);
                     }
                 }
-                QPixmap fallback = pix.isNull() ? owner->defaultCover() : pix;
-                emit owner->coverReady(path, size, fallback);
+                QPixmap fallback = pix.isNull() ? owner->defaultCover(size) : pix;
+                // Stage for batch delivery rather than emitting directly.
+                // This coalesces all loads that complete between flush ticks
+                // into a single paint update instead of N individual updates.
+                owner->stageDelivery(path, size, fallback);
             },
             Qt::QueuedConnection);
     }
@@ -100,14 +98,20 @@ CoverLoader& CoverLoader::instance() {
 }
 
 CoverLoader::CoverLoader() : QObject(nullptr) {
-    // Remove the pending-load entry when a load completes (either from a
-    // cache hit delivered via QueuedConnection, or from a worker thread).
-    // This allows a future requestAsync() call for the same (path, size)
-    // to spawn a fresh worker if the pixmap was evicted from the LRU.
-    connect(this, &CoverLoader::coverReady,
-            this, [this](const QString& path, int size, const QPixmap&) {
-        m_pending.remove(cacheKey(path, size));
-    }, Qt::QueuedConnection);
+    // Dedicated pool: 2 threads for cover decoding. Using the global pool
+    // risks saturating all cores when the user scrolls quickly (hundreds
+    // of tasks queued). Two threads keep visible rows loading without
+    // blocking the CPU for other work.
+    m_pool = new QThreadPool(this);
+    m_pool->setMaxThreadCount(2);
+
+    // 16 ms flush timer (targeting 60 fps). All coverReady signals are
+    // emitted here in a single batch, which means at most one repaint per
+    // frame instead of one repaint per completed cover load.
+    m_flushTimer.setInterval(16);
+    m_flushTimer.setSingleShot(false);
+    connect(&m_flushTimer, &QTimer::timeout, this, &CoverLoader::flushDeliveries);
+    m_flushTimer.start();
 }
 
 bool CoverLoader::tryGet(const QString& path, int size, QPixmap& out) const {
@@ -140,37 +144,48 @@ bool CoverLoader::tryGetRounded(const QString& path, int size, int radius, QPixm
     return true;
 }
 
-const QPixmap& CoverLoader::defaultCover() {
-    if (!m_defaultCoverInit) {
-        m_defaultCover = getDefaultAlbumArt();
-        m_defaultCoverInit = true;
+const QPixmap& CoverLoader::defaultCover(int displaySize) {
+    // Load once at the requested display size. If the caller passes a
+    // different size from a previous call we use the cached one rather
+    // than re-scaling — in practice all callers use the same size.
+    if (m_defaultCoverSize != displaySize || m_defaultCover.isNull()) {
+        QPixmap full = getDefaultAlbumArt();
+        if (full.isNull()) {
+            // Fallback: return whatever we have (even if wrong size).
+            return m_defaultCover;
+        }
+        // Scale to the actual display size (e.g. 130×130) so we don’t
+        // permanently hold a 512×512 pixmap (~1 MB) when it is only ever
+        // rendered at 130×130 (~67 KB).
+        m_defaultCover = full.scaled(
+            displaySize, displaySize,
+            Qt::KeepAspectRatioByExpanding,
+            Qt::SmoothTransformation);
+        m_defaultCoverSize = displaySize;
     }
     return m_defaultCover;
 }
 
 bool CoverLoader::resolveOrFallback(const QString& path, int size, QPixmap& outPix) {
     if (path.isEmpty() || !QFile::exists(path)) {
-        outPix = defaultCover().scaled(size, size, Qt::KeepAspectRatioByExpanding, Qt::SmoothTransformation);
+        outPix = defaultCover(size);
         return true;
     }
     if (tryGet(path, size, outPix)) return false;
-    outPix = defaultCover().scaled(size, size, Qt::KeepAspectRatioByExpanding, Qt::SmoothTransformation);
+    outPix = defaultCover(size);
     return false;
 }
 
 void CoverLoader::requestAsync(const QString& path, int size) {
     if (path.isEmpty()) {
-        emit coverReady(path, size, defaultCover());
+        // Empty path: stage the default cover for delivery on the next tick.
+        stageDelivery(path, size, defaultCover(size));
         return;
     }
     QPixmap cached;
     if (tryGet(path, size, cached)) {
-        // Cache hit: deliver on the GUI thread immediately (queued
-        // connection, so we don't recurse into the caller's stack).
-        QMetaObject::invokeMethod(
-            this,
-            [this, path, size, cached]() { emit coverReady(path, size, cached); },
-            Qt::QueuedConnection);
+        // Cache hit: stage for batch delivery on the next flush tick.
+        stageDelivery(path, size, cached);
         return;
     }
     enqueueLoad(path, size);
@@ -186,12 +201,36 @@ void CoverLoader::enqueueLoad(const QString& path, int size) {
     m_pending.insert(key);
     CoverLoadTask* task = new CoverLoadTask(path, size, this);
     task->setAutoDelete(true);
-    QThreadPool::globalInstance()->start(task, QThread::LowPriority);
+    // Use the dedicated 2-thread pool at low priority so cover decoding
+    // doesn’t compete with audio processing or DB queries.
+    m_pool->start(task, QThread::LowPriority);
+}
+
+void CoverLoader::stageDelivery(const QString& path, int size, const QPixmap& pix) {
+    // Remove from the in-flight set so re-requests after LRU eviction work.
+    m_pending.remove(cacheKey(path, size));
+    // Accumulate for the next flush tick.
+    m_pendingDelivery.append({path, size, pix});
+}
+
+void CoverLoader::flushDeliveries() {
+    if (m_pendingDelivery.isEmpty()) return;
+    // Swap out the list so new stageDelivery calls during signal emission
+    // don’t modify the list we’re iterating.
+    QVector<PendingItem> batch;
+    batch.swap(m_pendingDelivery);
+    for (const auto& item : batch) {
+        emit coverReady(item.path, item.size, item.pix);
+    }
 }
 
 void CoverLoader::clearCache() {
     QPixmapCache::clear();
     m_pending.clear();
+    m_pendingDelivery.clear();
+    // Reset default cover so it is reloaded at the next request.
+    m_defaultCover = QPixmap();
+    m_defaultCoverSize = 0;
 }
 
 int CoverLoader::cacheLimitKb() const { return QPixmapCache::cacheLimit(); }

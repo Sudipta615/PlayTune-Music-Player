@@ -390,7 +390,11 @@ void SettingsPageWidget::setupUi() {
         m_crossfadeDurationSpin->setFixedSize(110, 34);
         m_crossfadeDurationSpin->setStyleSheet(
             "QSpinBox { background-color: #1A2030; color: #FFFFFF; border: 1px solid #28324A; "
-            "border-radius: 8px; padding: 4px 8px; font-size: 12px; }");
+            "border-radius: 8px; padding: 4px 8px; padding-right: 24px; font-size: 12px; }"
+            "QSpinBox::up-button { subcontrol-origin: border; subcontrol-position: top right; width: 22px; height: 14px; border-left: 1px solid #28324A; border-bottom: 1px solid #28324A; border-top-right-radius: 7px; background-color: #242A3E; }"
+            "QSpinBox::up-button:hover { background-color: #7B1FA2; }"
+            "QSpinBox::down-button { subcontrol-origin: border; subcontrol-position: bottom right; width: 22px; height: 14px; border-left: 1px solid #28324A; border-bottom-right-radius: 7px; background-color: #242A3E; }"
+            "QSpinBox::down-button:hover { background-color: #7B1FA2; }");
         m_crossfadeDurationSpin->setToolTip("Crossfade duration in milliseconds (only used when Crossfade is ON).");
         cl->addLayout(createSettingRow(card, "Crossfade Duration", "Duration in ms (when Crossfade is ON).", m_crossfadeDurationSpin));
 

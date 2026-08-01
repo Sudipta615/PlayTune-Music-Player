@@ -222,25 +222,54 @@ pub extern "C" fn rust_filter_folder(folder_id: std::ffi::c_int) {
     });
 }
 
+/// Monotonically-increasing counter used to cancel stale search workers.
+/// Each call to `rust_search` increments this; a worker that finds the
+/// counter has changed since it started simply discards its result and
+/// returns without emitting FFI calls.
+static SEARCH_GENERATION: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+
 pub extern "C" fn rust_search(query: *const std::ffi::c_char) {
     ffi_safe!({
-        rust_search_inner(query);
+        // Convert the C string on the GUI thread (the pointer is only
+        // valid while the callback is executing).
+        let query_str = if query.is_null() {
+            String::new()
+        } else {
+            let cstr = unsafe { std::ffi::CStr::from_ptr(query) };
+            cstr.to_str().unwrap_or("").to_string()
+        };
+
+        // Increment the generation counter. Any previously-spawned search
+        // worker that checks this counter will see the new value and bail
+        // out before emitting FFI calls, so stale results are discarded.
+        let gen = SEARCH_GENERATION.fetch_add(1, std::sync::atomic::Ordering::SeqCst) + 1;
+
+        // Run the actual DB query + filter on a background worker so the
+        // GUI thread is never blocked waiting on SQLite.
+        spawn_worker("playtune-search", move || {
+            rust_search_worker(query_str, gen);
+        });
     });
 }
 
-pub fn rust_search_inner(query: *const std::ffi::c_char) {
-    let query_str = if query.is_null() {
-        String::new()
-    } else {
-        let cstr = unsafe { std::ffi::CStr::from_ptr(query) };
-        cstr.to_str().unwrap_or("").to_string()
-    };
+/// Background worker for search. All heavy work (DB query, string filter,
+/// FFI payload construction) happens here, not on the GUI thread.
+fn rust_search_worker(query_str: String, gen: u64) {
+    // Early exit if a newer search has already been queued.
+    if SEARCH_GENERATION.load(std::sync::atomic::Ordering::SeqCst) != gen {
+        return;
+    }
+
     let query_lower = query_str.to_lowercase();
-    log::debug!("Search query: {:?}", query_lower);
+    log::debug!("Search worker (gen={}) query: {:?}", gen, query_lower);
 
     let tracks_opt = if let Some(db) = GLOBAL_DB.get() { db.get_all_tracks().ok() } else { None };
-
     let Some(tracks) = tracks_opt else { return };
+
+    // Check again after the potentially-slow DB query.
+    if SEARCH_GENERATION.load(std::sync::atomic::Ordering::SeqCst) != gen {
+        return;
+    }
 
     let filtered: Vec<DbTrack> = if query_lower.is_empty() {
         tracks
@@ -255,9 +284,15 @@ pub fn rust_search_inner(query: *const std::ffi::c_char) {
             .collect()
     };
 
-    // Build the FFI payload without cloning the filtered Vec. We move
-    // `filtered` into the global list AFTER building ffi_rows (which
-    // borrows from it).
+    // One more generation check before we do any FFI.
+    if SEARCH_GENERATION.load(std::sync::atomic::Ordering::SeqCst) != gen {
+        return;
+    }
+
+    // Build the FFI payload. Cover paths are intentionally omitted here —
+    // the C++ CoverLoader resolves them lazily as rows scroll into view,
+    // avoiding N `cached_cover_path()` calls (each may hit disk) on the
+    // background thread under a write lock.
     let ffi_rows: Vec<crate::bridge::SongRowArg> = filtered
         .iter()
         .enumerate()
@@ -281,8 +316,23 @@ pub fn rust_search_inner(query: *const std::ffi::c_char) {
 
     invalidate_loaded_filter();
 
-    // Single FFI round-trip — see ui_sync::refresh_ui for the rationale.
+    // Single FFI round-trip — the C++ side does a transactional rebuild.
     crate::bridge::set_songs_batch(&ffi_rows);
+}
+
+/// Inner synchronous search, kept for callers that already run on a
+/// background thread (e.g., the initial populate path). Prefer the async
+/// `rust_search` / `rust_search_worker` path for GUI-triggered searches.
+#[allow(dead_code)]
+pub fn rust_search_inner(query: *const std::ffi::c_char) {
+    let query_str = if query.is_null() {
+        String::new()
+    } else {
+        let cstr = unsafe { std::ffi::CStr::from_ptr(query) };
+        cstr.to_str().unwrap_or("").to_string()
+    };
+    let gen = SEARCH_GENERATION.fetch_add(1, std::sync::atomic::Ordering::SeqCst) + 1;
+    rust_search_worker(query_str, gen);
 }
 
 #[no_mangle]

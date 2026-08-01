@@ -42,146 +42,48 @@ All developers and contributors **MUST** follow the standard 3-way (`x.y.z`) Sem
 
 ## 🗓️ Version History
 
+### [1.0.4] — 2026-08-02 — Performance, UI & Responsiveness Optimization Release
+
+#### Summary
+Comprehensive performance overhaul addressing high CPU usage during tab/mode switching and fast scrolling, multi-second UI freezes during large folder library imports, seekbar click-to-seek functionality, and spinbox stepper button visual contrast across dark theme controls.
+
+#### Added
+- **Direct Click-to-Seek (`ClickableSlider`)**: Created a custom `ClickableSlider` subclassing `QSlider` in `custom_widgets.h` that maps click coordinates directly to slider range values on `mousePressEvent`. Applied to `NowPlayingCard` seekbar and `QueueWidget` volume slider.
+- **Waveform Visualizer Click-to-Seek**: Integrated direct click-to-seek functionality on `WaveformVisualizer` bars in `NowPlayingCard`.
+- **High-Contrast SpinBox Stepper Buttons**: Added custom QSS styling for `QSpinBox` and `QDoubleSpinBox` subcontrols (`::up-button`, `::down-button`, `::up-arrow`, `::down-arrow`) across `style.qss`, `SettingsPageWidget`, `EqualizerWindow`, `SleepTimerDialog`, and `TagEditorDialog`.
+- **Atomic Batch Insert Helper**: Added `insert_tracks_batch_tx` helper in `database.rs` to execute slice inserts/updates within a caller-provided SQLite transaction.
+
+#### Changed — Performance & System Responsiveness
+- **SQLite Single-Transaction Flushes**: Refactored `flush_new_batch` and `flush_updated_batch` in `library` module to execute batch track flushes within single atomic SQLite transactions, reducing 250 disk fsync operations per batch down to 1 WAL commit and eliminating multi-second disk I/O freezes.
+- **O(1) Stale-Track Cleanup**: Optimized `cleanup_missing_tracks` in `db` module to use an in-memory `HashSet` constructed from scanner paths, replacing thousands of sequential `stat()` filesystem syscalls.
+- **Single-Pass Folder ID Map**: Refactored `scan_files` in `library` module to pre-build a folder cache map once before file iteration instead of re-querying SQLite per file.
+- **Worker Cancellation with Generation Counters**: Introduced atomic `NAV_GENERATION` and `SEARCH_GENERATION` counters in `ui_sync.rs` and `library.rs` to cancel and discard stale background worker results during rapid tab switching or search typing.
+- **Throttled CoverLoader & Batch Flush**: Configured a dedicated 2-thread pool (`m_pool`) and a 16 ms batch-flush timer (`m_flushTimer`) in `CoverLoader`, preventing fast scrolling from saturating CPU cores or flooding Qt's event queue.
+- **Pruned Worker Handles**: Added `handles.retain(|h| !h.is_finished())` in `app_state.rs` to clean up finished thread handles automatically before spawning new workers.
+- **Optimized Playlist Queries**: Rewrote `get_all_playlists` in `db` module to use a single `LEFT JOIN` + `GROUP BY` instead of correlated subqueries.
+- **Scaled Default Album Art**: Capped default logo tile allocation to the requested display size (130×130) on first load in `CoverLoader::defaultCover()`.
+
+#### Fixed
+- **Cover Art Image Display**: Restored `cached_cover_path(&track.path)` in FFI row payloads (`ui_sync.rs` and `library.rs`), resolving placeholder icon fallbacks in table and grid views.
+- **Redundant Tab Refresh**: Removed duplicate `refresh_ui("all")` call on Folders tab navigation.
+
+---
+
 ### [1.0.3] — 2026-07-29 — Scalability & Performance Refactor
 
 #### Summary
-Major architectural refactor targeting smooth operation at **10 000+ tracks**
-with low RAM/CPU usage, matching the behaviour of mature desktop players like
-foobar2000 and AIMP. All three user-reported issues (inconsistent grid views,
-UI freezes during scanning/loading, ~1 GB RAM at 400 tracks) are addressed at
-the root-cause level.
+Architectural performance refactor optimizing PlayTune for 10,000+ track libraries with low CPU/RAM footprint and smooth UI transitions.
 
-#### Added — Unified Grid Component (Issue #1)
-- **`modules/gui/src/mediagridview.{h,cpp}`**: New `MediaGridWidget`
-  (QListWidget subclass) and `MediaGridCard` (QFrame subclass) shared by
-  the Home, Albums and Artists tabs. All three tabs now have identical
-  appearance, sizing, lazy cover loading, hover/selection behaviour,
-  resize-responsive column recalculation, and virtualised rendering
-  (`UniformItemSizes + Adjust`). Code duplication eliminated: three
-  copies of `getRoundedPixmap`, three copies of `updateGridResponsive`,
-  and three near-identical card QFrame subclasses are now a single
-  implementation.
-- **`modules/gui/src/coverloader.{h,cpp}`**: New process-wide
-  `CoverLoader` singleton. Replaces four independent cover-loading paths
-  (Home table, Albums grid, Artists grid, Queue) with one shared LRU
-  cache backed by `QPixmapCache`. Covers are decoded off the GUI thread
-  via `QThreadPool` workers (using `QImageReader` + `setScaledSize` to
-  cap decode memory), delivered to the GUI thread via
-  `QMetaObject::invokeMethod`, and shared across all views. The cache
-  is bounded at 20 MB; eviction is handled by `QPixmapCache`'s built-in
-  LRU.
+#### Added
+- **Unified Media Grid (`MediaGridWidget`)**: Shared virtualized grid component for Home, Albums, and Artists tabs with responsive column calculation and lazy image decoding.
+- **Process-Wide Cover Loader (`CoverLoader`)**: Off-thread image decoder and LRU cover cache (`QPixmapCache`) shared across all table and grid views.
+- **Batch UI Rebuild API (`set_songs_batch`)**: Transactional FFI update API replacing single-track insertions with a single batch transaction.
 
-#### Added — Batch UI Update API (Issue #2)
-- **`bridge::set_songs_batch` (Rust) + `set_songs_batch` (FFI) +
-  `SongsTableWidget::setSongsBatch` (C++)**: New transactional rebuild
-  API that replaces the entire songs table in a single FFI round-trip.
-  The previous code called `add_song` once per track, which on the C++
-  side meant one cross-thread Qt signal emission per track, one
-  `insertRow` + `setCellWidget` per track, and one synchronous cover
-  load + decode per track on the GUI thread. For 10 000 tracks that
-  summed to ~5 s of UI freeze. With `set_songs_batch`, the entire
-  payload crosses the FFI once, the C++ side does a single
-  transactional rebuild (signals blocked, updates disabled), and covers
-  are loaded lazily by the `CoverLoader` when each row scrolls into
-  view. Cuts a 10 000-track `refresh_ui` from ~5 s of UI freeze to a
-  single ~100 ms transaction.
-- **Lazy grid population**: The grid view (Album Card Grid) is no
-  longer populated during `addSong`. Cards are built on-demand when
-  the user first switches to grid view, and rebuilt only when the
-  underlying data changes while the grid is visible. Saves ~676 MB of
-  pixmap memory on a 10 000-track library when the user stays in
-  table view (the common case).
-- **Active-view dispatcher**: `MainWindow::activeSongsTable()` returns
-  the `SongsTableWidget` currently visible to the user (Home / Folders
-  inner / Albums inner / Artists inner). The `songsCleared`,
-  `songAdded`, and `songsBatchReplaced` signals are routed to ONE view
-  via this dispatcher instead of four. Eliminates 4× widget creation
-  and 4× cover loads on every `refresh_ui` call.
-
-#### Changed — Performance Fixes (Issue #2)
-- **O(1) hover/playing row updates**: `SongsTableWidget::updateRowStyles`
-  previously iterated all rows on every hover change (O(n) per hover
-  event). For a 10 000-row table this added ~5 ms of jitter on every
-  mouse move. Replaced with `refreshSingleRowStyle(row)` that only
-  repaints the previously-hovered and newly-hovered rows. The
-  `SongTableRowDelegate::paint` already handled the actual styling;
-  the manual `setBackground`/`setForeground` loop was redundant work.
-- **Resize debounce**: `MediaGridWidget::resizeEvent` and
-  `SongsTableWidget::resizeEvent` now defer the grid re-layout to the
-  next event-loop iteration via `QTimer::singleShot(0, ...)`. This
-  prevents 60+ re-layouts per second during a window drag.
-- **Cover dimensions capped during extraction**: `library::cover_art`
-  now downscales embedded artwork to a maximum of 500×500 px (using
-  Lanczos3) before hashing and persisting. The previous code stored
-  the raw bytes from the tag, which could be multi-megabyte hi-res
-  scans. Caps on-disk cover cache at ~750 KB per album; visible
-  quality unchanged (the largest display size is 150×150).
-- **`QPixmapCache` limit reduced from 100 MB to 20 MB**: 20 MB is
-  plenty for ~500 unique covers at 200×200×4 bytes each. The previous
-  100 MB limit was never filled by typical use and just reserved
-  address space.
-
-#### Changed — Memory Fixes (Issue #3)
-- **No `Vec<TrackRecord>` clone in `refresh_ui`**: The previous code
-  did `*list = tracks.clone()` to copy the entire tracks vector into
-  `CURRENT_TRACK_LIST`, allocating ~5 MB of `String` copies on every
-  refresh for a 10 000-track library. Now builds the FFI payload first
-  (borrowing from `tracks`), then moves `tracks` into the global list
-  — no clone.
-- **Same fix in `rust_search_inner`**: Search no longer clones the
-  filtered tracks vector.
-- **Shared cover pixmap cache**: All four views (Home, Albums, Artists,
-  Queue) now share one `QPixmapCache` instead of each holding their
-  own decoded pixmaps. For a 1 000-cover library this saves ~1.6 MB ×
-  4 = 6.4 MB of duplicate pixmap storage.
-
-#### Files Added
-- `modules/gui/src/coverloader.h`, `coverloader.cpp`
-- `modules/gui/src/mediagridview.h`, `mediagridview.cpp`
-
-#### Files Modified
-- `modules/gui/src/songstable.{h,cpp}` — batch API, lazy grid, O(1) hover
-- `modules/gui/src/albumsview.{h,cpp}` — use `MediaGridWidget`
-- `modules/gui/src/artistsview.{h,cpp}` — use `MediaGridWidget`
-- `modules/gui/src/mainwindow.{h,cpp}` — active-view dispatcher, cache limit
-- `modules/gui/src/gui_bridge.{h,cpp}` — `set_songs_batch` FFI + signal
-- `modules/gui/src/gui_bridge_p.h` — `songsBatchReplaced` signal
-- `modules/gui/CMakeLists.txt` — new source files
-- `src/bridge.rs` — `FfiSongRow`, `SongRowArg`, `set_songs_batch` wrapper
-- `src/ui_sync.rs` — `refresh_ui` uses batch API + move semantics
-- `src/handlers/library.rs` — `rust_search_inner` uses batch API
-- `modules/library/src/cover_art.rs` — cap cover dimensions at 500×500
-
-#### Expected Performance Characteristics (10 000 tracks)
-- **RAM**: ~150–250 MB (down from ~1 GB at 400 tracks)
-  - Saved ~676 MB by lazy grid population
-  - Saved ~80 MB by shared cover cache
-  - Saved ~5 MB per refresh by avoiding Vec clone
-- **CPU during playback**: ~3–5 % (unchanged audio engine; minor
-  savings from reduced GUI-thread work)
-- **CPU during scrolling**: <5 % (down from 30 %)
-  - O(1) hover updates eliminate the 5 ms per-mouse-move jitter
-  - Lazy cover loading means off-screen rows do zero I/O
-- **Tab switch latency**: <50 ms (down from several seconds)
-  - Only the visible view's songs table is rebuilt
-  - Batch API makes the rebuild itself ~50× faster
-- **Import latency (UI freeze)**: <200 ms (down from multi-second freeze)
-  - Scan runs in background thread (unchanged)
-  - Post-scan `refresh_ui` uses batch API
-
-#### Trade-offs
-- **Lazy grid population**: First switch to grid view incurs a one-time
-  cost to build the cards (O(n), ~10 ms for 1 000 tracks). Subsequent
-  switches are instant. Acceptable because the user explicitly
-  requested the grid view.
-- **Cover dimension cap (500×500)**: Hi-res album art (>500 px) is
-  downscaled before caching. Visible quality is unchanged because the
-  largest display size is 150×150. Users who want the original hi-res
-  art for external use can still access it via the tag editor.
-- **No rayon parallelization of scan**: The scan already runs in a
-  background thread, so it doesn't block the UI. Adding rayon would
-  increase build time and binary size without addressing the main
-  bottleneck (which was the UI thread, now fixed via the batch API).
+#### Changed
+- **O(1) Table Row Styling**: Optimized table hover and selection styling to repaint only affected rows rather than iterating the entire table.
+- **Resize Debouncing**: Deferred grid re-layouts during window drag-resizing to prevent UI stutter.
+- **Cover Image Resolution Cap**: Capped embedded album art extraction at 500×500 px to minimize memory and disk cache usage.
+- **Memory Footprint Reductions**: Replaced vector clones with move semantics during UI refreshes and search operations.
 
 ---
 

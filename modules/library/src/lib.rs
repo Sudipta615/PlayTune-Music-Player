@@ -377,35 +377,62 @@ impl LibraryManager {
         cover_art_queue: &mut Vec<(PathBuf, i64, CoverArtData)>,
         progress: &mut ScanProgress,
     ) {
-        for (idx, track) in new_tracks.iter().enumerate() {
-            match self.db.add_or_update_track_with_lyrics(
-                &track.path,
-                if track.title.is_empty() { "Unknown" } else { &track.title },
-                track.artist.as_deref().unwrap_or("Unknown"),
-                track.album.as_deref().unwrap_or("Unknown"),
-                track.duration_secs as f64,
-                &track.duration_str,
-                track.folder_id,
-                track.file_modified,
-                track.lyrics_synced.as_deref(),
-                track.lyrics_unsynced.as_deref(),
-                track.track_number,
-            ) {
-                Ok(id) => {
-                    progress.files_added += 1;
-                    if let Some(slot) = pending_cover_art.get_mut(idx) {
+        // Build the slice of tuples that insert_tracks_batch_tx expects.
+        // We borrow from new_tracks so no cloning of strings is needed.
+        let batch: Vec<(
+            &str,
+            &str,
+            &str,
+            &str,
+            f64,
+            &str,
+            Option<i64>,
+            i64,
+            Option<&str>,
+            Option<&str>,
+            Option<i32>,
+        )> = new_tracks
+            .iter()
+            .map(|t| {
+                (
+                    t.path.as_str(),
+                    if t.title.is_empty() { "Unknown" } else { t.title.as_str() },
+                    t.artist.as_deref().unwrap_or("Unknown"),
+                    t.album.as_deref().unwrap_or("Unknown"),
+                    t.duration_secs as f64,
+                    t.duration_str.as_str(),
+                    t.folder_id,
+                    t.file_modified,
+                    t.lyrics_synced.as_deref(),
+                    t.lyrics_unsynced.as_deref(),
+                    t.track_number,
+                )
+            })
+            .collect();
+
+        // Single transaction for the entire batch — one WAL sync instead of N.
+        let ids_result =
+            self.db.with_transaction(|tx| Database::insert_tracks_batch_tx(tx, &batch));
+
+        match ids_result {
+            Ok(ids) => {
+                progress.files_added += ids.len() as u32;
+                // Post-commit: persist cover art for each newly inserted track.
+                for (orig_idx, track_id) in ids {
+                    if let Some(slot) = pending_cover_art.get_mut(orig_idx) {
                         if let Some(art) = slot.take() {
-                            let album_id = self.db.get_track(id).ok().flatten().and_then(|t| {
-                                let album = t.album;
-                                if album.is_empty() {
-                                    None
-                                } else {
-                                    self.db.get_album_id(&album, None).ok().flatten()
-                                }
-                            });
+                            let album_id =
+                                self.db.get_track(track_id).ok().flatten().and_then(|t| {
+                                    let album = t.album;
+                                    if album.is_empty() {
+                                        None
+                                    } else {
+                                        self.db.get_album_id(&album, None).ok().flatten()
+                                    }
+                                });
                             if let Err(e) = self.db.insert_cover_art(
                                 album_id,
-                                Some(id),
+                                Some(track_id),
                                 None,
                                 Some(&art.data),
                                 Some(&art.data_hash),
@@ -413,9 +440,11 @@ impl LibraryManager {
                                 art.height,
                                 &art.mime_type,
                             ) {
-                                warn!("Failed to persist cover art for track {}: {}", id, e);
+                                warn!("Failed to persist cover art for track {}: {}", track_id, e);
                                 progress.files_failed += 1;
                             }
+                            // Write cover to the file-system cache so the GUI
+                            // can display it without re-reading the audio file.
                             if let Some(cache_dir) = dirs::cache_dir() {
                                 let mut cache_path = cache_dir;
                                 cache_path.push("playtune");
@@ -428,18 +457,23 @@ impl LibraryManager {
                                 } else {
                                     "jpg"
                                 };
-                                cache_path.push(format!("{}.{}", id, ext));
+                                cache_path.push(format!("{}.{}", track_id, ext));
                                 if let Err(e) = std::fs::write(&cache_path, &art.data) {
-                                    warn!("Failed to write cover cache for track {}: {}", id, e);
+                                    warn!(
+                                        "Failed to write cover cache for track {}: {}",
+                                        track_id, e
+                                    );
                                 }
                             }
                         }
                     }
                 }
-                Err(e) => {
-                    log::warn!("Failed to insert track: {}", e);
-                    progress.files_failed += 1;
-                }
+            }
+            Err(e) => {
+                // The entire batch failed (e.g., disk full). Mark every
+                // track in this batch as failed so progress is accurate.
+                log::warn!("Failed to insert batch of {} tracks: {}", new_tracks.len(), e);
+                progress.files_failed += new_tracks.len() as u32;
             }
         }
         new_tracks.clear();
@@ -448,25 +482,44 @@ impl LibraryManager {
     }
 
     fn flush_updated_batch(&self, updated_tracks: &mut Vec<Track>, progress: &mut ScanProgress) {
-        for track in updated_tracks.iter() {
-            match self.db.add_or_update_track_with_lyrics(
-                &track.path,
-                if track.title.is_empty() { "Unknown" } else { &track.title },
-                track.artist.as_deref().unwrap_or("Unknown"),
-                track.album.as_deref().unwrap_or("Unknown"),
-                track.duration_secs as f64,
-                &track.duration_str,
-                track.folder_id,
-                track.file_modified,
-                track.lyrics_synced.as_deref(),
-                track.lyrics_unsynced.as_deref(),
-                track.track_number,
-            ) {
-                Ok(_) => progress.files_updated += 1,
-                Err(e) => {
-                    log::warn!("Failed to update track: {}", e);
-                    progress.files_failed += 1;
-                }
+        // Single transaction wraps all UPDATE statements — one WAL fsync
+        // instead of N (critical for HDD performance on large libraries).
+        let batch: Vec<(
+            &str,
+            &str,
+            &str,
+            &str,
+            f64,
+            &str,
+            Option<i64>,
+            i64,
+            Option<&str>,
+            Option<&str>,
+            Option<i32>,
+        )> = updated_tracks
+            .iter()
+            .map(|t| {
+                (
+                    t.path.as_str(),
+                    if t.title.is_empty() { "Unknown" } else { t.title.as_str() },
+                    t.artist.as_deref().unwrap_or("Unknown"),
+                    t.album.as_deref().unwrap_or("Unknown"),
+                    t.duration_secs as f64,
+                    t.duration_str.as_str(),
+                    t.folder_id,
+                    t.file_modified,
+                    t.lyrics_synced.as_deref(),
+                    t.lyrics_unsynced.as_deref(),
+                    t.track_number,
+                )
+            })
+            .collect();
+
+        match self.db.with_transaction(|tx| Database::insert_tracks_batch_tx(tx, &batch)) {
+            Ok(ids) => progress.files_updated += ids.len() as u32,
+            Err(e) => {
+                log::warn!("Failed to update batch of {} tracks: {}", updated_tracks.len(), e);
+                progress.files_failed += updated_tracks.len() as u32;
             }
         }
         updated_tracks.clear();
@@ -491,6 +544,15 @@ impl LibraryManager {
 
     /// Scan a list of individual audio files and insert them into the database.
     pub fn scan_files(&self, paths: &[std::path::PathBuf]) -> usize {
+        // Build the folder cache ONCE before the loop so we don't re-query the
+        // DB for every file (old `lookup_folder_id` did exactly that).
+        let mut folder_cache: HashMap<String, i64> = HashMap::new();
+        if let Ok(folders) = self.db.get_all_folders() {
+            for f in folders {
+                folder_cache.insert(f.path, f.id);
+            }
+        }
+
         let mut added = 0usize;
         for path in paths {
             if !path.is_file() || !Self::is_audio_file(path) {
@@ -512,7 +574,7 @@ impl LibraryManager {
                 .unwrap_or(0);
 
             if let Ok((mut track, cover)) = self.extract_track_info_with_cover(path, size, mtime) {
-                track.folder_id = self.lookup_folder_id(path);
+                track.folder_id = self.lookup_folder_id_with_cache(path, &mut folder_cache);
                 if self
                     .db
                     .add_or_update_track_with_lyrics(
@@ -569,9 +631,10 @@ impl LibraryManager {
         None
     }
 
-    /// Legacy lookup_folder_id kept for compatibility with scan_files()
-    /// (which doesn't have a per-scan cache). Builds a fresh folder map on
-    /// every call. The scan() path uses lookup_folder_id_with_cache instead.
+    /// Legacy `lookup_folder_id` kept for callers that don't have a
+    /// pre-seeded cache. Builds a fresh folder map on every call.
+    /// Prefer `lookup_folder_id_with_cache` when calling in a loop.
+    #[allow(dead_code)]
     fn lookup_folder_id(&self, path: &Path) -> Option<i64> {
         let mut cache: HashMap<String, i64> = HashMap::new();
         // Pre-seed with all existing folders so we don't re-add folders

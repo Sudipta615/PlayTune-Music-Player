@@ -70,7 +70,11 @@ void SleepTimerDialog::setupUi() {
     m_customSpin->setSuffix(" min");
     m_customSpin->setStyleSheet(
         "QSpinBox { background-color: #14101E; color: #F0F0F5; border: 1px solid #2A1E3E; "
-        "border-radius: 4px; padding: 4px 8px; }");
+        "border-radius: 6px; padding: 4px 8px; padding-right: 24px; font-size: 13px; }"
+        "QSpinBox::up-button { subcontrol-origin: border; subcontrol-position: top right; width: 22px; height: 14px; border-left: 1px solid #2A1E3E; border-bottom: 1px solid #2A1E3E; border-top-right-radius: 5px; background-color: #241D3B; }"
+        "QSpinBox::up-button:hover { background-color: #7B1FA2; }"
+        "QSpinBox::down-button { subcontrol-origin: border; subcontrol-position: bottom right; width: 22px; height: 14px; border-left: 1px solid #2A1E3E; border-bottom-right-radius: 5px; background-color: #241D3B; }"
+        "QSpinBox::down-button:hover { background-color: #7B1FA2; }");
     customRow->addWidget(m_customSpin);
     customRow->addStretch();
     auto* customBtn = new QPushButton("Start");

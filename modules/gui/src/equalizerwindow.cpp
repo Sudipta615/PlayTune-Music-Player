@@ -363,12 +363,19 @@ void EqualizerWindow::setupUi() {
     m_advFreqSlider->setRange(20, 20000);
     m_advFreqSlider->setValue(1000);
     m_advFreqSlider->setToolTip("Adjust Center Frequency (Hz)");
+    const QString doubleSpinStyle =
+        "QDoubleSpinBox { background-color: #1C2030; color: #FFFFFF; border: 1px solid #30374E; border-radius: 5px; padding: 4px; padding-right: 22px; font-size: 12px; }"
+        "QDoubleSpinBox::up-button { subcontrol-origin: border; subcontrol-position: top right; width: 20px; height: 12px; border-left: 1px solid #30374E; border-bottom: 1px solid #30374E; border-top-right-radius: 5px; background-color: #262D42; }"
+        "QDoubleSpinBox::up-button:hover { background-color: #7B1FA2; }"
+        "QDoubleSpinBox::down-button { subcontrol-origin: border; subcontrol-position: bottom right; width: 20px; height: 12px; border-left: 1px solid #30374E; border-bottom-right-radius: 5px; background-color: #262D42; }"
+        "QDoubleSpinBox::down-button:hover { background-color: #7B1FA2; }";
+
     m_advFreqSpin = new QDoubleSpinBox(bandEditorCard);
     m_advFreqSpin->setRange(20.0, 20000.0);
     m_advFreqSpin->setDecimals(1);
     m_advFreqSpin->setValue(1000.0);
     m_advFreqSpin->setSuffix(" Hz");
-    m_advFreqSpin->setStyleSheet("QDoubleSpinBox { background-color: #1C2030; color: #FFFFFF; border: 1px solid #30374E; border-radius: 5px; padding: 4px; font-size: 12px; }");
+    m_advFreqSpin->setStyleSheet(doubleSpinStyle);
     m_advFreqSpin->setToolTip("Adjust Center Frequency (Hz)");
 
     bandEditorLayout->addWidget(freqLabel, 1, 0);
@@ -387,7 +394,7 @@ void EqualizerWindow::setupUi() {
     m_advQSpin->setSingleStep(0.1);
     m_advQSpin->setDecimals(2);
     m_advQSpin->setValue(1.00);
-    m_advQSpin->setStyleSheet("QDoubleSpinBox { background-color: #1C2030; color: #FFFFFF; border: 1px solid #30374E; border-radius: 5px; padding: 4px; font-size: 12px; }");
+    m_advQSpin->setStyleSheet(doubleSpinStyle);
     m_advQSpin->setToolTip("Adjust Quality Factor / Bandwidth (Q Factor)");
 
     bandEditorLayout->addWidget(qLabel, 2, 0);

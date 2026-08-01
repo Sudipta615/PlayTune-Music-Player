@@ -344,7 +344,7 @@ void QueueWidget::setupUi() {
     m_volumeIcon->setStyleSheet("QPushButton { border: none; background: transparent; } QPushButton:hover { background-color: #1B1130; border-radius: 4px; }");
     m_volumeIcon->setToolTip("Toggle Mute Audio (M)");
 
-    m_volumeSlider = new QSlider(Qt::Horizontal, this);
+    m_volumeSlider = new ClickableSlider(Qt::Horizontal, this);
     m_volumeSlider->setObjectName("VolumeSlider");
     m_volumeSlider->setRange(0, 100);
 

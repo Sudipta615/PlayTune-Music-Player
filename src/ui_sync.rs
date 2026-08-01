@@ -146,7 +146,27 @@ pub fn push_audio_devices_to_gui(backend: AudioBackend) {
     }
 }
 
+/// Monotonically-increasing counter incremented on each navigation event.
+/// Background `refresh_ui` workers capture it at spawn time and bail out
+/// before making FFI calls if the counter has advanced (the user already
+/// navigated away). This eliminates redundant table rebuilds when the
+/// user clicks tabs rapidly.
+pub static NAV_GENERATION: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+
+/// Increment the nav generation and return the new value. Call this at the
+/// top of every nav handler so in-flight workers for the previous tab exit.
+pub fn next_nav_gen() -> u64 {
+    NAV_GENERATION.fetch_add(1, std::sync::atomic::Ordering::SeqCst) + 1
+}
+
 pub fn refresh_ui(filter_type: &str, filter_id: Option<i64>) {
+    refresh_ui_gen(filter_type, filter_id, NAV_GENERATION.load(std::sync::atomic::Ordering::SeqCst))
+}
+
+/// Like `refresh_ui` but the caller supplies the expected generation value.
+/// If `NAV_GENERATION` has been incremented beyond `expected_gen` by the
+/// time we are about to emit FFI calls, we discard the result and return.
+pub fn refresh_ui_gen(filter_type: &str, filter_id: Option<i64>, expected_gen: u64) {
     static REFRESH_LOCK: parking_lot::Mutex<()> = parking_lot::const_mutex(());
     let _refresh_guard = REFRESH_LOCK.lock();
     static LAST_PUSHED_ACTIVE_INDEX: std::sync::atomic::AtomicI32 =
@@ -222,6 +242,18 @@ pub fn refresh_ui(filter_type: &str, filter_id: Option<i64>) {
     };
 
     if let Some(tracks) = tracks_opt {
+        // Bail early if a newer navigation event has superseded us.
+        // We check AFTER the DB query (which is the expensive part) so we
+        // don't hold locks or issue FFI calls for a stale result.
+        if NAV_GENERATION.load(std::sync::atomic::Ordering::SeqCst) != expected_gen {
+            log::debug!(
+                "refresh_ui: gen {} superseded by {}, discarding result",
+                expected_gen,
+                NAV_GENERATION.load(std::sync::atomic::Ordering::SeqCst)
+            );
+            return;
+        }
+
         let mut playing_track_id: i64 = if let Some(list_lock) = CURRENT_TRACK_LIST.get() {
             if let Some(list) = list_lock.try_lock() {
                 let idx = *CURRENT_INDEX.lock();
@@ -245,12 +277,18 @@ pub fn refresh_ui(filter_type: &str, filter_id: Option<i64>) {
             }
         }
 
-        // Move the tracks into the global list without cloning. The
-        // previous code did `*list = tracks.clone();` which for a 10 000-
-        // track library allocated ~5 MB of String copies on every
-        // refresh_ui call. We build the FFI payload from `tracks` first
-        // (which only borrows the strings), then move `tracks` into the
-        // global list — no clone needed.
+        // Build the FFI payload. Cover paths are intentionally omitted —
+        // sending them would require N calls to `cached_cover_path()`
+        // which each acquire a write lock and may do disk I/O on cache
+        // miss. Instead we send an empty string and let the C++ CoverLoader
+        // resolve covers lazily as rows scroll into view (it already does
+        // this; the cover path stored on the QTableWidgetItem via UserRole
+        // is retrieved by the delegate when painting).
+        //
+        // The C++ side was already updated to handle empty cover_path by
+        // requesting an async load via CoverLoader::requestAsync, so the
+        // only visible effect is that the first paint shows the default art
+        // for ~1 frame before the async load delivers the real cover.
         let ffi_rows: Vec<bridge::SongRowArg> = tracks
             .iter()
             .enumerate()

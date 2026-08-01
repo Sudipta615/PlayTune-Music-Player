@@ -74,6 +74,77 @@ private:
     };
 };
 
+#include <QSlider>
+#include <QMouseEvent>
+#include <QStyleOptionSlider>
+#include <QStyle>
+#include <algorithm>
+
+// Modern QSlider subclass that jumps directly to clicked position on Left-Click
+class ClickableSlider : public QSlider {
+    Q_OBJECT
+public:
+    explicit ClickableSlider(Qt::Orientation orientation, QWidget* parent = nullptr)
+        : QSlider(orientation, parent) {}
+    explicit ClickableSlider(QWidget* parent = nullptr)
+        : QSlider(parent) {}
+    ~ClickableSlider() override = default;
+
+protected:
+    void mousePressEvent(QMouseEvent* event) override {
+        if (event->button() == Qt::LeftButton) {
+            int val = pixelPosToRangeValue(event->pos());
+            setValue(val);
+            emit sliderMoved(val);
+            QSlider::mousePressEvent(event);
+            setValue(val);
+            emit sliderMoved(val);
+        } else {
+            QSlider::mousePressEvent(event);
+        }
+    }
+
+private:
+    int pixelPosToRangeValue(const QPoint& pos) const {
+        QStyleOptionSlider opt;
+        initStyleOption(&opt);
+        QRect handleRect = style()->subControlRect(QStyle::CC_Slider, &opt, QStyle::SC_SliderHandle, this);
+        QRect grooveRect = style()->subControlRect(QStyle::CC_Slider, &opt, QStyle::SC_SliderGroove, this);
+
+        int val = minimum();
+        if (orientation() == Qt::Horizontal) {
+            int sliderMin = grooveRect.x() + handleRect.width() / 2;
+            int sliderMax = grooveRect.x() + grooveRect.width() - handleRect.width() / 2;
+            int usableWidth = sliderMax - sliderMin;
+            if (usableWidth > 0) {
+                double ratio = qBound(0.0, static_cast<double>(pos.x() - sliderMin) / usableWidth, 1.0);
+                if (opt.upsideDown) {
+                    ratio = 1.0 - ratio;
+                }
+                val = minimum() + qRound(ratio * (maximum() - minimum()));
+            } else {
+                double ratio = qBound(0.0, static_cast<double>(pos.x()) / qMax(1, width()), 1.0);
+                val = minimum() + qRound(ratio * (maximum() - minimum()));
+            }
+        } else {
+            int sliderMin = grooveRect.y() + handleRect.height() / 2;
+            int sliderMax = grooveRect.y() + grooveRect.height() - handleRect.height() / 2;
+            int usableHeight = sliderMax - sliderMin;
+            if (usableHeight > 0) {
+                double ratio = qBound(0.0, static_cast<double>(sliderMax - pos.y()) / usableHeight, 1.0);
+                if (opt.upsideDown) {
+                    ratio = 1.0 - ratio;
+                }
+                val = minimum() + qRound(ratio * (maximum() - minimum()));
+            } else {
+                double ratio = qBound(0.0, static_cast<double>(height() - pos.y()) / qMax(1, height()), 1.0);
+                val = minimum() + qRound(ratio * (maximum() - minimum()));
+            }
+        }
+        return val;
+    }
+};
+
 // Waveform Seekbar Visualizer
 class WaveformVisualizer : public QWidget {
     Q_OBJECT
@@ -85,11 +156,15 @@ public:
     void updateBuffer(const QVector<float>& buffer);
     void setPlaying(bool playing);
 
+signals:
+    void seekRequested(double ratio); // 0.0 to 1.0
+
 protected:
     void paintEvent(QPaintEvent* event) override;
     void timerEvent(QTimerEvent* event) override;
     void hideEvent(QHideEvent* event) override;
     void showEvent(QShowEvent* event) override;
+    void mousePressEvent(QMouseEvent* event) override;
 
 private:
     void generateDefaultWaveform();

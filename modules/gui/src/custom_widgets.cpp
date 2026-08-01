@@ -417,6 +417,20 @@ void WaveformVisualizer::showEvent(QShowEvent* event) {
     QWidget::showEvent(event);
 }
 
+void WaveformVisualizer::mousePressEvent(QMouseEvent* event) {
+    if (event->button() == Qt::LeftButton) {
+        double w = width();
+        if (w > 0.0) {
+            double ratio = qBound(0.0, static_cast<double>(event->pos().x()) / w, 1.0);
+            setPlaybackProgress(ratio);
+            emit seekRequested(ratio);
+        }
+        event->accept();
+    } else {
+        QWidget::mousePressEvent(event);
+    }
+}
+
 void WaveformVisualizer::paintEvent(QPaintEvent* event) {
     Q_UNUSED(event);
     QPainter painter(this);
