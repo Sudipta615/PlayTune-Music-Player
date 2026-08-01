@@ -84,18 +84,11 @@ fn main() {
     if cfg!(target_os = "macos") {
         println!("cargo:rustc-link-lib=dylib=c++");
     } else if cfg!(target_env = "msvc") {
-        // MSVC links the C runtime automatically, but the C++ standard
-        // library (msvcp140) is NOT — it must be linked explicitly.
-        // Without this, linking the CMake-built C++ static library
-        // (playtune_gui) fails with LNK1120 (unresolved externals).
-        //
-        // rustc's own MSVC toolchain detection can be stale for very recent
-        // Visual Studio releases (e.g. VS 2026 / MSVC 14.5x), so the LIB
-        // search directories it hands to link.exe may be incomplete and
-        // `msvcp140.lib` cannot be found (LNK1181). We re-derive the same
-        // directories that vcvars would set via the `cc` crate's
-        // windows_registry (which mirrors vcvars and tracks new VS releases)
-        // and emit them explicitly as link-search paths.
+        // MSVC links the C and C++ runtimes automatically (via msvcrt/msvcprt
+        // and #pragma comment(lib) directives emitted by MSVC C++ headers).
+        // Emitting a manual link directive like `msvcp140` causes link.exe
+        // to search for `msvcp140.lib` (which does not exist; the MSVC import
+        // library is named `msvcprt.lib`), resulting in LNK1181 linker errors.
         if let Some(tool) = cc::windows_registry::find_tool(
             &std::env::var("TARGET").unwrap_or_else(|_| "x86_64-pc-windows-msvc".to_string()),
             "cl.exe",
@@ -110,8 +103,6 @@ fn main() {
                 }
             }
         }
-
-        println!("cargo:rustc-link-lib=dylib=msvcp140");
     } else {
         println!("cargo:rustc-link-lib=dylib=stdc++");
     }
