@@ -379,19 +379,7 @@ impl LibraryManager {
     ) {
         // Build the slice of tuples that insert_tracks_batch_tx expects.
         // We borrow from new_tracks so no cloning of strings is needed.
-        let batch: Vec<(
-            &str,
-            &str,
-            &str,
-            &str,
-            f64,
-            &str,
-            Option<i64>,
-            i64,
-            Option<&str>,
-            Option<&str>,
-            Option<i32>,
-        )> = new_tracks
+        let batch: Vec<db::BatchTrackInput<'_>> = new_tracks
             .iter()
             .map(|t| {
                 (
@@ -484,19 +472,7 @@ impl LibraryManager {
     fn flush_updated_batch(&self, updated_tracks: &mut Vec<Track>, progress: &mut ScanProgress) {
         // Single transaction wraps all UPDATE statements — one WAL fsync
         // instead of N (critical for HDD performance on large libraries).
-        let batch: Vec<(
-            &str,
-            &str,
-            &str,
-            &str,
-            f64,
-            &str,
-            Option<i64>,
-            i64,
-            Option<&str>,
-            Option<&str>,
-            Option<i32>,
-        )> = updated_tracks
+        let batch: Vec<db::BatchTrackInput<'_>> = updated_tracks
             .iter()
             .map(|t| {
                 (

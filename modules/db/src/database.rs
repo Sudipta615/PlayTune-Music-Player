@@ -69,6 +69,21 @@ pub struct AlbumRecord {
     pub year: Option<i32>,
 }
 
+/// Tuple representation of track fields used for batch insertion in transactions.
+pub type BatchTrackInput<'a> = (
+    &'a str,         // path
+    &'a str,         // title
+    &'a str,         // artist
+    &'a str,         // album
+    f64,             // duration_secs
+    &'a str,         // duration_str
+    Option<i64>,     // folder_id
+    i64,             // file_modified
+    Option<&'a str>, // lyrics_synced
+    Option<&'a str>, // lyrics_unsynced
+    Option<i32>,     // track_number
+);
+
 /// Lightweight artist aggregator row used by the Artists view.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ArtistRecord {
@@ -653,19 +668,7 @@ impl PlayTuneDb {
     /// transaction, the entire batch flushes in one sync (< 50 ms).
     pub fn insert_tracks_batch_tx<'tx>(
         tx: &rusqlite::Transaction<'tx>,
-        tracks: &[(
-            &str,         // path
-            &str,         // title
-            &str,         // artist
-            &str,         // album
-            f64,          // duration_secs
-            &str,         // duration_str
-            Option<i64>,  // folder_id
-            i64,          // file_modified
-            Option<&str>, // lyrics_synced
-            Option<&str>, // lyrics_unsynced
-            Option<i32>,  // track_number
-        )],
+        tracks: &[BatchTrackInput<'_>],
     ) -> Result<Vec<(usize, i64)>, DbError> {
         let mut ids: Vec<(usize, i64)> = Vec::with_capacity(tracks.len());
         // Prepare once, execute N times — avoids re-parsing the SQL
