@@ -10,6 +10,13 @@ fn main() {
             cmake_cfg.generator("Unix Makefiles");
         }
     }
+    if cfg!(target_env = "msvc") {
+        // Ensure MSVC C++ runtime matches Rust's default C runtime (/MD - MultiThreadedDLL).
+        // Without this, CMake in Debug profile compiles C++ with /MDd (MultiThreadedDebugDLL),
+        // which introduces debug CRT calls like `_calloc_dbg` and `_CrtDbgReport` that conflict
+        // with rustc's /MD runtime at link time (LNK4098 / LNK2001).
+        cmake_cfg.define("CMAKE_MSVC_RUNTIME_LIBRARY", "MultiThreadedDLL");
+    }
     let dst = cmake_cfg.build();
 
     // 2. Link our custom static library
