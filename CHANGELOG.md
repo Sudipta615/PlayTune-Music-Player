@@ -42,7 +42,30 @@ All developers and contributors **MUST** follow the standard 3-way (`x.y.z`) Sem
 
 ## 🗓️ Version History
 
+### [1.1.0] — 2026-08-03 — Optimized Mode & High-Contrast Description Badges
+
+#### Summary
+Introduced a global **Optimized Mode** in Settings for dramatic CPU and RAM usage reductions on low-power hardware, alongside high-contrast translucent pill badge styling for player card track descriptions.
+
+#### Added
+- **Optimized Mode**: Added a dedicated **⚡ PERFORMANCE & RESOURCE USAGE** card at the top right of the Settings page.
+  - Live-switchable without app restart via `optimizedModeToggled` Qt signal.
+  - Hides the FFT Spectrum Visualizer and halts 30/60 FPS animation timers and Rust FFI visualizer updates.
+  - Disables real cover image loads and LRU cache allocation across Songs table, Queue panel, Albums grid, and Artists grid, substituting cheap pre-cached static default album art placeholders.
+  - Removes GPU drop shadow effects and 400ms color gradient transition animations on track changes.
+  - Disables ReplayGain loudness scanning and locks UI tooltips/hints while active.
+  - Reduces `QPixmapCache` limit to 2 MB (preserving real cover art exclusively for the Now Playing card).
+- **High-Contrast Player Card Description Badges**: Styled `NowPlayingArtist` and `NowPlayingAlbum` labels in `NowPlayingCard` with translucent dark pill backgrounds (`rgba(10, 12, 20, 0.45)` and `rgba(10, 12, 20, 0.35)`), soft white borders, and bright high-contrast text (`#F0F2F8` / `#D1D6E5`) for 100% legibility across any dynamic background gradient in both Normal and Optimized modes.
+
+#### Fixed
+- **Visualizer Resize Override**: Resolved a bug where `NowPlayingCard::resizeEvent` unconditionally set `WaveformVisualizer` visibility to true on window resize/show events, overriding Optimized Mode.
+- **Queue Panel Thumbnails**: Updated `QueueWidget` track creation and drag-and-drop reordering to tag thumbnail labels and respect Optimized Mode state.
+- **Settings Layout Alignment**: Positioned the Performance card at the top right of the 2-column Settings page directly above Playback & Audio Processing.
+
+---
+
 ### [1.0.6] — 2026-08-02 — High-Contrast Duration Labels & Styling
+
 
 #### Summary
 Enhanced the visual contrast and legibility of player card track duration labels on dynamic backdrop gradients.

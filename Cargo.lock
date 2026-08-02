@@ -53,7 +53,7 @@ dependencies = [
 
 [[package]]
 name = "analysis"
-version = "1.0.6"
+version = "1.1.0"
 dependencies = [
  "num-complex",
  "realfft",
@@ -602,7 +602,7 @@ dependencies = [
 
 [[package]]
 name = "config"
-version = "1.0.6"
+version = "1.1.0"
 dependencies = [
  "dirs",
  "log",
@@ -847,7 +847,7 @@ checksum = "a4ae5f15dda3c708c0ade84bfee31ccab44a3da4f88015ed22f63732abe300c8"
 
 [[package]]
 name = "db"
-version = "1.0.6"
+version = "1.1.0"
 dependencies = [
  "chrono",
  "dirs",
@@ -982,7 +982,7 @@ checksum = "66b7e2430c6dff6a955451e2cfc438f09cea1965a9d6f87f7e3b90decc014099"
 
 [[package]]
 name = "engine"
-version = "1.0.6"
+version = "1.1.0"
 dependencies = [
  "analysis",
  "approx",
@@ -1520,7 +1520,7 @@ dependencies = [
 
 [[package]]
 name = "library"
-version = "1.0.6"
+version = "1.1.0"
 dependencies = [
  "chrono",
  "config",
@@ -1949,7 +1949,7 @@ checksum = "19f132c84eca552bf34cab8ec81f1c1dcc229b811638f9d283dceabe58c5569e"
 
 [[package]]
 name = "platform"
-version = "1.0.6"
+version = "1.1.0"
 dependencies = [
  "config",
  "log",
@@ -1961,7 +1961,7 @@ dependencies = [
 
 [[package]]
 name = "playtune"
-version = "1.0.6"
+version = "1.1.0"
 dependencies = [
  "analysis",
  "arc-swap",
