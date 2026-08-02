@@ -42,6 +42,31 @@ All developers and contributors **MUST** follow the standard 3-way (`x.y.z`) Sem
 
 ## 🗓️ Version History
 
+### [1.0.6] — 2026-08-02 — High-Contrast Duration Labels & Styling
+
+#### Summary
+Enhanced the visual contrast and legibility of player card track duration labels on dynamic backdrop gradients.
+
+#### Added
+- **Glassmorphism Duration Pill Badges**: Styled `m_timeElapsed` and `m_timeTotal` labels in `NowPlayingCard` with a semi-transparent dark pill background (`rgba(10, 12, 20, 0.55)`), white border stroke (`rgba(255, 255, 255, 0.18)`), high-contrast bold white text (`#FFFFFF`, `font-weight: 600`), and a drop shadow effect for maximum readability on any background gradient.
+
+---
+
+### [1.0.5] — 2026-08-02 — Persistent Shuffle Queue Fix
+
+#### Summary
+Resolved persistent shuffle queue playback synchronization across UI components and queue reordering.
+
+#### Added
+- **Persistent Shuffle Queue (`SHUFFLE_ORDER`)**: Added global `SHUFFLE_ORDER` and `SHUFFLE_POS` state in `app_state.rs` with `sync_shuffle_order()` helper to maintain a single, consistent shuffled index sequence across UI rendering and playback transitions.
+
+#### Fixed
+- **Shuffle Queue Playback Mismatch**: Fixed a bug where toggling shuffle displayed a shuffled track sequence in the Up Next queue panel, but pressing Next or auto-advancing on track completion re-sampled a new pseudo-random track instead of playing the displayed queue item.
+- **Queue Drag-and-Drop Reordering**: Updated `rust_reorder_queue` to reorder elements within `SHUFFLE_ORDER` when shuffle is enabled, preserving user queue reordering.
+- **Unified Ticker Auto-Advance**: Standardized automatic track transition on track completion to invoke `rust_next()`.
+
+---
+
 ### [1.0.4] — 2026-08-02 — Performance, UI & Responsiveness Optimization Release
 
 #### Summary
