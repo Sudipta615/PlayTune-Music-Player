@@ -1,5 +1,7 @@
 #include "custom_widgets.h"
+#include "appsettings.h"
 #include <QPainter>
+
 #include <QPainterPath>
 #include <QMouseEvent>
 #include <QVariantAnimation>
@@ -408,6 +410,14 @@ void WaveformVisualizer::hideEvent(QHideEvent* event) {
 }
 
 void WaveformVisualizer::showEvent(QShowEvent* event) {
+    if (AppSettings::instance().isOptimizedMode()) {
+        if (m_timerId != -1) {
+            killTimer(m_timerId);
+            m_timerId = -1;
+        }
+        QWidget::showEvent(event);
+        return;
+    }
     if (m_timerWasActive || m_isPlaying) {
         if (m_timerId == -1) {
             m_timerId = startTimer(33);
@@ -416,6 +426,7 @@ void WaveformVisualizer::showEvent(QShowEvent* event) {
     }
     QWidget::showEvent(event);
 }
+
 
 void WaveformVisualizer::mousePressEvent(QMouseEvent* event) {
     if (event->button() == Qt::LeftButton) {

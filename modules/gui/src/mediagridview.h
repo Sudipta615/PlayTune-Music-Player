@@ -88,6 +88,12 @@ public:
     /// set the pending flag. Used by MediaGridWidget batch append.
     void setDeferRefresh(bool defer) { m_deferRefresh = defer; }
 
+    /// Called by MediaGridWidget::setOptimizedMode to clear or restore the
+    /// cover pixmap. When optimized=true, shows the default album art placeholder
+    /// (cheap, pre-cached) rather than loading the real cover from disk.
+    void setCoverOptimized(bool optimized);
+
+
 protected:
     void showEvent(QShowEvent* event) override;
 
@@ -135,6 +141,9 @@ public:
 
     /// Clear all cards.
     void clearGrid();
+
+    /// Apply or remove Optimized Mode: hides/shows cover art on all cards.
+    void setOptimizedMode(bool enabled);
 
     /// Number of cards currently in the grid.
     using QListWidget::count;

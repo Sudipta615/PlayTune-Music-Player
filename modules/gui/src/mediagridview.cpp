@@ -1,6 +1,7 @@
 #include "mediagridview.h"
 #include "coverloader.h"
 #include "custom_widgets.h"  // getDefaultAlbumArt
+#include "appsettings.h"
 #include <QVBoxLayout>
 #include <QFontMetrics>
 #include <QTimer>
@@ -171,6 +172,23 @@ void MediaGridCard::refreshCover() {
         m_coverRequested = false;
         return;
     }
+    // In Optimized Mode, skip real cover loads — show the default art instead.
+    if (AppSettings::instance().isOptimizedMode()) {
+        if (m_coverLabel) {
+            QPixmap placeholder = getDefaultAlbumArt();
+            if (!placeholder.isNull()) {
+                m_coverLabel->setPixmap(
+                    placeholder.scaled(m_coverSize, m_coverSize,
+                                       Qt::KeepAspectRatioByExpanding,
+                                       Qt::SmoothTransformation));
+            } else {
+                m_coverLabel->setPixmap(QPixmap());
+            }
+        }
+        m_coverRequested = false;
+        return;
+    }
+
     if (m_coverPath.isEmpty()) {
         QPixmap def = CoverLoader::instance().defaultCover();
         m_coverLabel->setPixmap(def.scaled(m_coverSize, m_coverSize,
@@ -208,6 +226,29 @@ void MediaGridCard::showEvent(QShowEvent* event) {
 
 void MediaGridCard::applyCoverSize(int size) {
     if (m_coverLabel) m_coverLabel->setFixedSize(size, size);
+}
+
+void MediaGridCard::setCoverOptimized(bool optimized) {
+    if (optimized) {
+        // Show the default album art placeholder instead of a blank dark square.
+        // getDefaultAlbumArt() returns a pre-cached QPixmap — no disk I/O.
+        QPixmap placeholder = getDefaultAlbumArt();
+        if (m_coverLabel) {
+            if (!placeholder.isNull()) {
+                m_coverLabel->setPixmap(
+                    placeholder.scaled(m_coverSize, m_coverSize,
+                                       Qt::KeepAspectRatioByExpanding,
+                                       Qt::SmoothTransformation));
+            } else {
+                m_coverLabel->setPixmap(QPixmap());
+            }
+        }
+        // Mark as not-requested so refreshCover() re-fetches on Normal restore.
+        m_coverRequested = false;
+    } else {
+        // Normal Mode restored: allow refreshCover to re-request the real cover.
+        m_coverRequested = false;
+    }
 }
 
 // ===========================================================================
@@ -402,6 +443,12 @@ void MediaGridWidget::enqueueDeferredCover(const QString& path, int size) {
 }
 
 void MediaGridWidget::processDeferredCoverLoads() {
+    // In Optimized Mode do not load any covers for grid cards.
+    if (AppSettings::instance().isOptimizedMode()) {
+        m_deferredLoadQueue.clear();
+        m_deferredLoadTimer->stop();
+        return;
+    }
     int batch = qMin(kMaxConcurrentLoads, m_deferredLoadQueue.size());
     if (batch == 0) {
         m_deferredLoadTimer->stop();
@@ -440,4 +487,25 @@ void MediaGridWidget::resizeEvent(QResizeEvent* event) {
 void MediaGridWidget::showEvent(QShowEvent* event) {
     QListWidget::showEvent(event);
     QTimer::singleShot(0, this, &MediaGridWidget::updateGridResponsive);
+}
+
+void MediaGridWidget::setOptimizedMode(bool enabled) {
+    if (enabled) {
+        // Stop and flush the deferred cover-load queue immediately.
+        if (m_deferredLoadTimer) m_deferredLoadTimer->stop();
+        m_deferredLoadQueue.clear();
+        m_deferredLoadSeen.clear();
+    }
+    // Show or hide the cover label on all existing cards.
+    for (int i = 0; i < count(); ++i) {
+        if (auto* it = item(i)) {
+            if (auto* card = qobject_cast<MediaGridCard*>(itemWidget(it))) {
+                card->setCoverOptimized(enabled);
+            }
+        }
+    }
+    // Kick off lazy cover reloads if switching back to Normal Mode.
+    if (!enabled) {
+        scheduleDeferredLoads();
+    }
 }

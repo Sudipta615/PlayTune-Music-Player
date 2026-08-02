@@ -151,6 +151,12 @@ void ArtistsViewWidget::updateGridResponsive() {
     if (m_artistGrid) m_artistGrid->updateGridResponsive();
 }
 
+void ArtistsViewWidget::setOptimizedMode(bool enabled) {
+    if (m_artistGrid) m_artistGrid->setOptimizedMode(enabled);
+    if (m_artistSongsTable) m_artistSongsTable->setOptimizedMode(enabled);
+}
+
+
 void ArtistsViewWidget::resizeEvent(QResizeEvent* event) {
     QWidget::resizeEvent(event);
     QTimer::singleShot(0, this, &ArtistsViewWidget::updateGridResponsive);

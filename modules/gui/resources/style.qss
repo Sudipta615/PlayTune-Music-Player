@@ -96,14 +96,25 @@ QLabel#NowPlayingTitle {
 }
 
 QLabel#NowPlayingArtist {
-    font-size: 14px;
-    color: #C0C5D3;
+    font-size: 12px;
+    font-weight: 500;
+    color: #F0F2F8;
+    background-color: rgba(10, 12, 20, 0.45);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: 6px;
+    padding: 3px 8px;
 }
 
 QLabel#NowPlayingAlbum {
-    font-size: 13px;
-    color: #7E8494;
+    font-size: 12px;
+    font-weight: 500;
+    color: #D1D6E5;
+    background-color: rgba(10, 12, 20, 0.35);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 6px;
+    padding: 3px 8px;
 }
+
 
 QLabel#TimeLabel {
     font-size: 11px;

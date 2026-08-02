@@ -15,6 +15,7 @@ public:
     ~SettingsPageWidget() override = default;
 
     bool isTooltipsEnabled() const;
+    bool isOptimizedMode() const { return m_optimizedMode; }
     bool isCrossfadeEnabled() const { return m_crossfadeEnabled; }
     bool isNormalizeEnabled() const { return m_normalizeEnabled; }
     bool isGaplessEnabled() const { return m_gaplessEnabled; }
@@ -36,6 +37,7 @@ signals:
     void crossfadeDurationChanged(int duration_ms);
     void outputBackendChanged(int backend);
     void outputDeviceChanged(const QString& deviceName);
+    void optimizedModeToggled(bool enabled);
     void addSongsRequested();
     void addFoldersRequested();
     void deleteFolderRequested(int folderId);
@@ -68,6 +70,8 @@ private:
     ToggleSwitch* m_notificationsToggle = nullptr;
     ToggleSwitch* m_trayToggle = nullptr;
     ToggleSwitch* m_minimizeToTrayToggle = nullptr;
+    ToggleSwitch* m_optimizedModeToggle = nullptr;
+    QPushButton*  m_loudnessScanBtn = nullptr;
     QSpinBox* m_crossfadeDurationSpin = nullptr;
     QPushButton* m_addSongsBtn = nullptr;
     QPushButton* m_addFoldersBtn = nullptr;
@@ -83,6 +87,7 @@ private:
     bool m_notificationsEnabled = true;
     bool m_trayEnabled = false;
     bool m_minimizeToTray = false;
+    bool m_optimizedMode = false;
     int m_currentBackend = 0;
     QString m_currentDevice = "Default / Automatic";
     QString m_currentTheme = "Dark (Default)";

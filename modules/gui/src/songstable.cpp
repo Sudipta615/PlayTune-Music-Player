@@ -2,6 +2,7 @@
 #include "gui_bridge_p.h"
 #include "custom_widgets.h"
 #include "coverloader.h"
+#include "appsettings.h"
 #include "tageditordialog.h"
 #include "loudnessscannerdialog.h"
 #include <QVBoxLayout>
@@ -43,10 +44,29 @@ namespace {
 /// through the shared CoverLoader cache so the same pixmap is reused
 /// by the queue widget and the grid cards.
 static QPixmap loadThumbnail(const QString& coverPath) {
+    if (AppSettings::instance().isOptimizedMode()) {
+        static QPixmap roundedDefault;
+        if (roundedDefault.isNull()) {
+            QPixmap def = getDefaultAlbumArt();
+            QPixmap target(44, 44);
+            target.fill(Qt::transparent);
+            QPainter painter(&target);
+            painter.setRenderHint(QPainter::Antialiasing, true);
+            painter.setRenderHint(QPainter::SmoothPixmapTransform, true);
+            QPainterPath path;
+            path.addRoundedRect(0, 0, 44, 44, 8, 8);
+            painter.setClipPath(path);
+            QPixmap scaled = def.scaled(44, 44, Qt::KeepAspectRatioByExpanding, Qt::SmoothTransformation);
+            painter.drawPixmap((44 - scaled.width()) / 2, (44 - scaled.height()) / 2, scaled);
+            roundedDefault = target;
+        }
+        return roundedDefault;
+    }
     QPixmap rounded;
     if (CoverLoader::instance().tryGetRounded(coverPath, 44, 8, rounded)) {
         return rounded;
     }
+
     // Cache miss: request an async load and return the default cover
     // for now. The row will be repainted when the load completes via
     // the CoverLoader::coverReady signal (wired in setupUi).
@@ -524,6 +544,45 @@ void SongsTableWidget::clearSongs() {
 QPixmap SongsTableWidget::getThumbnail(const QString& title) {
     Q_UNUSED(title);
     return getDefaultAlbumArt();
+}
+
+void SongsTableWidget::setOptimizedMode(bool enabled) {
+    int rows = m_table->rowCount();
+    for (int row = 0; row < rows; ++row) {
+        if (auto* titleCont = m_table->cellWidget(row, 1)) {
+            auto labels = titleCont->findChildren<QLabel*>();
+            for (QLabel* l : labels) {
+                if (l->objectName() != "SongTitleLabel") {
+                    if (enabled) {
+                        l->setPixmap(loadThumbnail(""));
+                        l->setVisible(true);
+                    } else {
+                        if (auto* firstItem = m_table->item(row, 0)) {
+                            QString cp = firstItem->data(Qt::UserRole + 1).toString();
+                            if (!cp.isEmpty()) {
+                                CoverLoader::instance().requestAsync(cp, 44);
+                            }
+                        }
+                    }
+                    break;
+                }
+            }
+        }
+    }
+
+    // In Optimized Mode flush the pixmap cache for table covers; the
+    // Now Playing card manages its own cover outside of CoverLoader so
+    // it is unaffected.
+    if (enabled) {
+        CoverLoader::instance().clearCache();
+        CoverLoader::instance().setCacheLimitKb(2048);
+    } else {
+        CoverLoader::instance().setCacheLimitKb(15 * 1024);
+    }
+    // Also apply to the grid view cards if it was already populated.
+    if (m_gridPopulated) {
+        m_gridWidget->setOptimizedMode(enabled);
+    }
 }
 
 void SongsTableWidget::addSong(int index, int songId, bool isFavorite, const QString& title, const QString& artist, const QString& album, const QString& duration, const QString& coverPath) {

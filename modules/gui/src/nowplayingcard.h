@@ -26,6 +26,8 @@ public:
     void setSpeedLabel(double speed);
     /// Update the sleep timer countdown display. Pass 0 to hide.
     void setSleepTimerRemaining(int seconds_remaining);
+    /// Apply or remove Optimized Mode optimizations (live, no restart needed).
+    void setOptimizedMode(bool enabled);
 
     // Getter for keyboard seek
     double elapsedSeconds() const { return m_elapsedSeconds; }
@@ -91,6 +93,7 @@ private:
     // Responsive sizing members
     QPixmap      m_coverPixmap;
     int          m_coverSize = 140;
+    bool         m_optimizedMode = false;
     class QVBoxLayout* m_rightLayout = nullptr;
     class QHBoxLayout* m_controlsLayout = nullptr;
 };

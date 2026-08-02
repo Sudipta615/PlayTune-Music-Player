@@ -99,6 +99,9 @@ public:
     /// when the user toggles "cursor follows playback" on.
     void scrollToActive();
 
+    /// Apply or remove Optimized Mode live (hides/shows thumbnails, gates cover loads).
+    void setOptimizedMode(bool enabled);
+
     /// Show or hide the header back button (e.g. for drill-down views in Folders, Albums, Artists)
     void setBackButtonVisible(bool visible, const QString& text = "‹  Back");
 

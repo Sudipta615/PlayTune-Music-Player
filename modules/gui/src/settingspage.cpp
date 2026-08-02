@@ -1,5 +1,6 @@
 #include "settingspage.h"
 #include "loudnessscannerdialog.h"
+#include "appsettings.h"
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QLabel>
@@ -160,7 +161,78 @@ void SettingsPageWidget::setupUi() {
         leftCol->addWidget(card);
     }
 
+    // Card 0-B: Performance & Resource Usage (Left, TOP of left column)
+    {
+        auto* card = new QFrame(scrollContent);
+        card->setObjectName("SettingsCard");
+        card->setFrameShape(QFrame::NoFrame);
+        card->setStyleSheet(
+            "QFrame#SettingsCard {"
+            "  background-color: #121624;"
+            "  border: 1.5px solid #7C4A00;"
+            "  border-radius: 14px;"
+            "}"
+        );
+        auto* cl = new QVBoxLayout(card);
+        cl->setContentsMargins(22, 18, 22, 22);
+        cl->setSpacing(14);
+
+        auto* hdr = new QLabel("\u26a1  PERFORMANCE & RESOURCE USAGE", card);
+        hdr->setStyleSheet("font-size: 11px; font-weight: 700; color: #F59E0B; letter-spacing: 1px; border: none; background: transparent;");
+        cl->addWidget(hdr);
+        auto* sep = new QFrame(card); sep->setFrameShape(QFrame::HLine);
+        sep->setStyleSheet(sepStyle); cl->addWidget(sep);
+
+        auto* infoBox = new QLabel(
+            "Disables: Spectrum Visualizer \u00b7 Cover Art in all Library tabs \u00b7 "
+            "Drop Shadows & Color Animations \u00b7 Loudness Scanner. "
+            "EQ DSP is also bypassed when all bands are at 0 dB. "
+            "Now Playing card cover art is always preserved.",
+            card
+        );
+        infoBox->setWordWrap(true);
+        infoBox->setStyleSheet(
+            "font-size: 12px; color: #F59E0B; background-color: rgba(245,158,11,0.08); "
+            "border: 1px solid rgba(245,158,11,0.25); border-radius: 8px; padding: 8px 10px;"
+        );
+        cl->addWidget(infoBox);
+
+        m_optimizedModeToggle = new ToggleSwitch(card);
+        m_optimizedModeToggle->setToolTip(
+            "Enable Optimized Mode: reduces CPU and RAM usage with no impact on audio quality"
+        );
+        cl->addLayout(createSettingRow(
+            card,
+            "Optimized Mode",
+            "Minimize CPU & RAM usage. Ideal for low-power devices or background listening.",
+            m_optimizedModeToggle
+        ));
+
+        connect(m_optimizedModeToggle, &ToggleSwitch::toggled, this, [this](bool on) {
+            m_optimizedMode = on;
+            AppSettings::instance().setOptimizedMode(on);
+            if (m_loudnessScanBtn) {
+                m_loudnessScanBtn->setEnabled(!on);
+                m_loudnessScanBtn->setToolTip(
+                    on ? "Disabled in Optimized Mode" : "Scan Library for ReplayGain..."
+                );
+            }
+            if (m_tooltipToggle) {
+                m_tooltipToggle->setEnabled(!on);
+                m_tooltipToggle->setToolTip(
+                    on ? "Tooltips hints are disabled in Optimized Mode" : "Display descriptive popups when hovering controls."
+                );
+            }
+            saveSettings();
+            emit optimizedModeToggled(on);
+        });
+
+        rightCol->addWidget(card);
+    }
+
+
     // Card 2: Add Music To Library (Left)
+
     {
         auto* card = new QFrame(scrollContent);
         card->setObjectName("SettingsCard");
@@ -497,6 +569,7 @@ void SettingsPageWidget::setupUi() {
 
         auto* btnLayout = new QHBoxLayout();
         auto* scanBtn = new QPushButton("Scan Library for ReplayGain...", card);
+        m_loudnessScanBtn = scanBtn;  // store reference so Optimized Mode can disable it
         scanBtn->setFixedHeight(36);
         scanBtn->setStyleSheet(
             "QPushButton {"
@@ -588,6 +661,8 @@ void SettingsPageWidget::addAudioDeviceToList(const QString& name, bool isCurren
 void SettingsPageWidget::loadSettings() {
     QSettings settings("PlayTune", "Settings");
     m_tooltipsEnabled = settings.value("tooltips", true).toBool();
+    m_optimizedMode   = settings.value("optimized_mode", false).toBool();
+    AppSettings::instance().setOptimizedMode(m_optimizedMode);
     m_crossfadeEnabled = settings.value("crossfade", false).toBool();
     m_normalizeEnabled = settings.value("normalize", false).toBool();
     m_gaplessEnabled = settings.value("gapless", true).toBool();
@@ -600,7 +675,21 @@ void SettingsPageWidget::loadSettings() {
     m_currentBackend = settings.value("audio_backend", 0).toInt();
     m_currentDevice = settings.value("audio_device", "Default / Automatic").toString();
 
-    if (m_tooltipToggle)   m_tooltipToggle->setChecked(m_tooltipsEnabled);
+    if (m_tooltipToggle) {
+        m_tooltipToggle->setChecked(m_tooltipsEnabled);
+        m_tooltipToggle->setEnabled(!m_optimizedMode);
+        if (m_optimizedMode) {
+            m_tooltipToggle->setToolTip("Tooltips hints are disabled in Optimized Mode");
+        }
+    }
+    if (m_optimizedModeToggle)  m_optimizedModeToggle->setChecked(m_optimizedMode);
+    if (m_loudnessScanBtn) {
+        m_loudnessScanBtn->setEnabled(!m_optimizedMode);
+        m_loudnessScanBtn->setToolTip(
+            m_optimizedMode ? "Disabled in Optimized Mode" : "Scan Library for ReplayGain..."
+        );
+    }
+
     if (m_crossfadeToggle) m_crossfadeToggle->setChecked(m_crossfadeEnabled);
     if (m_normalizeToggle) m_normalizeToggle->setChecked(m_normalizeEnabled);
     if (m_gaplessToggle)   m_gaplessToggle->setChecked(m_gaplessEnabled);
@@ -633,6 +722,7 @@ void SettingsPageWidget::loadSettings() {
 void SettingsPageWidget::saveSettings() {
     QSettings settings("PlayTune", "Settings");
     settings.setValue("tooltips", m_tooltipsEnabled);
+    settings.setValue("optimized_mode", m_optimizedMode);
     settings.setValue("crossfade", m_crossfadeEnabled);
     settings.setValue("normalize", m_normalizeEnabled);
     settings.setValue("gapless", m_gaplessEnabled);

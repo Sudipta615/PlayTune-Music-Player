@@ -43,6 +43,8 @@ public:
     void setPlayingSongId(int songId, bool playing);
 
     void updateGridResponsive();
+    /// Propagate Optimized Mode to the artist grid and inner songs table.
+    void setOptimizedMode(bool enabled);
 
 signals:
     void artistSelected(int artist_id);

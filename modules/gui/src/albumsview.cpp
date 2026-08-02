@@ -166,6 +166,11 @@ void AlbumsViewWidget::updateGridResponsive() {
     if (m_albumGrid) m_albumGrid->updateGridResponsive();
 }
 
+void AlbumsViewWidget::setOptimizedMode(bool enabled) {
+    if (m_albumGrid) m_albumGrid->setOptimizedMode(enabled);
+    if (m_albumSongsTable) m_albumSongsTable->setOptimizedMode(enabled);
+}
+
 void AlbumsViewWidget::resizeEvent(QResizeEvent* event) {
     QWidget::resizeEvent(event);
     QTimer::singleShot(0, this, &AlbumsViewWidget::updateGridResponsive);

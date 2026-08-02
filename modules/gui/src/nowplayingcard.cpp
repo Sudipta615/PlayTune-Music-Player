@@ -1,5 +1,7 @@
 #include "nowplayingcard.h"
+#include "appsettings.h"
 #include <QHBoxLayout>
+
 #include <QVBoxLayout>
 #include <QPainter>
 #include <QPainterPath>
@@ -292,7 +294,14 @@ void NowPlayingCard::setupUi() {
 void NowPlayingCard::setTrackInfo(const QString& title, const QString& artist, const QString& album, const QString& coverPath) {
     m_titleLabel->setText(title.isEmpty() ? "Unknown Title" : title);
     m_artistLabel->setText(artist.isEmpty() ? "Unknown Artist" : artist);
-    m_albumLabel->setText(album.isEmpty() ? "Unknown Album" : album);
+    if (album.trimmed().isEmpty()) {
+        m_albumLabel->setText("");
+        m_albumLabel->setVisible(false);
+    } else {
+        m_albumLabel->setText(album);
+        m_albumLabel->setVisible(true);
+    }
+
 
     QPixmap cover;
     if (!coverPath.isEmpty() && cover.load(coverPath)) {
@@ -354,7 +363,57 @@ void NowPlayingCard::setTrackInfo(const QString& title, const QString& artist, c
             borderColor.setHsl(h1, qBound(60, s1, 160), qBound(25, l1 + 12, 50));
         }
     }
-    animateToColors(c1, c2, borderColor);
+    // Apply gradient colors: bypass the 400 ms animation in Optimized Mode (no QVariantAnimation cost).
+    if (m_optimizedMode)
+        applyCardStyle(c1, c2, borderColor);
+    else
+        animateToColors(c1, c2, borderColor);
+}
+
+
+void NowPlayingCard::setOptimizedMode(bool enabled) {
+    m_optimizedMode = enabled;
+
+    // 1. Spectrum Visualizer: stop FFT ticks entirely
+    if (m_visualizer) {
+        m_visualizer->setVisible(!enabled);
+        if (enabled)
+            m_visualizer->setPlaying(false);  // stops internal animation timer
+        else
+            m_visualizer->setPlaying(m_isPlaying);
+    }
+
+    // 2. Drop shadows: remove them in Optimized Mode to eliminate GPU compositing cost.
+    //    Qt deletes the old effect when a new one (or nullptr) is set.
+    if (m_coverLabel) {
+        if (enabled) {
+            m_coverLabel->setGraphicsEffect(nullptr);
+        } else {
+            auto* shadow = new QGraphicsDropShadowEffect(m_coverLabel);
+            shadow->setBlurRadius(24);
+            shadow->setColor(QColor(0, 0, 0, 160));
+            shadow->setOffset(0, 6);
+            m_coverLabel->setGraphicsEffect(shadow);
+        }
+    }
+    if (m_timeElapsed) {
+        if (enabled) {
+            m_timeElapsed->setGraphicsEffect(nullptr);
+        } else {
+            auto* sh = new QGraphicsDropShadowEffect(m_timeElapsed);
+            sh->setBlurRadius(8); sh->setColor(QColor(0, 0, 0, 180)); sh->setOffset(0, 2);
+            m_timeElapsed->setGraphicsEffect(sh);
+        }
+    }
+    if (m_timeTotal) {
+        if (enabled) {
+            m_timeTotal->setGraphicsEffect(nullptr);
+        } else {
+            auto* sh = new QGraphicsDropShadowEffect(m_timeTotal);
+            sh->setBlurRadius(8); sh->setColor(QColor(0, 0, 0, 180)); sh->setOffset(0, 2);
+            m_timeTotal->setGraphicsEffect(sh);
+        }
+    }
 }
 
 void NowPlayingCard::applyCardStyle(const QColor& c1, const QColor& c2, const QColor& border) {
@@ -436,8 +495,18 @@ void NowPlayingCard::setPlaybackProgress(double elapsed, double total) {
 }
 
 void NowPlayingCard::updateVisualizer(const QVector<float>& data) {
-    m_visualizer->updateBuffer(data);
+    if (m_optimizedMode || AppSettings::instance().isOptimizedMode()) {
+        if (m_visualizer && m_visualizer->isVisible()) {
+            m_visualizer->setVisible(false);
+            m_visualizer->setPlaying(false);
+        }
+        return;
+    }
+    if (m_visualizer) {
+        m_visualizer->updateBuffer(data);
+    }
 }
+
 
 QString NowPlayingCard::formatTime(double seconds) {
     if (std::isnan(seconds) || std::isinf(seconds) || seconds < 0) {
@@ -516,9 +585,12 @@ void NowPlayingCard::resizeEvent(QResizeEvent* event) {
     }
 
     if (m_visualizer) {
-        m_visualizer->setVisible(showVisualizer);
+        bool opt = m_optimizedMode || AppSettings::instance().isOptimizedMode();
+        m_visualizer->setVisible(!opt && showVisualizer);
+        if (opt) m_visualizer->setPlaying(false);
     }
 }
+
 
 void NowPlayingCard::setSpeedLabel(double speed) {
     Q_UNUSED(speed);

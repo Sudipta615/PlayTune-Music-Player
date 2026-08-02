@@ -1,6 +1,7 @@
 #include "queuewidget.h"
 #include "custom_widgets.h"
 #include "gui_bridge_p.h"
+#include "appsettings.h"
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QHeaderView>
@@ -436,11 +437,16 @@ void QueueWidget::setTrackInfo(const QString& title, const QString& artist, cons
     }
     m_miniArtistAlbum->setText(artistAlbum);
 
-    QPixmap cover;
-    if (!coverPath.isEmpty() && cover.load(coverPath)) {
-        m_miniCover->setPixmap(getRoundedPixmap(cover, 44, 8));
+    if (AppSettings::instance().isOptimizedMode()) {
+        if (m_miniCover) m_miniCover->setVisible(false);
     } else {
-        m_miniCover->setPixmap(getRoundedPixmap(getThumbnail(title), 44, 8));
+        if (m_miniCover) m_miniCover->setVisible(true);
+        QPixmap cover;
+        if (!coverPath.isEmpty() && cover.load(coverPath)) {
+            m_miniCover->setPixmap(getRoundedPixmap(cover, 44, 8));
+        } else {
+            m_miniCover->setPixmap(getRoundedPixmap(getThumbnail(title), 44, 8));
+        }
     }
 
     if (m_karaokeDialog) {
@@ -448,10 +454,32 @@ void QueueWidget::setTrackInfo(const QString& title, const QString& artist, cons
     }
 }
 
+
 QPixmap QueueWidget::getThumbnail(const QString& title) {
     Q_UNUSED(title);
     return getDefaultAlbumArt();
 }
+
+void QueueWidget::setOptimizedMode(bool enabled) {
+    // Hide/show the mini Now Playing cover.
+    if (m_miniCover) m_miniCover->setVisible(!enabled);
+
+    // Walk all queue rows and hide/show the thumbnail label in column 1.
+    if (m_queueTable) {
+        int rows = m_queueTable->rowCount();
+        for (int row = 0; row < rows; ++row) {
+            if (auto* details = m_queueTable->cellWidget(row, 1)) {
+                auto labels = details->findChildren<QLabel*>();
+                for (QLabel* l : labels) {
+                    if (l->objectName() == "QueueRowThumbLabel" || (l->minimumWidth() <= 24 && l->maximumWidth() <= 24)) {
+                        l->setVisible(!enabled);
+                    }
+                }
+            }
+        }
+    }
+}
+
 
 void QueueWidget::clearQueue() {
     m_hoveredRow = -1;
@@ -581,23 +609,29 @@ void QueueWidget::addQueueSong(int index, const QString& title, const QString& a
     detailsLayout->setSpacing(8);
 
     auto* thumbLabel = new QLabel(detailsContainer);
+    thumbLabel->setObjectName("QueueRowThumbLabel");
     thumbLabel->setFixedSize(24, 24);
 
-    QPixmap cover;
-    bool hasCover = false;
-    if (!coverPath.isEmpty()) {
-        QString cacheKey = QStringLiteral("thb24:") + coverPath;
-        if (QPixmapCache::find(cacheKey, &cover)) {
-            hasCover = true;
-        } else if (cover.load(coverPath)) {
-            QPixmapCache::insert(cacheKey, cover);
-            hasCover = true;
+    if (AppSettings::instance().isOptimizedMode()) {
+        thumbLabel->setVisible(false);
+    } else {
+        QPixmap cover;
+        bool hasCover = false;
+        if (!coverPath.isEmpty()) {
+            QString cacheKey = QStringLiteral("thb24:") + coverPath;
+            if (QPixmapCache::find(cacheKey, &cover)) {
+                hasCover = true;
+            } else if (cover.load(coverPath)) {
+                QPixmapCache::insert(cacheKey, cover);
+                hasCover = true;
+            }
         }
+        if (!hasCover) {
+            cover = getThumbnail(title);
+        }
+        thumbLabel->setPixmap(getRoundedPixmap(cover, 24, 6));
     }
-    if (!hasCover) {
-        cover = getThumbnail(title);
-    }
-    thumbLabel->setPixmap(getRoundedPixmap(cover, 24, 6));
+
 
     auto* infoVLayout = new QVBoxLayout();
     infoVLayout->setSpacing(1);

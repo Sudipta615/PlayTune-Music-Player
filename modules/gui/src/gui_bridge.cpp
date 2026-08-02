@@ -13,7 +13,10 @@
 #include <QStandardPaths>
 #include <QFile>
 
+#include "appsettings.h"
+
 // C-ABI struct used by set_songs_batch(). Must match the Rust-side
+
 // definition in src/bridge.rs (FfiSongRow). The struct is packed the
 // same way on x86-64 / aarch64 (8-byte aligned pointers, 4-byte ints
 // with 4-byte padding before each pointer that follows an int).
@@ -316,7 +319,9 @@ void switch_view(int view_index) {
 
 void update_visualizer(const float* data, int size) {
     if (!g_gui_initialized.load(std::memory_order_acquire)) return;
+    if (AppSettings::instance().isOptimizedMode()) return; // 0 CPU cost when optimized
     if (!data || size <= 0) return;
+
     static thread_local QVector<float> tlsBuf;
     tlsBuf.resize(size);
     std::memcpy(tlsBuf.data(), data, static_cast<std::size_t>(size) * sizeof(float));

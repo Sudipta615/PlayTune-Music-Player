@@ -50,6 +50,8 @@ public:
     void setPlayingSongId(int songId, bool playing);
 
     void updateGridResponsive();
+    /// Propagate Optimized Mode to the album grid and inner songs table.
+    void setOptimizedMode(bool enabled);
 
 signals:
     /// Emitted when the user clicks an album cover. The backend should

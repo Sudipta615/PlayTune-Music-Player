@@ -582,6 +582,45 @@ void MainWindow::connectBridge() {
         m_toolTipController->setEnabled(m_settingsPage->isTooltipsEnabled());
     }
 
+    // ── Optimized Mode: live signal wiring ────────────────────────────────
+    // Each signal connection propagates the toggle to a specific widget
+    // with no app restart. The lambda for CoverLoader updates the global
+    // QPixmapCache limit and flushes covers immediately when enabling.
+    connect(m_settingsPage, &SettingsPageWidget::optimizedModeToggled,
+            m_nowPlayingCard,  &NowPlayingCard::setOptimizedMode);
+    connect(m_settingsPage, &SettingsPageWidget::optimizedModeToggled,
+            m_songsTable,      &SongsTableWidget::setOptimizedMode);
+    connect(m_settingsPage, &SettingsPageWidget::optimizedModeToggled,
+            m_queueWidget,     &QueueWidget::setOptimizedMode);
+    // AlbumsView and ArtistsView expose their inner MediaGridWidget through
+    // setOptimizedMode forwarded at the view level via the albums/artists slot.
+    connect(m_settingsPage, &SettingsPageWidget::optimizedModeToggled,
+            m_albumsView,      &AlbumsViewWidget::setOptimizedMode);
+    connect(m_settingsPage, &SettingsPageWidget::optimizedModeToggled,
+            m_artistsView,     &ArtistsViewWidget::setOptimizedMode);
+    // EQ: when Optimized Mode is on, disable EQ DSP if it was already enabled
+    // (flat EQ bypasses for free via the early-return in ParametricEq::process,
+    // but an explicit disable avoids the filter loop entirely).
+    connect(m_settingsPage, &SettingsPageWidget::optimizedModeToggled,
+            this, [cb](bool on) {
+        if (on && cb.on_eq_enabled) cb.on_eq_enabled(0);
+    });
+
+    // Apply Optimized Mode on startup if the setting was saved as true.
+    if (m_settingsPage->isOptimizedMode()) {
+        // Use singleShot so all widgets are fully constructed before we apply.
+        QTimer::singleShot(0, this, [this, cb]() {
+            m_nowPlayingCard->setOptimizedMode(true);
+            m_songsTable->setOptimizedMode(true);
+            m_queueWidget->setOptimizedMode(true);
+            m_albumsView->setOptimizedMode(true);
+            m_artistsView->setOptimizedMode(true);
+            if (cb.on_eq_enabled) cb.on_eq_enabled(0);
+            QPixmapCache::setCacheLimit(2 * 1024);
+        });
+    }
+    // ─────────────────────────────────────────────────────────────────────
+
     // Folders View Actions
     connect(m_foldersView, &FoldersViewWidget::folderSelected, this, [cb](int folderId) {
         if (cb.on_filter_folder) cb.on_filter_folder(folderId);

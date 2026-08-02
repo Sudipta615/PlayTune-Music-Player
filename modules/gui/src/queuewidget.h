@@ -62,6 +62,8 @@ public:
     void setTrackLyrics(int trackId, const QString& syncedLrc, const QString& unsyncedLyrics);
     void updatePlaybackProgress(double elapsedSeconds);
     void reorderQueueRow(int fromRow, int toRow);
+    /// Apply or remove Optimized Mode live (hides/shows thumbnail labels).
+    void setOptimizedMode(bool enabled);
 
     int hoveredRow() const { return m_hoveredRow; }
     QTableWidget* queueTable() const { return m_queueTable; }
