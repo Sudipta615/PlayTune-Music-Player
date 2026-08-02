@@ -5,9 +5,10 @@ use engine::buffer::EngineCommand;
 use platform::{MprisPlaybackStatus, MprisTrackInfo};
 
 use crate::app_state::{
-    apply_play_state, cached_cover_path, send_track_info_and_lyrics, CURRENT_INDEX,
-    CURRENT_TRACK_LIST, CURRENT_VOLUME, ELAPSED_SECONDS, ENGINE_CMD_TX, IS_PLAYING,
+    apply_play_state, cached_cover_path, send_track_info_and_lyrics, sync_shuffle_order,
+    CURRENT_INDEX, CURRENT_TRACK_LIST, CURRENT_VOLUME, ELAPSED_SECONDS, ENGINE_CMD_TX, IS_PLAYING,
     LAST_RECORDED_TRACK_ID, PLATFORM, QUEUE_CLEARED_BY_USER, REPEAT_ENABLED, SHUFFLE_ENABLED,
+    SHUFFLE_ORDER, SHUFFLE_POS,
 };
 use crate::bridge;
 use crate::ffi_safe;
@@ -46,19 +47,20 @@ pub fn rust_prev_inner() {
                 if REPEAT_ENABLED.load(Ordering::SeqCst) {
                     // keep *idx unchanged
                 } else if SHUFFLE_ENABLED.load(Ordering::SeqCst) {
-                    let mut attempts = 0;
-                    while attempts < list.len() {
-                        let seed = std::time::SystemTime::now()
-                            .duration_since(std::time::UNIX_EPOCH)
-                            .map(|d| d.subsec_nanos() as usize)
-                            .unwrap_or(0)
-                            .wrapping_add(*idx)
-                            .wrapping_mul(2654435761);
-                        *idx = seed % list.len();
-                        if list[*idx].rating != -1 {
-                            break;
+                    sync_shuffle_order(*idx, list.len());
+                    let order = SHUFFLE_ORDER.lock();
+                    let mut pos = SHUFFLE_POS.lock();
+                    if !order.is_empty() {
+                        let mut attempts = 0;
+                        while attempts < order.len() {
+                            *pos = if *pos > 0 { *pos - 1 } else { order.len() - 1 };
+                            let candidate = order[*pos];
+                            if candidate < list.len() && list[candidate].rating != -1 {
+                                *idx = candidate;
+                                break;
+                            }
+                            attempts += 1;
                         }
-                        attempts += 1;
                     }
                 } else {
                     let start_idx = *idx;
@@ -144,19 +146,20 @@ pub fn rust_next_inner() {
                 if REPEAT_ENABLED.load(Ordering::SeqCst) {
                     // keep *idx unchanged — replay same track
                 } else if SHUFFLE_ENABLED.load(Ordering::SeqCst) {
-                    let mut attempts = 0;
-                    while attempts < list.len() {
-                        let seed = std::time::SystemTime::now()
-                            .duration_since(std::time::UNIX_EPOCH)
-                            .map(|d| d.subsec_nanos() as usize)
-                            .unwrap_or(0)
-                            .wrapping_add(*idx)
-                            .wrapping_mul(2654435761);
-                        *idx = seed % list.len();
-                        if list[*idx].rating != -1 {
-                            break;
+                    sync_shuffle_order(*idx, list.len());
+                    let order = SHUFFLE_ORDER.lock();
+                    let mut pos = SHUFFLE_POS.lock();
+                    if !order.is_empty() {
+                        let mut attempts = 0;
+                        while attempts < order.len() {
+                            *pos = (*pos + 1) % order.len();
+                            let candidate = order[*pos];
+                            if candidate < list.len() && list[candidate].rating != -1 {
+                                *idx = candidate;
+                                break;
+                            }
+                            attempts += 1;
                         }
-                        attempts += 1;
                     }
                 } else {
                     let start_idx = *idx;
@@ -373,8 +376,12 @@ pub fn rust_select_song_inner(song_idx: i32) {
 
     if let Some(track) = track_opt {
         // Issue 6: do NOT record play immediately on selection — wait for 10s threshold in the ticker
+        let selected_idx = if list_len > 0 { idx % list_len } else { 0 };
         if let Some(mut curr_idx) = CURRENT_INDEX.try_lock() {
-            *curr_idx = if list_len > 0 { idx % list_len } else { 0 };
+            *curr_idx = selected_idx;
+        }
+        if SHUFFLE_ENABLED.load(Ordering::SeqCst) && list_len > 0 {
+            sync_shuffle_order(selected_idx, list_len);
         }
         log::info!("Song selected from list: {} - {}", track.title, track.artist);
         if let Some(mut elapsed) = ELAPSED_SECONDS.try_lock() {

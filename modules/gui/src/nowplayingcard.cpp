@@ -121,22 +121,34 @@ void NowPlayingCard::setupUi() {
     auto* seekLayout = new QHBoxLayout();
     seekLayout->setSpacing(10);
 
-    m_timeElapsed = new QLabel("1:24", this);
+    m_timeElapsed = new QLabel("0:00", this);
     m_timeElapsed->setObjectName("TimeLabel");
-    m_timeElapsed->setFixedWidth(35);
-    m_timeElapsed->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
+    m_timeElapsed->setFixedWidth(46);
+    m_timeElapsed->setAlignment(Qt::AlignCenter);
     m_timeElapsed->setToolTip("Elapsed Playback Time");
+
+    auto* shadowElapsed = new QGraphicsDropShadowEffect(m_timeElapsed);
+    shadowElapsed->setBlurRadius(8);
+    shadowElapsed->setColor(QColor(0, 0, 0, 180));
+    shadowElapsed->setOffset(0, 2);
+    m_timeElapsed->setGraphicsEffect(shadowElapsed);
 
     m_seekBar = new ClickableSlider(Qt::Horizontal, this);
     m_seekBar->setRange(0, 1000);
-    m_seekBar->setValue(350);
+    m_seekBar->setValue(0);
     m_seekBar->setToolTip("Seek Playback Position (Click or Drag / Shift+← / Shift+→)");
 
-    m_timeTotal = new QLabel("3:58", this);
+    m_timeTotal = new QLabel("0:00", this);
     m_timeTotal->setObjectName("TimeLabel");
-    m_timeTotal->setFixedWidth(35);
-    m_timeTotal->setAlignment(Qt::AlignLeft | Qt::AlignVCenter);
+    m_timeTotal->setFixedWidth(46);
+    m_timeTotal->setAlignment(Qt::AlignCenter);
     m_timeTotal->setToolTip("Total Track Duration");
+
+    auto* shadowTotal = new QGraphicsDropShadowEffect(m_timeTotal);
+    shadowTotal->setBlurRadius(8);
+    shadowTotal->setColor(QColor(0, 0, 0, 180));
+    shadowTotal->setOffset(0, 2);
+    m_timeTotal->setGraphicsEffect(shadowTotal);
 
     seekLayout->addWidget(m_timeElapsed);
     seekLayout->addWidget(m_seekBar);

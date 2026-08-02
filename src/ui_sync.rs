@@ -1,10 +1,10 @@
 use std::sync::atomic::Ordering;
 
 use crate::app_state::{
-    cached_cover_path, send_track_info_and_lyrics, ACTIVE_PLAYLIST_ID, ALBUMS_VIEW_DIRTY,
-    ARTISTS_VIEW_DIRTY, CURRENT_INDEX, CURRENT_TRACK_LIST, ELAPSED_SECONDS, ENGINE_CMD_TX,
-    FOLDERS_VIEW_DIRTY, GLOBAL_DB, GLOBAL_ENGINE, IS_PLAYING, LAST_LOADED_FILTER, PLATFORM,
-    QUEUE_CLEARED_BY_USER, SHUFFLE_ENABLED, SHUTDOWN,
+    cached_cover_path, send_track_info_and_lyrics, sync_shuffle_order, ACTIVE_PLAYLIST_ID,
+    ALBUMS_VIEW_DIRTY, ARTISTS_VIEW_DIRTY, CURRENT_INDEX, CURRENT_TRACK_LIST, ELAPSED_SECONDS,
+    ENGINE_CMD_TX, FOLDERS_VIEW_DIRTY, GLOBAL_DB, GLOBAL_ENGINE, IS_PLAYING, LAST_LOADED_FILTER,
+    PLATFORM, QUEUE_CLEARED_BY_USER, SHUFFLE_ENABLED, SHUFFLE_ORDER, SHUFFLE_POS, SHUTDOWN,
 };
 use crate::bridge;
 use config::AudioBackend;
@@ -36,68 +36,14 @@ pub fn refresh_up_next_queue() {
     let mut indices_len = 0usize;
 
     if SHUFFLE_ENABLED.load(Ordering::SeqCst) {
-        // Build a candidate list excluding the current track. For small
-        // lists this is on the stack; for large lists we fall back to
-        // a Vec. The threshold of 64 keeps the stack array at 512 bytes
-        // on x86-64 (well within the 8 MB thread stack).
-        if len <= 64 {
-            let mut buf: [usize; 64] = [0; 64];
-            let mut buf_len = 0;
-            for i in 0..len {
-                if i != curr {
-                    buf[buf_len] = i;
-                    buf_len += 1;
-                }
-            }
-            if buf_len == 0 {
-                buf[0] = curr;
-                buf_len = 1;
-            }
-            let mut seed = std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .map(|d| d.subsec_nanos() as usize)
-                .unwrap_or(12345)
-                .wrapping_add(curr)
-                .wrapping_mul(2654435761);
-            // Fisher-Yates on the stack buffer.
-            let mut i = buf_len - 1;
-            loop {
-                seed = seed.wrapping_mul(1103515245).wrapping_add(12345);
-                let j = (seed >> 16) % (i + 1);
-                buf.swap(i, j);
-                if i == 0 {
-                    break;
-                }
-                i -= 1;
-            }
-            let take = count.min(buf_len);
-            for k in 0..take {
-                indices[indices_len] = buf[k];
-                indices_len += 1;
-            }
-        } else {
-            // Fall back to Vec for very large lists. This is rare (only
-            // triggered for libraries > 64 tracks in the current view,
-            // and only when shuffle is on AND refresh_up_next_queue is
-            // called — typically only on track change).
-            let mut candidates: Vec<usize> = (0..len).filter(|&i| i != curr).collect();
-            if candidates.is_empty() {
-                candidates.push(curr);
-            }
-            let mut seed = std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .map(|d| d.subsec_nanos() as usize)
-                .unwrap_or(12345)
-                .wrapping_add(curr)
-                .wrapping_mul(2654435761);
-            for i in (1..candidates.len()).rev() {
-                seed = seed.wrapping_mul(1103515245).wrapping_add(12345);
-                let j = (seed >> 16) % (i + 1);
-                candidates.swap(i, j);
-            }
-            let take = count.min(candidates.len());
-            for k in 0..take {
-                indices[indices_len] = candidates[k];
+        sync_shuffle_order(curr, len);
+        let order = SHUFFLE_ORDER.lock();
+        let pos = *SHUFFLE_POS.lock();
+        let order_len = order.len();
+        if order_len > 0 {
+            let take = count.min(order_len.saturating_sub(1).max(1));
+            for k in 1..=take {
+                indices[indices_len] = order[(pos + k) % order_len];
                 indices_len += 1;
             }
         }

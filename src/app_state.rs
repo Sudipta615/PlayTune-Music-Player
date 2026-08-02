@@ -68,6 +68,8 @@ pub static SHUTDOWN: AtomicBool = AtomicBool::new(false);
 pub static SHUFFLE_ENABLED: AtomicBool = AtomicBool::new(false);
 pub static REPEAT_ENABLED: AtomicBool = AtomicBool::new(false);
 pub static QUEUE_CLEARED_BY_USER: AtomicBool = AtomicBool::new(false);
+pub static SHUFFLE_ORDER: Mutex<Vec<usize>> = parking_lot::const_mutex(Vec::new());
+pub static SHUFFLE_POS: Mutex<usize> = parking_lot::const_mutex(0);
 
 /// Track ID for which a play event has already been recorded this session
 /// (reset to 0 when a new track starts, set to track.id after >= 10s).
@@ -278,11 +280,57 @@ pub fn invalidate_loaded_filter() {
     last.clear();
 }
 
+pub fn invalidate_shuffle_order() {
+    let mut order = SHUFFLE_ORDER.lock();
+    order.clear();
+    let mut pos = SHUFFLE_POS.lock();
+    *pos = 0;
+}
+
+pub fn sync_shuffle_order(current_idx: usize, list_len: usize) {
+    if list_len == 0 {
+        invalidate_shuffle_order();
+        return;
+    }
+    let mut order = SHUFFLE_ORDER.lock();
+    let mut pos = SHUFFLE_POS.lock();
+
+    let cur_idx_clamped = current_idx % list_len;
+    let is_valid = order.len() == list_len && order.iter().all(|&x| x < list_len);
+    if !is_valid {
+        let mut candidates: Vec<usize> = (0..list_len).filter(|&i| i != cur_idx_clamped).collect();
+        let mut seed = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.subsec_nanos() as usize)
+            .unwrap_or(12345)
+            .wrapping_add(cur_idx_clamped)
+            .wrapping_mul(2654435761);
+
+        for i in (1..candidates.len()).rev() {
+            seed = seed.wrapping_mul(1103515245).wrapping_add(12345);
+            let j = (seed >> 16) % (i + 1);
+            candidates.swap(i, j);
+        }
+        candidates.insert(0, cur_idx_clamped);
+        *order = candidates;
+        *pos = 0;
+    } else {
+        if order.get(*pos) != Some(&cur_idx_clamped) {
+            if let Some(found_p) = order.iter().position(|&x| x == cur_idx_clamped) {
+                *pos = found_p;
+            } else {
+                order[*pos] = cur_idx_clamped;
+            }
+        }
+    }
+}
+
 /// Mark ALL views as dirty so the next tab switch triggers a full
 /// re-population. Call this after any library mutation: import, delete,
 /// tag edit, etc.
 pub fn invalidate_all_views() {
     invalidate_loaded_filter();
+    invalidate_shuffle_order();
     ALBUMS_VIEW_DIRTY.store(true, std::sync::atomic::Ordering::SeqCst);
     ARTISTS_VIEW_DIRTY.store(true, std::sync::atomic::Ordering::SeqCst);
     FOLDERS_VIEW_DIRTY.store(true, std::sync::atomic::Ordering::SeqCst);

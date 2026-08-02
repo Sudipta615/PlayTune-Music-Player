@@ -3,7 +3,10 @@ use std::sync::atomic::Ordering;
 
 use engine::buffer::EngineCommand;
 
-use crate::app_state::{ENGINE_CMD_TX, EQ_BAND_FREQS, REPEAT_ENABLED, SHUFFLE_ENABLED};
+use crate::app_state::{
+    invalidate_shuffle_order, sync_shuffle_order, CURRENT_INDEX, CURRENT_TRACK_LIST, ENGINE_CMD_TX,
+    EQ_BAND_FREQS, REPEAT_ENABLED, SHUFFLE_ENABLED,
+};
 use crate::ffi_safe;
 use crate::ui_sync::{push_audio_devices_to_gui, refresh_up_next_queue};
 
@@ -204,6 +207,15 @@ pub fn rust_slider_param_inner(param_idx: i32, value: c_double) {
             6 => {
                 let enabled = value > 0.0;
                 SHUFFLE_ENABLED.store(enabled, Ordering::SeqCst);
+                if enabled {
+                    invalidate_shuffle_order();
+                    let curr = *CURRENT_INDEX.lock();
+                    let len =
+                        CURRENT_TRACK_LIST.get().and_then(|l| l.try_lock()).map_or(0, |l| l.len());
+                    if len > 0 {
+                        sync_shuffle_order(curr, len);
+                    }
+                }
                 refresh_up_next_queue();
                 log::info!("Shuffle toggled: {}", enabled);
                 if let Some(tx) = ENGINE_CMD_TX.get() {

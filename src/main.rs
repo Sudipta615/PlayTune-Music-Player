@@ -9,7 +9,7 @@ use config::LibraryConfig;
 use db::PlayTuneDb;
 use engine::{buffer::EngineCommand, buffer::PlaybackState, AudioEngine};
 use library::LibraryManager;
-use platform::{MediaKeyAction, MprisPlaybackStatus, MprisTrackInfo, PlatformIntegration};
+use platform::{MediaKeyAction, PlatformIntegration};
 
 mod app_state;
 mod bridge;
@@ -316,7 +316,7 @@ fn main() {
                             None
                         };
 
-                        if let Some((track, current_idx, list_len)) = track_opt {
+                        if let Some((track, _current_idx, list_len)) = track_opt {
                             {
                                 let elapsed_val = { *ELAPSED_SECONDS.lock() };
                                 let already_recorded =
@@ -357,62 +357,8 @@ fn main() {
                                     bridge::set_play_state(false);
                                     bridge::set_playback_progress(0.0, track.duration_secs);
                                 } else {
-                                    let next_idx = {
-                                        let mut idx = CURRENT_INDEX.lock();
-                                        *idx = (current_idx + 1) % list_len;
-                                        *idx
-                                    };
-                                    let next_track_opt =
-                                        if let Some(list_lock) = CURRENT_TRACK_LIST.get() {
-                                            if let Some(list) = list_lock.try_lock() {
-                                                list.get(next_idx).cloned()
-                                            } else {
-                                                None
-                                            }
-                                        } else {
-                                            None
-                                        };
-
-                                    if let Some(next_track) = next_track_opt {
-                                        log::info!(
-                                            "[Rust] Track finished. Auto-playing next: {}",
-                                            next_track.title
-                                        );
-                                        let cover_path =
-                                            crate::app_state::cached_cover_path(&next_track.path)
-                                                .unwrap_or_default();
-                                        send_track_info_and_lyrics(&next_track, &cover_path);
-                                        if let Some(platform_lock) = PLATFORM.get() {
-                                            if let Some(mut platform) = platform_lock.try_lock() {
-                                                platform.set_mpris_track(MprisTrackInfo {
-                                                    title: Some(next_track.title.clone()),
-                                                    artist: Some(next_track.artist.clone()),
-                                                    album: Some(next_track.album.clone()),
-                                                    art_url: Some(format!("file://{}", cover_path)),
-                                                    length_microseconds: Some(
-                                                        (next_track.duration_secs * 1_000_000.0)
-                                                            as i64,
-                                                    ),
-                                                    track_id: Some(format!(
-                                                        "/org/playtune/track/{}",
-                                                        next_track.id
-                                                    )),
-                                                    ..Default::default()
-                                                });
-                                                platform
-                                                    .set_mpris_status(MprisPlaybackStatus::Playing);
-                                            }
-                                        }
-
-                                        bridge::set_active_index(next_track.id as i32);
-                                        ui_sync::refresh_up_next_queue();
-                                        if let Some(tx) = ENGINE_CMD_TX.get() {
-                                            let _ = tx.send(EngineCommand::OpenUri(
-                                                next_track.path.clone(),
-                                            ));
-                                            let _ = tx.send(EngineCommand::Play);
-                                        }
-                                    }
+                                    log::info!("[Rust] Track finished. Auto-playing next track.");
+                                    rust_next();
                                 }
                             }
                             bridge::set_playback_progress(current_elapsed, track.duration_secs);

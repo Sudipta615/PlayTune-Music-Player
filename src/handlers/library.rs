@@ -5,8 +5,9 @@ use library::LibraryManager;
 
 use crate::app_state::{
     cached_cover_path, invalidate_all_views, invalidate_cover_cache, invalidate_loaded_filter,
-    spawn_worker, ACTIVE_PLAYLIST_ID, CURRENT_INDEX, CURRENT_TRACK_LIST, GLOBAL_DB,
-    LOUDNESS_SCAN_CANCELLED, QUEUE_CLEARED_BY_USER, SHUTDOWN,
+    spawn_worker, sync_shuffle_order, ACTIVE_PLAYLIST_ID, CURRENT_INDEX, CURRENT_TRACK_LIST,
+    GLOBAL_DB, LOUDNESS_SCAN_CANCELLED, QUEUE_CLEARED_BY_USER, SHUFFLE_ENABLED, SHUFFLE_ORDER,
+    SHUFFLE_POS, SHUTDOWN,
 };
 use crate::bridge;
 use crate::ffi_safe;
@@ -1183,27 +1184,47 @@ static _EXPORTED_SYMBOLS: [unsafe extern "C" fn(); 8] = [
 
 pub extern "C" fn rust_reorder_queue(from_idx: std::ffi::c_int, to_idx: std::ffi::c_int) {
     ffi_safe!({
-        let from = from_idx as usize;
-        let to = to_idx as usize;
-        log::info!("Reordering queue: {} -> {}", from, to);
-        if let Some(list_lock) = CURRENT_TRACK_LIST.get() {
-            if let Some(mut list) = list_lock.try_lock() {
-                let len = list.len();
-                if from < len && to < len && from != to {
-                    let track = list.remove(from);
-                    list.insert(to, track);
+        let from_row = from_idx as usize;
+        let to_row = to_idx as usize;
+        log::info!("Reordering queue row: {} -> {}", from_row, to_row);
+        let list_len = CURRENT_TRACK_LIST.get().and_then(|l| l.try_lock()).map_or(0, |l| l.len());
+        if list_len > 1 {
+            let curr = *CURRENT_INDEX.lock() % list_len;
+            if SHUFFLE_ENABLED.load(Ordering::SeqCst) {
+                sync_shuffle_order(curr, list_len);
+                let mut order = SHUFFLE_ORDER.lock();
+                let pos = *SHUFFLE_POS.lock();
+                let order_len = order.len();
+                if order_len > 1 {
+                    let from_pos = (pos + 1 + from_row) % order_len;
+                    let to_pos = (pos + 1 + to_row) % order_len;
+                    if from_pos < order_len && to_pos < order_len && from_pos != to_pos {
+                        let item = order.remove(from_pos);
+                        order.insert(to_pos, item);
+                    }
+                }
+            } else if let Some(list_lock) = CURRENT_TRACK_LIST.get() {
+                if let Some(mut list) = list_lock.try_lock() {
+                    let len = list.len();
+                    let from_pos = (curr + 1 + from_row) % len;
+                    let to_pos = (curr + 1 + to_row) % len;
+                    if from_pos < len && to_pos < len && from_pos != to_pos {
+                        let track = list.remove(from_pos);
+                        list.insert(to_pos, track);
 
-                    let mut curr = CURRENT_INDEX.lock();
-                    if *curr == from {
-                        *curr = to;
-                    } else if from < *curr && to >= *curr {
-                        *curr = curr.saturating_sub(1);
-                    } else if from > *curr && to <= *curr {
-                        *curr = curr.saturating_add(1);
+                        let mut c_idx = CURRENT_INDEX.lock();
+                        if *c_idx == from_pos {
+                            *c_idx = to_pos;
+                        } else if from_pos < *c_idx && to_pos >= *c_idx {
+                            *c_idx = c_idx.saturating_sub(1);
+                        } else if from_pos > *c_idx && to_pos <= *c_idx {
+                            *c_idx = c_idx.saturating_add(1);
+                        }
                     }
                 }
             }
         }
+        refresh_up_next_queue();
         save_session_state();
     });
 }
