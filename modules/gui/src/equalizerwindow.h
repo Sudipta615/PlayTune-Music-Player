@@ -124,20 +124,15 @@ private:
 
     // Themed UI elements
     QLabel* m_eqIconLabel = nullptr;
-    QLabel* m_eqTitleLabel = nullptr;
     QPushButton* m_moreBtn = nullptr;
     QPushButton* m_closeBtn = nullptr;
-    QFrame* m_resamplerCard = nullptr;
     QLabel* m_resamplerHeader = nullptr;
-    QFrame* m_bandEditorCard = nullptr;
     QLabel* m_typeLabel = nullptr;
     QLabel* m_enableLabel = nullptr;
     QLabel* m_freqLabel = nullptr;
     QLabel* m_qLabel = nullptr;
     QLabel* m_gainLabel = nullptr;
     QLabel* m_preampHeader = nullptr;
-    QLabel* m_preampMinLabel = nullptr;
-    QLabel* m_preampMaxLabel = nullptr;
     QVector<QWidget*> m_paramCards;
     QVector<QLabel*> m_paramNameLabels;
     QVector<QLabel*> m_paramMinLabels;

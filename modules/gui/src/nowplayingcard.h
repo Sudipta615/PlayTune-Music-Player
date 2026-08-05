@@ -79,7 +79,6 @@ private:
     QPushButton* m_shuffleBtn = nullptr;
     QPushButton* m_eqBtn = nullptr;
     QPushButton* m_sleepTimerBtn = nullptr;
-    QPushButton* m_editTagsBtn = nullptr;
     QLabel* m_sleepTimerLabel = nullptr;
     int m_sleepTimerRemaining = 0;
 

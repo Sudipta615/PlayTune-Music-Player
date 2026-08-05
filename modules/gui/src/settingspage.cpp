@@ -129,10 +129,7 @@ void SettingsPageWidget::setupUi() {
 
         m_themeCombo = new QComboBox(card);
         m_themeCombo->setObjectName("ThemeComboBox");
-<<<<<<< HEAD
         ThemeManager::setupComboBox(m_themeCombo);
-=======
->>>>>>> mulberry-calendula
         for (const auto& pair : ThemeManager::instance().availableThemes()) {
             m_themeCombo->addItem(pair.second, pair.first);
         }
@@ -460,11 +457,11 @@ void SettingsPageWidget::setupUi() {
         connect(m_crossfadeDurationSpin, QOverload<int>::of(&QSpinBox::valueChanged), this, [this](int value) {
             saveSettings(); emit crossfadeDurationChanged(value);
         });
-        connect(m_backendCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), this, [this](int) {
-            if (m_backendCombo) { m_currentBackend = m_backendCombo->currentData().toInt(); saveSettings(); emit outputBackendChanged(m_currentBackend); }
+        connect(m_backendCombo, &QComboBox::activated, this, [this](int idx) {
+            if (m_backendCombo && idx >= 0) { m_currentBackend = m_backendCombo->itemData(idx).toInt(); saveSettings(); emit outputBackendChanged(m_currentBackend); }
         });
-        connect(m_deviceCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), this, [this](int) {
-            if (m_deviceCombo && m_deviceCombo->currentIndex() >= 0) { m_currentDevice = m_deviceCombo->currentText(); saveSettings(); emit outputDeviceChanged(m_currentDevice); }
+        connect(m_deviceCombo, &QComboBox::activated, this, [this](int idx) {
+            if (m_deviceCombo && idx >= 0) { m_currentDevice = m_deviceCombo->itemText(idx); saveSettings(); emit outputDeviceChanged(m_currentDevice); }
         });
 
         rightCol->addWidget(card);
@@ -569,9 +566,18 @@ void SettingsPageWidget::clearAudioDeviceList() {
 
 void SettingsPageWidget::addAudioDeviceToList(const QString& name, bool isCurrent) {
     if (!m_deviceCombo) return;
+    if (m_deviceCombo->view() && m_deviceCombo->view()->isVisible()) return;
     QSignalBlocker b(m_deviceCombo);
-    // Don't add duplicate entry if already present
-    if (m_deviceCombo->findText(name) >= 0) return;
+    int existingIdx = m_deviceCombo->findText(name);
+    if (existingIdx >= 0) {
+        if (isCurrent || (!m_currentDevice.isEmpty() && name == m_currentDevice)) {
+            if (m_deviceCombo->currentIndex() != existingIdx) {
+                m_deviceCombo->setCurrentIndex(existingIdx);
+                m_currentDevice = name;
+            }
+        }
+        return;
+    }
     m_deviceCombo->addItem(name);
     if (isCurrent || (!m_currentDevice.isEmpty() && name == m_currentDevice)) {
         m_deviceCombo->setCurrentIndex(m_deviceCombo->count() - 1);
@@ -589,21 +595,12 @@ void SettingsPageWidget::loadSettings() {
     m_gaplessEnabled   = settings.value("gapless", true).toBool();
     m_cursorFollows    = settings.value("cursor_follows_playback", false).toBool();
     m_notificationsEnabled = settings.value("notifications_enabled", true).toBool();
-<<<<<<< HEAD
     m_trayEnabled      = settings.value("tray_enabled", false).toBool();
     m_minimizeToTray   = settings.value("minimize_to_tray", false).toBool();
     int crossfade_ms   = settings.value("crossfade_duration_ms", 3000).toInt();
     m_currentTheme     = settings.value("theme_text", "Dark Premium (Purple)").toString();
     m_currentBackend   = settings.value("audio_backend", 0).toInt();
     m_currentDevice    = settings.value("audio_device", "Default / Automatic").toString();
-=======
-    m_trayEnabled = settings.value("tray_enabled", false).toBool();
-    m_minimizeToTray = settings.value("minimize_to_tray", false).toBool();
-    int crossfade_ms = settings.value("crossfade_duration_ms", 3000).toInt();
-    m_currentTheme = settings.value("theme_text", ThemeManager::instance().currentTheme().name).toString();
-    m_currentBackend = settings.value("audio_backend", 0).toInt();
-    m_currentDevice = settings.value("audio_device", "Default / Automatic").toString();
->>>>>>> mulberry-calendula
 
     if (m_tooltipToggle) {
         m_tooltipToggle->setChecked(m_tooltipsEnabled);
@@ -627,14 +624,7 @@ void SettingsPageWidget::loadSettings() {
         QString activeId = ThemeManager::instance().currentThemeId();
         int idx = m_themeCombo->findData(activeId);
         if (idx < 0) idx = m_themeCombo->findText(m_currentTheme);
-<<<<<<< HEAD
         if (idx >= 0) { QSignalBlocker b(m_themeCombo); m_themeCombo->setCurrentIndex(idx); }
-=======
-        if (idx >= 0) {
-            QSignalBlocker b(m_themeCombo);
-            m_themeCombo->setCurrentIndex(idx);
-        }
->>>>>>> mulberry-calendula
     }
     if (m_backendCombo) {
         int idx = m_backendCombo->findData(m_currentBackend);
@@ -690,18 +680,12 @@ bool SettingsPageWidget::isTooltipsEnabled() const {
     return m_tooltipsEnabled;
 }
 
-<<<<<<< HEAD
 // ─── FAST Theme Update: O(1) direct pointer updates ──────────────────────────
 void SettingsPageWidget::updateThemeStyles(const ThemePalette& p) {
     // Page background
     setStyleSheet(QString("QWidget#SettingsPage { background-color: %1; }").arg(p.windowBg.name()));
 
     // ── Card backgrounds ──────────────────────────────────────────────────
-=======
-void SettingsPageWidget::updateThemeStyles(const ThemePalette& p) {
-    setStyleSheet(QString("QWidget#SettingsPage { background-color: %1; }").arg(p.windowBg.name()));
-
->>>>>>> mulberry-calendula
     const QString cardStyle = QString(
         "QFrame#SettingsCard {"
         "  background-color: %1;"
@@ -710,7 +694,6 @@ void SettingsPageWidget::updateThemeStyles(const ThemePalette& p) {
         "}"
     ).arg(p.cardBg.name(), p.cardBorder.name());
 
-<<<<<<< HEAD
     for (auto* card : m_settingsCards) {
         card->setStyleSheet(cardStyle);
     }
@@ -727,13 +710,10 @@ void SettingsPageWidget::updateThemeStyles(const ThemePalette& p) {
     }
 
     // ── Separator lines ───────────────────────────────────────────────────
-=======
->>>>>>> mulberry-calendula
     const QString sepStyle = QString(
         "QFrame { background-color: %1; max-height: 1px; min-height: 1px; border: none; }"
     ).arg(p.cardBorder.name());
 
-<<<<<<< HEAD
     for (auto* sep : m_cardSeparators) {
         sep->setStyleSheet(sepStyle);
     }
@@ -778,15 +758,12 @@ void SettingsPageWidget::updateThemeStyles(const ThemePalette& p) {
     }
 
     // ── ComboBox styles ───────────────────────────────────────────────────
-=======
->>>>>>> mulberry-calendula
     const QString comboStyle = QString(
         "QComboBox { background-color: %1; color: %2; border: 1px solid %3;"
         "  border-radius: 8px; padding: 4px 12px; font-size: 12px; font-weight: 500; }"
         "QComboBox:hover { border-color: %4; }"
         "QComboBox::drop-down { border: none; width: 24px; }"
         "QComboBox QAbstractItemView { background-color: %1; color: %2;"
-<<<<<<< HEAD
         "  border: 1px solid %3; border-radius: 8px; outline: none; padding: 4px;"
         "  selection-background-color: %5; selection-color: %6; show-decoration-selected: 1; }"
         "QComboBox QAbstractItemView::item { padding: 7px 12px; min-height: 26px;"
@@ -801,14 +778,6 @@ void SettingsPageWidget::updateThemeStyles(const ThemePalette& p) {
     if (m_deviceCombo)  m_deviceCombo->setStyleSheet(comboStyle);
 
     // ── SpinBox style ─────────────────────────────────────────────────────
-=======
-        "  selection-background-color: %5; selection-color: %6; border: 1px solid %3; border-radius: 6px; padding: 4px; outline: none; }"
-        "QComboBox QAbstractItemView::item { padding: 6px 12px; border-radius: 4px; color: %2; background-color: transparent; }"
-        "QComboBox QAbstractItemView::item:hover { background-color: %5; color: %2; }"
-        "QComboBox QAbstractItemView::item:selected { background-color: %5; color: %6; font-weight: bold; }"
-    ).arg(p.headerBg.name(), p.primaryText.name(), p.cardBorder.name(), p.primaryAccent.name(), p.itemHoverBg.name(), p.secondaryAccent.name());
-
->>>>>>> mulberry-calendula
     const QString spinStyle = QString(
         "QSpinBox { background-color: %1; color: %2; border: 1px solid %3; "
         "border-radius: 8px; padding: 4px 8px; padding-right: 24px; font-size: 12px; }"
@@ -816,36 +785,26 @@ void SettingsPageWidget::updateThemeStyles(const ThemePalette& p) {
         "QSpinBox::up-button:hover { background-color: %4; }"
         "QSpinBox::down-button { subcontrol-origin: border; subcontrol-position: bottom right; width: 22px; height: 14px; border-left: 1px solid %3; border-bottom-right-radius: 7px; background-color: %5; }"
         "QSpinBox::down-button:hover { background-color: %4; }"
-<<<<<<< HEAD
     ).arg(p.headerBg.name(), p.primaryText.name(), p.cardBorder.name(),
           p.primaryAccent.name(), p.itemHoverBg.name());
 
     if (m_crossfadeDurationSpin) m_crossfadeDurationSpin->setStyleSheet(spinStyle);
 
     // ── Buttons ───────────────────────────────────────────────────────────
-=======
-    ).arg(p.headerBg.name(), p.primaryText.name(), p.cardBorder.name(), p.primaryAccent.name(), p.itemHoverBg.name());
-
->>>>>>> mulberry-calendula
     const QString primaryBtnStyle = QString(
         "QPushButton { background-color: %1; color: #FFFFFF; font-size: 13px;"
         "  font-weight: 600; border: none; border-radius: 8px; padding: 0px 14px; }"
         "QPushButton:hover { background-color: %2; }"
         "QPushButton:pressed { background-color: %1; }"
-<<<<<<< HEAD
         "QPushButton:disabled { background-color: %3; color: %4; }"
     ).arg(p.primaryAccent.name(), p.secondaryAccent.name(),
           p.itemHoverBg.name(), p.mutedText.name());
-=======
-    ).arg(p.secondaryAccent.name(), p.primaryAccent.name());
->>>>>>> mulberry-calendula
 
     const QString secondaryBtnStyle = QString(
         "QPushButton { background-color: %1; color: %2; font-size: 13px;"
         "  font-weight: 600; border: 1px solid %3; border-radius: 8px; padding: 0px 14px; }"
         "QPushButton:hover { background-color: %4; border-color: %5; color: %6; }"
         "QPushButton:pressed { background-color: %1; }"
-<<<<<<< HEAD
     ).arg(p.headerBg.name(), p.secondaryText.name(), p.cardBorder.name(),
           p.itemHoverBg.name(), p.primaryAccent.name(), p.primaryText.name());
 
@@ -870,31 +829,6 @@ void SettingsPageWidget::updateThemeStyles(const ThemePalette& p) {
     }
 
     // ── Folders list widget ───────────────────────────────────────────────
-=======
-    ).arg(p.headerBg.name(), p.secondaryText.name(), p.cardBorder.name(), p.itemHoverBg.name(), p.primaryAccent.name(), p.primaryText.name());
-
-    for (auto* card : findChildren<QFrame*>("SettingsCard")) {
-        card->setStyleSheet(cardStyle);
-    }
-    for (auto* sep : findChildren<QFrame*>()) {
-        if (sep->objectName() != "SettingsCard" && sep->frameShape() == QFrame::HLine) {
-            sep->setStyleSheet(sepStyle);
-        }
-    }
-
-    if (m_themeCombo) m_themeCombo->setStyleSheet(comboStyle);
-    if (m_backendCombo) m_backendCombo->setStyleSheet(comboStyle);
-    if (m_deviceCombo) m_deviceCombo->setStyleSheet(comboStyle);
-    if (m_crossfadeDurationSpin) m_crossfadeDurationSpin->setStyleSheet(spinStyle);
-
-    if (m_addSongsBtn) m_addSongsBtn->setStyleSheet(primaryBtnStyle);
-    if (m_loudnessScanBtn) m_loudnessScanBtn->setStyleSheet(primaryBtnStyle);
-
-    if (m_addFoldersBtn) m_addFoldersBtn->setStyleSheet(secondaryBtnStyle);
-    if (m_importM3UBtn) m_importM3UBtn->setStyleSheet(secondaryBtnStyle);
-    if (m_exportM3UBtn) m_exportM3UBtn->setStyleSheet(secondaryBtnStyle);
-
->>>>>>> mulberry-calendula
     if (m_foldersListWidget) {
         m_foldersListWidget->setStyleSheet(QString(
             "QListWidget { background-color: %1; border: 1px solid %2;"
@@ -902,29 +836,7 @@ void SettingsPageWidget::updateThemeStyles(const ThemePalette& p) {
             "QListWidget::item { padding: 0px; border-radius: 6px; margin-bottom: 2px; }"
             "QListWidget::item:alternate { background-color: %4; }"
             "QListWidget::item:hover { background-color: %5; }"
-<<<<<<< HEAD
         ).arg(p.headerBg.name(), p.cardBorder.name(), p.primaryText.name(),
               p.cardBg.name(), p.itemHoverBg.name()));
-=======
-        ).arg(p.headerBg.name(), p.cardBorder.name(), p.primaryText.name(), p.cardBg.name(), p.itemHoverBg.name()));
-    }
-
-    for (auto* label : findChildren<QLabel*>()) {
-        QString text = label->text();
-        if (text.startsWith("APPEARANCE") || text.startsWith("PERFORMANCE") || text.startsWith("ADD MUSIC") ||
-            text.startsWith("LIBRARY FOLDERS") || text.startsWith("PLAYBACK") || text.startsWith("AUDIO ANALYSIS")) {
-            label->setStyleSheet(QString("font-size: 11px; font-weight: 700; color: %1; letter-spacing: 1px; border: none; background: transparent;").arg(p.secondaryAccent.name()));
-        } else if (text == "Settings & Library Management") {
-            label->setStyleSheet(QString("font-size: 24px; font-weight: 800; color: %1; letter-spacing: -0.5px; border: none; background: transparent;").arg(p.primaryText.name()));
-        } else if (text.contains("Configure your audio") || text.contains("Directories synchronized") || text.contains("Import audio tracks") || text.contains("Scan library using")) {
-            label->setStyleSheet(QString("font-size: 13px; color: %1; border: none; background: transparent;").arg(p.mutedText.name()));
-        } else if (!label->parentWidget() || label->parentWidget()->objectName() == "SettingsCard") {
-            if (label->font().weight() >= QFont::Bold || label->styleSheet().contains("font-weight: 600")) {
-                label->setStyleSheet(QString("font-size: 14px; font-weight: 600; color: %1; border: none; background: transparent;").arg(p.primaryText.name()));
-            } else if (label->styleSheet().contains("font-size: 12px")) {
-                label->setStyleSheet(QString("font-size: 12px; color: %1; border: none; background: transparent;").arg(p.mutedText.name()));
-            }
-        }
->>>>>>> mulberry-calendula
     }
 }

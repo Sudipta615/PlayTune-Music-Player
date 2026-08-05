@@ -527,39 +527,6 @@ void MainWindow::connectBridge() {
     // We now apply a QSS overlay that overrides the accent color used by
     // buttons, sliders, and highlights. The base QSS is preserved (loaded
     // once in loadStyleSheet()); we append the per-theme overrides here.
-<<<<<<< HEAD
-    // The overlay is also re-applied on every subsequent theme change.
-    connect(&ThemeManager::instance(), &ThemeManager::themeChanged, this, [this](const ThemePalette& palette) {
-        if (m_sep1) {
-            m_sep1->setStyleSheet(QString("color: %1; background-color: %1; min-width: 1px; max-width: 1px; border: none;").arg(palette.separatorColor.name()));
-        }
-        if (m_sep2) {
-            m_sep2->setStyleSheet(QString("color: %1; background-color: %1; min-width: 1px; max-width: 1px; border: none;").arg(palette.separatorColor.name()));
-        }
-        if (m_toggleRightTopBtn) {
-            m_toggleRightTopBtn->setStyleSheet(
-                QString("QPushButton { background-color: %1; color: %2; border: 1px solid %3; border-radius: 6px; font-size: 12px; font-weight: bold; }"
-                        "QPushButton:hover { background-color: %4; border-color: %5; color: %6; }")
-                .arg(palette.headerBg.name())
-                .arg(palette.secondaryText.name())
-                .arg(palette.cardBorder.name())
-                .arg(palette.itemHoverBg.name())
-                .arg(palette.primaryAccent.name())
-                .arg(palette.primaryText.name())
-            );
-        }
-        if (m_searchBar) {
-            m_searchBar->setStyleSheet(
-                QString("QLineEdit#SearchBar { background-color: %1; border: 1px solid %2; border-radius: 10px; color: %3; padding: 8px 12px; font-size: 13px; }"
-                        "QLineEdit#SearchBar:hover { border: 1px solid %4; }"
-                        "QLineEdit#SearchBar:focus { border: 1px solid %5; }")
-                .arg(palette.headerBg.name())
-                .arg(palette.cardBorder.name())
-                .arg(palette.primaryText.name())
-                .arg(palette.primaryAccent.name())
-                .arg(palette.secondaryAccent.name())
-            );
-=======
     // The overlay is applied immediately for the currently active (saved)
     // theme and re-applied on every subsequent theme change. Without the
     // immediate call, widgets whose styles were hard-coded in setupUi (e.g.
@@ -568,7 +535,6 @@ void MainWindow::connectBridge() {
     auto applyThemeOverlay = [this](const ThemePalette& palette) {
         if (m_sep1) {
             m_sep1->setStyleSheet(QString("color: %1; background-color: %1; min-width: 1px; max-width: 1px; border: none;").arg(palette.separatorColor.name()));
->>>>>>> mulberry-calendula
         }
         if (m_sep2) {
             m_sep2->setStyleSheet(QString("color: %1; background-color: %1; min-width: 1px; max-width: 1px; border: none;").arg(palette.separatorColor.name()));

@@ -3,10 +3,7 @@
 #include "custom_widgets.h"  // getDefaultAlbumArt
 #include "appsettings.h"
 #include "apptheme.h"
-<<<<<<< HEAD
 #include <QFile>
-=======
->>>>>>> mulberry-calendula
 #include <QVBoxLayout>
 #include <QFontMetrics>
 #include <QTimer>
@@ -61,13 +58,7 @@ MediaGridCard::MediaGridCard(QWidget* parent) : QFrame(parent) {
 
     connect(&ThemeManager::instance(), &ThemeManager::themeChanged, this, [this](const ThemePalette&) {
         setPlaying(m_playing);
-<<<<<<< HEAD
         if (m_coverPath.isEmpty() || !QFile::exists(m_coverPath) || AppSettings::instance().isOptimizedMode()) {
-=======
-        // Tiles with no cover show the theme-generated default art; refresh
-        // them immediately so they pick up the new palette.
-        if (m_coverPath.isEmpty()) {
->>>>>>> mulberry-calendula
             refreshCover();
         }
     });
