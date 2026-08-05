@@ -97,6 +97,8 @@ CoverLoader& CoverLoader::instance() {
     return inst;
 }
 
+#include "apptheme.h"
+
 CoverLoader::CoverLoader() : QObject(nullptr) {
     // Dedicated pool: 2 threads for cover decoding. Using the global pool
     // risks saturating all cores when the user scrolls quickly (hundreds
@@ -112,6 +114,10 @@ CoverLoader::CoverLoader() : QObject(nullptr) {
     m_flushTimer.setSingleShot(false);
     connect(&m_flushTimer, &QTimer::timeout, this, &CoverLoader::flushDeliveries);
     m_flushTimer.start();
+
+    connect(&ThemeManager::instance(), &ThemeManager::themeChanged, this, [this](const ThemePalette&) {
+        clearCache();
+    });
 }
 
 bool CoverLoader::tryGet(const QString& path, int size, QPixmap& out) const {

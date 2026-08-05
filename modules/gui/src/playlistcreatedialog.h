@@ -5,6 +5,8 @@
 #include <QLineEdit>
 #include <QPushButton>
 #include <QLabel>
+#include <QFrame>
+#include "apptheme.h"
 
 /// Modal dialog for creating or renaming a playlist. Single text field
 /// for the playlist name. Emits `nameSubmitted(QString)` when the user
@@ -23,8 +25,15 @@ signals:
 
 private:
     void setupUi();
+    void updateThemeStyles(const ThemePalette& p);
+
     Mode m_mode;
+    QFrame* m_cardFrame = nullptr;
+    QLabel* m_titleLabel = nullptr;
+    QLabel* m_hintLabel = nullptr;
     QLineEdit* m_nameEdit = nullptr;
+    QPushButton* m_cancelBtn = nullptr;
+    QPushButton* m_okBtn = nullptr;
 };
 
 #endif // PLAYLISTCREATEDIALOG_H

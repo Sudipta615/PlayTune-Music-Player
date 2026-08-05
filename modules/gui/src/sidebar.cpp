@@ -1,4 +1,5 @@
 #include "sidebar.h"
+#include "apptheme.h"
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QLabel>
@@ -70,11 +71,12 @@ void SidebarWidget::setupUi() {
         "Manage Imported Music Directories"
     };
 
+    const auto& initTheme = ThemeManager::instance().currentTheme();
     for (int i = 0; i < navNames.size(); ++i) {
         auto* btn = new QPushButton(navNames[i], this);
         btn->setObjectName("SidebarBtn");
         btn->setCheckable(true);
-        btn->setIcon(QIcon(navIcons[i]));
+        btn->setIcon(ThemeManager::tintedIcon(navIcons[i], initTheme.iconColor));
         btn->setIconSize(QSize(18, 18));
         if (i < navTooltips.size()) btn->setToolTip(navTooltips[i]);
         
@@ -108,7 +110,7 @@ void SidebarWidget::setupUi() {
     
     m_addPlaylistBtn = new QPushButton(this);
     m_addPlaylistBtn->setObjectName("IconButton");
-    m_addPlaylistBtn->setIcon(QIcon(":/resources/icons/plus.png"));
+    m_addPlaylistBtn->setIcon(ThemeManager::tintedIcon(":/resources/icons/plus.png", initTheme.iconColor));
     m_addPlaylistBtn->setIconSize(QSize(12, 12));
     m_addPlaylistBtn->setFixedSize(22, 22);
     m_addPlaylistBtn->setToolTip("Create New Custom Playlist");
@@ -137,7 +139,7 @@ void SidebarWidget::setupUi() {
     for (int i = 0; i < playlistNames.size(); ++i) {
         auto* btn = new QPushButton(playlistNames[i], this);
         btn->setObjectName("SidebarBtn");
-        btn->setIcon(QIcon(playlistIcons[i]));
+        btn->setIcon(ThemeManager::tintedIcon(playlistIcons[i], initTheme.iconColor));
         btn->setIconSize(QSize(18, 18));
         if (i < playlistTooltips.size()) btn->setToolTip(playlistTooltips[i]);
         btn->setCheckable(true);
@@ -156,14 +158,25 @@ void SidebarWidget::setupUi() {
     // Dynamic user-defined playlist list.
     m_playlistList = new QListWidget(this);
     m_playlistList->setObjectName("UserPlaylistsList");
-    m_playlistList->setStyleSheet(
-        "QListWidget { background-color: transparent; border: none; color: #C8C8D0; "
-        "font-size: 13px; outline: none; }"
-        "QListWidget::item { padding: 6px 8px 6px 28px; border-radius: 4px; "
-        "background-image: url(:/resources/icons/list.png); "
-        "background-position: 6px center; background-repeat: no-repeat; }"
-        "QListWidget::item:hover { background-color: rgba(255, 255, 255, 0.05); }"
-        "QListWidget::item:selected { background-color: rgba(255, 42, 122, 0.18); color: #FFFFFF; }");
+
+    auto applyListStyle = [this](const ThemePalette& p) {
+        if (!m_playlistList) return;
+        m_playlistList->setStyleSheet(QString(
+            "QListWidget { background-color: transparent; border: none; color: %1; "
+            "font-size: 13px; outline: none; }"
+            "QListWidget::item { padding: 6px 8px; border-radius: 4px; }"
+            "QListWidget::item:hover { background-color: %2; color: %3; }"
+            "QListWidget::item:selected { background-color: %2; color: %4; font-weight: bold; }"
+        ).arg(p.secondaryText.name(), p.itemHoverBg.name(), p.primaryText.name(), p.secondaryAccent.name()));
+    };
+    applyListStyle(ThemeManager::instance().currentTheme());
+    connect(&ThemeManager::instance(), &ThemeManager::themeChanged, this, [this, applyListStyle](const ThemePalette& p) {
+        applyListStyle(p);
+        // Retint all nav button icons
+        for (int i = 0; i < m_allNavButtons.size(); ++i) {
+            // Reconstruct icon paths from the button index
+        }
+    });
     m_playlistList->setContextMenuPolicy(Qt::CustomContextMenu);
     m_playlistList->setMinimumHeight(0);
     m_playlistList->setMaximumHeight(220);
@@ -200,17 +213,45 @@ void SidebarWidget::setupUi() {
     // 5. Settings Button at Bottom
     auto* settingsBtn = new QPushButton("Settings", this);
     settingsBtn->setObjectName("SidebarBtn");
-    settingsBtn->setIcon(QIcon(":/resources/icons/settings.png"));
+    settingsBtn->setIcon(ThemeManager::tintedIcon(":/resources/icons/settings.png", initTheme.iconColor));
     settingsBtn->setIconSize(QSize(18, 18));
     settingsBtn->setToolTip("Application Settings, Themes & Library Management");
     settingsBtn->setCheckable(true);
-    m_navGroup->addButton(settingsBtn, 8); // offset past the 7 existing buttons
+    m_navGroup->addButton(settingsBtn, 8);
     mainLayout->addWidget(settingsBtn);
     m_allNavButtons.append(settingsBtn);
     m_allNavTexts.append("Settings");
 
     connect(settingsBtn, &QPushButton::clicked, this, [this]() {
         emit settingsClicked();
+    });
+
+    // Retint all nav icons when theme changes
+    QStringList allIconPaths = {
+        ":/resources/icons/home.png",
+        ":/resources/icons/albums.png",
+        ":/resources/icons/artists.png",
+        ":/resources/icons/folders.png",
+        ":/resources/icons/favorites.png",
+        ":/resources/icons/recently_played.png",
+        ":/resources/icons/most_played.png",
+        "", // spacer index 7 unused
+        ":/resources/icons/settings.png"
+    };
+    // Store icon paths so themeChanged can retint
+    connect(&ThemeManager::instance(), &ThemeManager::themeChanged, this,
+            [this, allIconPaths](const ThemePalette& p) {
+        // Retint add-playlist btn
+        if (m_addPlaylistBtn)
+            m_addPlaylistBtn->setIcon(ThemeManager::tintedIcon(":/resources/icons/plus.png", p.iconColor));
+        // Retint nav buttons
+        for (int i = 0; i < m_allNavButtons.size(); ++i) {
+            int iconIdx = (i < 4) ? i : (i == 4 ? 4 : (i == 5 ? 5 : (i == 6 ? 6 : 8)));
+            if (iconIdx < allIconPaths.size() && !allIconPaths[iconIdx].isEmpty()) {
+                m_allNavButtons[i]->setIcon(
+                    ThemeManager::tintedIcon(allIconPaths[iconIdx], p.iconColor));
+            }
+        }
     });
 }
 
@@ -225,10 +266,11 @@ void SidebarWidget::setCollapsed(bool collapsed) {
     for (int i = 0; i < m_allNavButtons.size(); ++i) {
         if (m_isCollapsed) {
             m_allNavButtons[i]->setText("");
-            m_allNavButtons[i]->setStyleSheet("QPushButton { text-align: center; padding: 10px 0px; }");
+            // Use a minimal override only for alignment; theme QSS handles all colors
+            m_allNavButtons[i]->setStyleSheet("QPushButton#SidebarBtn { text-align: center; padding: 10px 0px; }");
         } else {
             m_allNavButtons[i]->setText(m_allNavTexts[i]);
-            m_allNavButtons[i]->setStyleSheet("");
+            m_allNavButtons[i]->setStyleSheet(""); // let global QSS take over
         }
     }
     emit collapsedToggled(m_isCollapsed);

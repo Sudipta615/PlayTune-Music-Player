@@ -1,4 +1,5 @@
 #include "equalizerwindow.h"
+#include "apptheme.h"
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QGridLayout>
@@ -26,8 +27,14 @@ EqualizerWindow::EqualizerWindow(QWidget* parent) : QWidget(parent) {
     m_saveTimer->setInterval(300);
     connect(m_saveTimer, &QTimer::timeout, this, &EqualizerWindow::saveSettings);
 
+    connect(&ThemeManager::instance(), &ThemeManager::themeChanged, this, [this](const ThemePalette& p) {
+        updateThemeStyles(p);
+        update();
+    });
+
     setupUi();
     loadSettings();
+    updateThemeStyles(ThemeManager::instance().currentTheme());
     hide();
 }
 
@@ -42,11 +49,12 @@ void EqualizerWindow::setupUi() {
     headerLayout->setSpacing(12);
 
     auto* eqIcon = new QLabel(this);
+    m_eqIconLabel = eqIcon;
     eqIcon->setPixmap(QIcon(":/resources/icons/equalizer.png").pixmap(18, 18));
     eqIcon->setAttribute(Qt::WA_TransparentForMouseEvents);
     
     auto* eqTitle = new QLabel("Equalizer", this);
-    eqTitle->setStyleSheet("font-size: 18px; font-weight: bold; color: #FFFFFF;");
+    m_eqTitleLabel = eqTitle;
     eqTitle->setAttribute(Qt::WA_TransparentForMouseEvents);
 
     m_enableToggle = new ToggleSwitch(this);
@@ -59,19 +67,19 @@ void EqualizerWindow::setupUi() {
 
     // More Options & Close buttons
     auto* moreBtn = new QPushButton(this);
+    m_moreBtn = moreBtn;
     moreBtn->setObjectName("IconButton");
     moreBtn->setIcon(QIcon(":/resources/icons/more.png"));
     moreBtn->setIconSize(QSize(16, 16));
     moreBtn->setFixedSize(28, 28);
-    moreBtn->setStyleSheet("QPushButton { border: none; background: transparent; } QPushButton:hover { background-color: #1B1130; }");
     moreBtn->setToolTip("Equalizer Advanced Options");
 
     auto* closeBtn = new QPushButton(this);
+    m_closeBtn = closeBtn;
     closeBtn->setObjectName("IconButton");
     closeBtn->setIcon(QIcon(":/resources/icons/close.png"));
     closeBtn->setIconSize(QSize(16, 16));
     closeBtn->setFixedSize(28, 28);
-    closeBtn->setStyleSheet("QPushButton { border: none; background: transparent; } QPushButton:hover { background-color: #3D1022; }");
     closeBtn->setToolTip("Close Equalizer Window (E)");
 
     headerLayout->addWidget(moreBtn);
@@ -252,13 +260,13 @@ void EqualizerWindow::setupUi() {
 
     // Card 1: DSP Engine Resampler & Oversampling Mode
     auto* resamplerCard = new QFrame(pageAdvanced);
-    resamplerCard->setStyleSheet("QFrame { background-color: #131622; border: 1px solid #282E43; border-radius: 8px; }");
+    m_resamplerCard = resamplerCard;
     auto* resamplerLayout = new QVBoxLayout(resamplerCard);
     resamplerLayout->setContentsMargins(15, 12, 15, 12);
     resamplerLayout->setSpacing(8);
 
     auto* resamplerHeader = new QLabel("DSP Resampler & Oversampling Engine Mode", resamplerCard);
-    resamplerHeader->setStyleSheet("font-size: 13px; font-weight: bold; color: #FFFFFF; border: none;");
+    m_resamplerHeader = resamplerHeader;
     resamplerLayout->addWidget(resamplerHeader);
 
     auto* resamplerBtnsLayout = new QHBoxLayout();
@@ -323,28 +331,24 @@ void EqualizerWindow::setupUi() {
 
     // Card 3: Band Parameters Editor
     auto* bandEditorCard = new QFrame(pageAdvanced);
-    bandEditorCard->setStyleSheet("QFrame { background-color: #131622; border: 1px solid #282E43; border-radius: 8px; }");
+    m_bandEditorCard = bandEditorCard;
     auto* bandEditorLayout = new QGridLayout(bandEditorCard);
     bandEditorLayout->setContentsMargins(15, 15, 15, 15);
     bandEditorLayout->setSpacing(12);
 
     // Row 0: Filter Type & Band Enable Toggle
     auto* typeLabel = new QLabel("Filter Type:", bandEditorCard);
-    typeLabel->setStyleSheet("font-size: 12px; font-weight: bold; color: #C4C8D4; border: none;");
+    m_typeLabel = typeLabel;
     m_advFilterTypeCombo = new QComboBox(bandEditorCard);
+    ThemeManager::setupComboBox(m_advFilterTypeCombo);
     m_advFilterTypeCombo->addItems({"Low Shelf", "Peaking", "High Shelf", "Low Pass", "High Pass", "Bandpass", "Notch"});
-    m_advFilterTypeCombo->setStyleSheet(
-        "QComboBox { background-color: #1C2030; color: #FFFFFF; border: 1px solid #30374E; border-radius: 5px; padding: 4px 8px; font-size: 12px; }"
-        "QComboBox::drop-down { border: none; }"
-        "QComboBox QAbstractItemView { background-color: #1C2030; color: #FFFFFF; selection-background-color: #7B1FA2; }"
-    );
     m_advFilterTypeCombo->setToolTip("Select Parametric Filter Shape (Low Shelf, Peaking, High Shelf, Pass/Notch)");
 
     auto* toggleContainer = new QWidget(bandEditorCard);
     auto* toggleLayout = new QHBoxLayout(toggleContainer);
     toggleLayout->setContentsMargins(0, 0, 0, 0);
     auto* enableLabel = new QLabel("Active:", bandEditorCard);
-    enableLabel->setStyleSheet("font-size: 12px; font-weight: bold; color: #C4C8D4; border: none;");
+    m_enableLabel = enableLabel;
     m_advBandToggle = new ToggleSwitch(bandEditorCard);
     m_advBandToggle->setChecked(true);
     m_advBandToggle->setToolTip("Activate / Deactivate Selected Frequency Band");
@@ -358,7 +362,7 @@ void EqualizerWindow::setupUi() {
 
     // Row 1: Center Frequency
     auto* freqLabel = new QLabel("Center Freq:", bandEditorCard);
-    freqLabel->setStyleSheet("font-size: 12px; font-weight: bold; color: #C4C8D4; border: none;");
+    m_freqLabel = freqLabel;
     m_advFreqSlider = new QSlider(Qt::Horizontal, bandEditorCard);
     m_advFreqSlider->setRange(20, 20000);
     m_advFreqSlider->setValue(1000);
@@ -384,7 +388,7 @@ void EqualizerWindow::setupUi() {
 
     // Row 2: Quality Factor (Q)
     auto* qLabel = new QLabel("Q Factor:", bandEditorCard);
-    qLabel->setStyleSheet("font-size: 12px; font-weight: bold; color: #C4C8D4; border: none;");
+    m_qLabel = qLabel;
     m_advQSlider = new QSlider(Qt::Horizontal, bandEditorCard);
     m_advQSlider->setRange(1, 240); // 0.1 to 24.0 (value / 10.0)
     m_advQSlider->setValue(10);
@@ -394,7 +398,6 @@ void EqualizerWindow::setupUi() {
     m_advQSpin->setSingleStep(0.1);
     m_advQSpin->setDecimals(2);
     m_advQSpin->setValue(1.00);
-    m_advQSpin->setStyleSheet(doubleSpinStyle);
     m_advQSpin->setToolTip("Adjust Quality Factor / Bandwidth (Q Factor)");
 
     bandEditorLayout->addWidget(qLabel, 2, 0);
@@ -403,13 +406,12 @@ void EqualizerWindow::setupUi() {
 
     // Row 3: Band Gain (dB)
     auto* gainLabel = new QLabel("Band Gain:", bandEditorCard);
-    gainLabel->setStyleSheet("font-size: 12px; font-weight: bold; color: #C4C8D4; border: none;");
+    m_gainLabel = gainLabel;
     m_advGainSlider = new QSlider(Qt::Horizontal, bandEditorCard);
     m_advGainSlider->setRange(-120, 120); // -12.0 to +12.0 dB
     m_advGainSlider->setValue(0);
     m_advGainSlider->setToolTip("Adjust Band Gain (-12.0 dB to +12.0 dB)");
     m_advGainLabel = new QLabel("0.0 dB", bandEditorCard);
-    m_advGainLabel->setStyleSheet("font-size: 12px; font-weight: bold; color: #FFFFFF; border: none;");
     m_advGainLabel->setAlignment(Qt::AlignCenter);
 
     bandEditorLayout->addWidget(gainLabel, 3, 0);
@@ -504,14 +506,14 @@ void EqualizerWindow::setupUi() {
     preampVLayout->setSpacing(2);
     
     auto* preampHeader = new QLabel("Preamp", m_eqContentWidget);
-    preampHeader->setStyleSheet("QLabel { font-size: 12px; font-weight: bold; color: #FFFFFF; } QLabel:disabled { color: #4C5264; }");
+    m_preampHeader = preampHeader;
     preampVLayout->addWidget(preampHeader);
 
     auto* preampSliderLayout = new QHBoxLayout();
     preampSliderLayout->setSpacing(10);
 
     auto* preampMinLabel = new QLabel("-12dB", m_eqContentWidget);
-    preampMinLabel->setStyleSheet("QLabel { font-size: 10px; color: #7E8494; } QLabel:disabled { color: #353845; }");
+    m_preampMinLabel = preampMinLabel;
     
     m_preampSlider = new QSlider(Qt::Horizontal, m_eqContentWidget);
     m_preampSlider->setRange(-120, 120); // -12.0dB to +12.0dB
@@ -519,7 +521,7 @@ void EqualizerWindow::setupUi() {
     m_preampSlider->setToolTip("Master Preamp Gain (+0.0 dB)");
     
     auto* preampMaxLabel = new QLabel("+12dB", m_eqContentWidget);
-    preampMaxLabel->setStyleSheet("QLabel { font-size: 10px; color: #7E8494; } QLabel:disabled { color: #353845; }");
+    m_preampMaxLabel = preampMaxLabel;
 
     preampSliderLayout->addWidget(preampMinLabel);
     preampSliderLayout->addWidget(m_preampSlider);
@@ -678,6 +680,7 @@ void EqualizerWindow::emitInitialState() {
 QWidget* EqualizerWindow::createParamSliderCard(const QString& name, double minVal, double maxVal, double defaultVal, const QString& unit, int paramIdx) {
     auto* card = new QFrame(m_eqContentWidget);
     card->setObjectName("EqControlPanel");
+    m_paramCards.append(card);
     
     auto* cardLayout = new QVBoxLayout(card);
     cardLayout->setContentsMargins(15, 10, 15, 10);
@@ -687,14 +690,14 @@ QWidget* EqualizerWindow::createParamSliderCard(const QString& name, double minV
     auto* headerLayout = new QHBoxLayout();
     
     auto* labelName = new QLabel(name, card);
-    labelName->setStyleSheet("QLabel { font-size: 12px; font-weight: bold; color: #FFFFFF; } QLabel:disabled { color: #4C5264; }");
+    m_paramNameLabels.append(labelName);
     
     auto* infoBtn = new QPushButton(card);
     infoBtn->setIcon(QIcon(":/resources/icons/info.png"));
     infoBtn->setIconSize(QSize(12, 12));
     infoBtn->setFixedSize(16, 16);
-    infoBtn->setStyleSheet("QPushButton { border: none; background: transparent; } QPushButton:hover { background-color: #1B1E28; }");
     infoBtn->setToolTip("Information about " + name + " parameter adjustment (" + QString::number(minVal) + unit + " to " + QString::number(maxVal) + unit + ")");
+    m_paramInfoBtns.append(infoBtn);
 
     headerLayout->addWidget(labelName);
     headerLayout->addWidget(infoBtn);
@@ -706,7 +709,7 @@ QWidget* EqualizerWindow::createParamSliderCard(const QString& name, double minV
     sliderLayout->setSpacing(8);
 
     auto* minLabel = new QLabel(QString::number(minVal) + unit, card);
-    minLabel->setStyleSheet("QLabel { font-size: 10px; color: #7E8494; } QLabel:disabled { color: #353845; }");
+    m_paramMinLabels.append(minLabel);
     
     auto* slider = new QSlider(Qt::Horizontal, card);
     
@@ -727,7 +730,7 @@ QWidget* EqualizerWindow::createParamSliderCard(const QString& name, double minV
     }
 
     auto* maxLabel = new QLabel(QString("%1%2%3").arg(maxVal > 0 && unit == "dB" ? "+" : "").arg(maxVal).arg(unit), card);
-    maxLabel->setStyleSheet("QLabel { font-size: 10px; color: #7E8494; } QLabel:disabled { color: #353845; }");
+    m_paramMaxLabels.append(maxLabel);
 
     sliderLayout->addWidget(minLabel);
     sliderLayout->addWidget(slider);
@@ -1087,6 +1090,121 @@ void EqualizerWindow::closeEvent(QCloseEvent* event) {
 void EqualizerWindow::hideEvent(QHideEvent* event) {
     saveSettings();
     QWidget::hideEvent(event);
+}
+
+void EqualizerWindow::updateThemeStyles(const ThemePalette& p) {
+    setStyleSheet(QString("QWidget#EqualizerWindow { background-color: %1; border: 1.5px solid %2; border-radius: 14px; }").arg(p.windowBg.name(), p.cardBorder.name()));
+
+    if (m_eqIconLabel) {
+        m_eqIconLabel->setPixmap(ThemeManager::tintedIcon(":/resources/icons/equalizer.png", p.iconColor).pixmap(18, 18));
+    }
+    if (m_eqTitleLabel) {
+        m_eqTitleLabel->setStyleSheet(QString("font-size: 18px; font-weight: bold; color: %1; background: transparent;").arg(p.primaryText.name()));
+    }
+    if (m_moreBtn) {
+        m_moreBtn->setIcon(ThemeManager::tintedIcon(":/resources/icons/more.png", p.iconColor));
+        m_moreBtn->setStyleSheet(QString("QPushButton { border: none; background: transparent; } QPushButton:hover { background-color: %1; border-radius: 6px; }").arg(p.itemHoverBg.name()));
+    }
+    if (m_closeBtn) {
+        m_closeBtn->setIcon(ThemeManager::tintedIcon(":/resources/icons/close.png", p.iconColor));
+        m_closeBtn->setStyleSheet(QString("QPushButton { border: none; background: transparent; } QPushButton:hover { background-color: rgba(229, 57, 53, 0.75); border-radius: 6px; }"));
+    }
+
+    // Segmented tabs
+    QString tabStyle = QString(
+        "QPushButton {"
+        "   font-size: 13px; font-weight: bold; color: %1;"
+        "   background-color: %2; border: 1px solid %3; padding: 10px 20px; outline: none;"
+        "}"
+        "QPushButton:hover { background-color: %4; color: %5; }"
+        "QPushButton:checked {"
+        "   background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 %6, stop:1 %7);"
+        "   color: #FFFFFF; border: 1px solid %6;"
+        "}"
+        "QPushButton:disabled { color: %8; background-color: %2; border: 1px solid %3; }"
+        "QPushButton:disabled:checked { color: %8; background-color: %4; border: 1px solid %3; }"
+    ).arg(p.secondaryText.name(), p.headerBg.name(), p.cardBorder.name(),
+          p.itemHoverBg.name(), p.primaryText.name(), p.secondaryAccent.name(), p.primaryAccent.name(), p.mutedText.name());
+
+    if (m_tab10BandsBtn) m_tab10BandsBtn->setStyleSheet(tabStyle + "QPushButton { border-top-left-radius: 6px; border-bottom-left-radius: 6px; border-right: none; } QPushButton:checked { border-top-left-radius: 6px; border-bottom-left-radius: 6px; }");
+    if (m_tabControlsBtn) m_tabControlsBtn->setStyleSheet(tabStyle + "QPushButton { border-radius: 0px; border-right: none; }");
+    if (m_tabAdvancedBtn) m_tabAdvancedBtn->setStyleSheet(tabStyle + "QPushButton { border-top-right-radius: 6px; border-bottom-right-radius: 6px; }");
+
+    // Preset & pill buttons
+    QString pillBtnStyle = QString(
+        "QPushButton { font-size: 11px; font-weight: bold; color: %1; background-color: %2; border: 1px solid %3; border-radius: 6px; padding: 6px 12px; }"
+        "QPushButton:hover { background-color: %4; color: %5; }"
+        "QPushButton:checked { background-color: %6; border-color: %7; color: #FFFFFF; }"
+        "QPushButton:disabled { color: %8; background-color: %2; border: 1px solid %3; }"
+        "QPushButton:disabled:checked { color: %8; background-color: %4; border: 1px solid %3; }"
+    ).arg(p.secondaryText.name(), p.headerBg.name(), p.cardBorder.name(),
+          p.itemHoverBg.name(), p.primaryText.name(), p.secondaryAccent.name(), p.primaryAccent.name(), p.mutedText.name());
+
+    for (auto* btn : m_presetBtns) if (btn) btn->setStyleSheet(pillBtnStyle);
+    for (auto* btn : m_resamplerBtns) if (btn) btn->setStyleSheet(pillBtnStyle);
+    for (auto* btn : m_advBandBtns) if (btn) btn->setStyleSheet(pillBtnStyle);
+
+    // Cards
+    QString cardStyle = QString("QFrame { background-color: %1; border: 1px solid %2; border-radius: 8px; }").arg(p.cardBg.name(), p.cardBorder.name());
+    if (m_resamplerCard) m_resamplerCard->setStyleSheet(cardStyle);
+    if (m_bandEditorCard) m_bandEditorCard->setStyleSheet(cardStyle);
+    for (auto* card : m_paramCards) if (card) card->setStyleSheet(cardStyle);
+
+    // Card Header Labels
+    QString headerLblStyle = QString("font-size: 13px; font-weight: bold; color: %1; border: none; background: transparent;").arg(p.primaryText.name());
+    QString boldLblStyle = QString("font-size: 12px; font-weight: bold; color: %1; border: none; background: transparent;").arg(p.primaryText.name());
+    QString mutedLblStyle = QString("QLabel { font-size: 10px; color: %1; background: transparent; } QLabel:disabled { color: %2; }").arg(p.mutedText.name(), p.cardBorder.name());
+
+    if (m_resamplerHeader) m_resamplerHeader->setStyleSheet(headerLblStyle);
+    if (m_typeLabel) m_typeLabel->setStyleSheet(boldLblStyle);
+    if (m_enableLabel) m_enableLabel->setStyleSheet(boldLblStyle);
+    if (m_freqLabel) m_freqLabel->setStyleSheet(boldLblStyle);
+    if (m_qLabel) m_qLabel->setStyleSheet(boldLblStyle);
+    if (m_gainLabel) m_gainLabel->setStyleSheet(boldLblStyle);
+    if (m_preampHeader) m_preampHeader->setStyleSheet(boldLblStyle);
+
+    for (auto* lbl : m_paramNameLabels) if (lbl) lbl->setStyleSheet(boldLblStyle);
+    for (auto* lbl : m_paramMinLabels) if (lbl) lbl->setStyleSheet(mutedLblStyle);
+    for (auto* lbl : m_paramMaxLabels) if (lbl) lbl->setStyleSheet(mutedLblStyle);
+    for (auto* btn : m_paramInfoBtns) if (btn) {
+        btn->setIcon(ThemeManager::tintedIcon(":/resources/icons/info.png", p.iconColor));
+        btn->setStyleSheet(QString("QPushButton { border: none; background: transparent; } QPushButton:hover { background-color: %1; border-radius: 4px; }").arg(p.itemHoverBg.name()));
+    }
+
+    if (m_preampMinLabel) m_preampMinLabel->setStyleSheet(mutedLblStyle);
+    if (m_preampMaxLabel) m_preampMaxLabel->setStyleSheet(mutedLblStyle);
+    if (m_preampValueLabel) m_preampValueLabel->setStyleSheet(QString("QLabel { font-size: 11px; color: %1; background: transparent; } QLabel:disabled { color: %2; }").arg(p.mutedText.name(), p.cardBorder.name()));
+    if (m_advGainLabel) m_advGainLabel->setStyleSheet(QString("font-size: 12px; font-weight: bold; color: %1; border: none; background: transparent;").arg(p.primaryText.name()));
+
+    // Combobox & Spinboxes
+    QString comboStyle = QString(
+        "QComboBox { background-color: %1; color: %2; border: 1px solid %3; border-radius: 5px; padding: 4px 8px; font-size: 12px; }"
+        "QComboBox::drop-down { border: none; }"
+        "QComboBox QAbstractItemView { background-color: %1; color: %2; selection-background-color: %4; selection-color: %5; outline: none; padding: 4px; show-decoration-selected: 1; }"
+        "QComboBox QAbstractItemView::item { padding: 6px 10px; min-height: 24px; border-radius: 4px; color: %2; background-color: transparent; }"
+        "QComboBox QAbstractItemView::item:hover, QComboBox QAbstractItemView::item:selected { background-color: %4; color: %5; font-weight: bold; }"
+    ).arg(p.headerBg.name(), p.primaryText.name(), p.cardBorder.name(), p.itemHoverBg.name(), p.secondaryAccent.name());
+    if (m_advFilterTypeCombo) m_advFilterTypeCombo->setStyleSheet(comboStyle);
+
+    QString doubleSpinStyle = QString(
+        "QDoubleSpinBox { background-color: %1; color: %2; border: 1px solid %3; border-radius: 5px; padding: 4px; padding-right: 22px; font-size: 12px; }"
+        "QDoubleSpinBox::up-button { subcontrol-origin: border; subcontrol-position: top right; width: 20px; height: 12px; border-left: 1px solid %3; border-bottom: 1px solid %3; border-top-right-radius: 5px; background-color: %4; }"
+        "QDoubleSpinBox::up-button:hover { background-color: %5; }"
+        "QDoubleSpinBox::down-button { subcontrol-origin: border; subcontrol-position: bottom right; width: 20px; height: 12px; border-left: 1px solid %3; border-bottom-right-radius: 5px; background-color: %4; }"
+        "QDoubleSpinBox::down-button:hover { background-color: %5; }"
+    ).arg(p.headerBg.name(), p.primaryText.name(), p.cardBorder.name(), p.itemHoverBg.name(), p.primaryAccent.name());
+    if (m_advFreqSpin) m_advFreqSpin->setStyleSheet(doubleSpinStyle);
+    if (m_advQSpin) m_advQSpin->setStyleSheet(doubleSpinStyle);
+
+    // Reset button
+    if (m_resetBtn) {
+        m_resetBtn->setIcon(ThemeManager::tintedIcon(":/resources/icons/reset.png", p.primaryAccent));
+        m_resetBtn->setStyleSheet(QString(
+            "QPushButton { background-color: transparent; border: 1px solid %1; border-radius: 8px; padding: 6px 12px; color: %1; font-size: 13px; font-weight: 600; }"
+            "QPushButton:hover { background-color: %2; color: %3; }"
+            "QPushButton:disabled { border-color: %4; color: %5; }"
+        ).arg(p.primaryAccent.name(), p.itemHoverBg.name(), p.primaryText.name(), p.cardBorder.name(), p.mutedText.name()));
+    }
 }
 
 

@@ -24,6 +24,9 @@ ToggleSwitch::ToggleSwitch(QWidget* parent) : QWidget(parent) {
     connect(m_anim, &QVariantAnimation::valueChanged, this, [this](const QVariant& value) {
         setOffset(value.toReal());
     });
+    connect(&ThemeManager::instance(), &ThemeManager::themeChanged, this, [this](const ThemePalette&) {
+        update();
+    });
 }
 
 QSize ToggleSwitch::sizeHint() const {
@@ -61,6 +64,8 @@ void ToggleSwitch::paintEvent(QPaintEvent* event) {
     QPainter painter(this);
     painter.setRenderHint(QPainter::Antialiasing);
 
+    const auto& p = ThemeManager::instance().currentTheme();
+
     QRectF r = rect();
     qreal radius = r.height() / 2.0;
 
@@ -70,12 +75,11 @@ void ToggleSwitch::paintEvent(QPaintEvent* event) {
 
     QLinearGradient trackGradient(r.topLeft(), r.topRight());
     if (m_checked || m_anim->state() == QAbstractAnimation::Running) {
-        // Linear gradient pink to purple matching the design
-        trackGradient.setColorAt(0.0, QColor("#FF2A7A"));
-        trackGradient.setColorAt(1.0, QColor("#7B1FA2"));
+        trackGradient.setColorAt(0.0, p.secondaryAccent);
+        trackGradient.setColorAt(1.0, p.primaryAccent);
         painter.setBrush(trackGradient);
     } else {
-        painter.setBrush(QColor("#161922"));
+        painter.setBrush(p.cardBorder);
     }
     painter.setPen(Qt::NoPen);
     painter.drawPath(trackPath);
@@ -101,6 +105,9 @@ EqualizerCurveWidget::EqualizerCurveWidget(QWidget* parent) : QWidget(parent) {
     setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
     setMouseTracking(true); // Track mouse hover to show pointer hand
     setToolTip("Click and drag handles to adjust frequency band gain (-12 dB to +12 dB)");
+    connect(&ThemeManager::instance(), &ThemeManager::themeChanged, this, [this](const ThemePalette&) {
+        update();
+    });
 }
 
 void EqualizerCurveWidget::setBandValue(int bandIdx, double db) {
@@ -200,6 +207,7 @@ void EqualizerCurveWidget::paintEvent(QPaintEvent* event) {
     QPainter painter(this);
     painter.setRenderHint(QPainter::Antialiasing);
 
+    const auto& p = ThemeManager::instance().currentTheme();
     bool active = isEnabled();
 
     double leftMargin = 50.0;
@@ -213,8 +221,8 @@ void EqualizerCurveWidget::paintEvent(QPaintEvent* event) {
 
     // Draw horizontal grid lines (+12dB, +6dB, 0dB, -6dB, -12dB)
     const QVector<int> dbLevels = {12, 6, 0, -6, -12};
-    QPen gridPen(QColor("#1A1D26"), 1, Qt::DashLine);
-    QPen textPen(active ? QColor("#7E8494") : QColor("#4C5264"));
+    QPen gridPen(p.cardBorder, 1, Qt::DashLine);
+    QPen textPen(active ? p.secondaryText : p.mutedText);
 
     for (int db : dbLevels) {
         double y = dbToY(db);
@@ -227,7 +235,7 @@ void EqualizerCurveWidget::paintEvent(QPaintEvent* event) {
     }
 
     // Draw visual hint text near top right
-    painter.setPen(QColor("#4C5264"));
+    painter.setPen(p.mutedText);
     painter.drawText(QRectF(width() - 170, 8, 140, 20), Qt::AlignRight | Qt::AlignVCenter, active ? "Drag nodes to adjust" : "Equalizer Off");
 
     // Prepare node coordinates
@@ -247,18 +255,18 @@ void EqualizerCurveWidget::paintEvent(QPaintEvent* event) {
         double cy = points[i].y();
 
         // Background slider line track
-        painter.setPen(QPen(QColor("#1B1E28"), 2));
+        painter.setPen(QPen(p.cardBorder, 2));
         painter.drawLine(QPointF(cx, topMargin), QPointF(cx, yBottom));
 
         // Draw filled gradient bar below knob
         if (cy < yBottom) {
             QLinearGradient barGradient(QPointF(cx, cy), QPointF(cx, yBottom));
             if (active) {
-                barGradient.setColorAt(0.0, QColor("#FF2A7A"));
-                barGradient.setColorAt(1.0, QColor("#7B1FA2"));
+                barGradient.setColorAt(0.0, p.secondaryAccent);
+                barGradient.setColorAt(1.0, p.primaryAccent);
             } else {
-                barGradient.setColorAt(0.0, QColor("#4C5264"));
-                barGradient.setColorAt(1.0, QColor("#252833"));
+                barGradient.setColorAt(0.0, p.mutedText);
+                barGradient.setColorAt(1.0, p.cardBorder);
             }
 
             painter.setPen(QPen(barGradient, 3));
@@ -289,19 +297,21 @@ void EqualizerCurveWidget::paintEvent(QPaintEvent* event) {
             splinePath.cubicTo(cp1, cp2, p2);
         }
 
-        painter.setPen(active ? QPen(QColor("#FF2A7A"), 2) : QPen(QColor("#4C5264"), 2));
+        painter.setPen(active ? QPen(p.secondaryAccent, 2) : QPen(p.mutedText, 2));
         painter.setBrush(Qt::NoBrush);
         painter.drawPath(splinePath);
     }
 
-    // Draw the nodes (white circles with pink glowing shadows)
+    // Draw the nodes (white circles with glowing shadows)
     for (int i = 0; i < 10; ++i) {
         double cx = points[i].x();
         double cy = points[i].y();
 
         if (active) {
-            // Pink glow shadow
-            painter.setBrush(QColor(255, 42, 122, 70));
+            // Glow shadow
+            QColor glowColor = p.secondaryAccent;
+            glowColor.setAlpha(70);
+            painter.setBrush(glowColor);
             painter.setPen(Qt::NoPen);
             painter.drawEllipse(QPointF(cx, cy), 8, 8);
 
@@ -310,8 +320,7 @@ void EqualizerCurveWidget::paintEvent(QPaintEvent* event) {
             painter.drawEllipse(QPointF(cx, cy), 5, 5);
         } else {
             // Muted grey core knob, no glow
-            painter.setBrush(QColor("#4C5264"));
-            painter.setPen(Qt::NoPen);
+            painter.setBrush(p.mutedText);
             painter.drawEllipse(QPointF(cx, cy), 5, 5);
         }
     }
@@ -328,6 +337,9 @@ WaveformVisualizer::WaveformVisualizer(QWidget* parent) : QWidget(parent) {
     setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
     setMinimumHeight(26);
     setMaximumHeight(34);
+    connect(&ThemeManager::instance(), &ThemeManager::themeChanged, this, [this](const ThemePalette&) {
+        update();
+    });
 }
 
 void WaveformVisualizer::setPlaybackProgress(double progress) {
@@ -447,6 +459,8 @@ void WaveformVisualizer::paintEvent(QPaintEvent* event) {
     QPainter painter(this);
     painter.setRenderHint(QPainter::Antialiasing);
 
+    const auto& p = ThemeManager::instance().currentTheme();
+
     int numBars = m_levels.size();
     double w = width();
     double h = height();
@@ -457,10 +471,10 @@ void WaveformVisualizer::paintEvent(QPaintEvent* event) {
     double step = totalSpacing / numBars;
 
     QLinearGradient activeGradient(QPointF(0, 0), QPointF(w, 0));
-    activeGradient.setColorAt(0.0, QColor("#FF2A7A")); // Magenta highlight
-    activeGradient.setColorAt(1.0, QColor("#7B1FA2")); // Purple gradient
+    activeGradient.setColorAt(0.0, p.secondaryAccent);
+    activeGradient.setColorAt(1.0, p.primaryAccent);
 
-    QColor inactiveColor("#252833");
+    QColor inactiveColor = p.isLight ? QColor(0, 0, 0, 40) : QColor(255, 255, 255, 40);
 
     for (int i = 0; i < numBars; ++i) {
         double barHeight = m_levels[i] * h;
@@ -474,7 +488,7 @@ void WaveformVisualizer::paintEvent(QPaintEvent* event) {
             // Draw filled active bar
             painter.setBrush(activeGradient);
         } else {
-            // Draw dark inactive bar
+            // Draw inactive bar
             painter.setBrush(inactiveColor);
         }
         painter.setPen(Qt::NoPen);

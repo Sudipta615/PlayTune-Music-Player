@@ -1,5 +1,6 @@
 #include "mainwindow.h"
 #include "gui_bridge_p.h"
+#include "apptheme.h"
 #include <QHBoxLayout>
 #include <QVBoxLayout>
 #include <QFile>
@@ -199,7 +200,7 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
     if (cb.on_volume) {
         cb.on_volume(m_currentVolume);
     }
-    QTimer::singleShot(50, this, [cb]() {
+    QTimer::singleShot(0, this, [cb]() {
         if (cb.on_gui_ready) {
             cb.on_gui_ready();
         }
@@ -241,7 +242,15 @@ void MainWindow::setupUi() {
     m_searchBar->setObjectName("SearchBar");
     m_searchBar->setPlaceholderText("Search for songs, artists, albums...");
     m_searchBar->setToolTip("Search music library by song title, artist, or album (Ctrl+F / Return to search immediately)");
-    m_searchBar->addAction(QIcon(":/resources/icons/search.png"), QLineEdit::LeadingPosition);
+    m_searchAction = m_searchBar->addAction(
+        ThemeManager::tintedIcon(":/resources/icons/search.png",
+            ThemeManager::instance().currentTheme().iconColor),
+        QLineEdit::LeadingPosition);
+    connect(&ThemeManager::instance(), &ThemeManager::themeChanged, this, [this](const ThemePalette& p) {
+        if (m_searchAction) {
+            m_searchAction->setIcon(ThemeManager::tintedIcon(":/resources/icons/search.png", p.iconColor));
+        }
+    });
     
     m_searchBar->setMaximumWidth(680);
     m_searchBar->setMinimumWidth(320);
@@ -254,7 +263,23 @@ void MainWindow::setupUi() {
     m_toggleRightTopBtn->setFixedSize(76, 28);
     m_toggleRightTopBtn->setCursor(Qt::PointingHandCursor);
     m_toggleRightTopBtn->setToolTip("Expand Right Sidebar (Q)");
-    m_toggleRightTopBtn->setStyleSheet("QPushButton { background-color: #1A2030; color: #E1E4EB; border: 1px solid #28324A; border-radius: 6px; font-size: 12px; font-weight: bold; } QPushButton:hover { background-color: #1B1130; border-color: #7B1FA2; color: #FFFFFF; }");
+    {
+        const auto& p = ThemeManager::instance().currentTheme();
+        m_toggleRightTopBtn->setStyleSheet(QString(
+            "QPushButton { background-color: %1; color: %2; border: 1px solid %3; border-radius: 6px; font-size: 12px; font-weight: bold; }"
+            "QPushButton:hover { background-color: %4; border-color: %5; color: %6; }"
+        ).arg(p.headerBg.name(), p.secondaryText.name(), p.cardBorder.name(),
+              p.itemHoverBg.name(), p.primaryAccent.name(), p.primaryText.name()));
+    }
+    connect(&ThemeManager::instance(), &ThemeManager::themeChanged, this, [this](const ThemePalette& p) {
+        if (m_toggleRightTopBtn) {
+            m_toggleRightTopBtn->setStyleSheet(QString(
+                "QPushButton { background-color: %1; color: %2; border: 1px solid %3; border-radius: 6px; font-size: 12px; font-weight: bold; }"
+                "QPushButton:hover { background-color: %4; border-color: %5; color: %6; }"
+            ).arg(p.headerBg.name(), p.secondaryText.name(), p.cardBorder.name(),
+                  p.itemHoverBg.name(), p.primaryAccent.name(), p.primaryText.name()));
+        }
+    });
     m_toggleRightTopBtn->setVisible(false);
     connect(m_toggleRightTopBtn, &QPushButton::clicked, this, [this]() {
         m_queueHiddenByUser = false;
@@ -314,12 +339,7 @@ void MainWindow::setupUi() {
 }
 
 void MainWindow::loadStyleSheet() {
-    QFile file(":/resources/style.qss");
-    if (file.open(QFile::ReadOnly | QFile::Text)) {
-        QString styleSheet = QString::fromUtf8(file.readAll());
-        qApp->setStyleSheet(styleSheet);
-        file.close();
-    }
+    qApp->setStyleSheet(ThemeManager::instance().generateStylesheet());
 }
 
 void MainWindow::connectBridge() {
@@ -508,13 +528,36 @@ void MainWindow::connectBridge() {
     // buttons, sliders, and highlights. The base QSS is preserved (loaded
     // once in loadStyleSheet()); we append the per-theme overrides here.
     // The overlay is also re-applied on every subsequent theme change.
-    connect(m_settingsPage, &SettingsPageWidget::themeChanged, this, [this](const QString& theme) {
-        qDebug() << "Theme changed to:" << theme;
-        QFile baseFile(":/resources/style.qss");
-        if (baseFile.open(QFile::ReadOnly | QFile::Text)) {
-            QString baseQss = QString::fromUtf8(baseFile.readAll());
-            baseFile.close();
-            qApp->setStyleSheet(baseQss);
+    connect(&ThemeManager::instance(), &ThemeManager::themeChanged, this, [this](const ThemePalette& palette) {
+        if (m_sep1) {
+            m_sep1->setStyleSheet(QString("color: %1; background-color: %1; min-width: 1px; max-width: 1px; border: none;").arg(palette.separatorColor.name()));
+        }
+        if (m_sep2) {
+            m_sep2->setStyleSheet(QString("color: %1; background-color: %1; min-width: 1px; max-width: 1px; border: none;").arg(palette.separatorColor.name()));
+        }
+        if (m_toggleRightTopBtn) {
+            m_toggleRightTopBtn->setStyleSheet(
+                QString("QPushButton { background-color: %1; color: %2; border: 1px solid %3; border-radius: 6px; font-size: 12px; font-weight: bold; }"
+                        "QPushButton:hover { background-color: %4; border-color: %5; color: %6; }")
+                .arg(palette.headerBg.name())
+                .arg(palette.secondaryText.name())
+                .arg(palette.cardBorder.name())
+                .arg(palette.itemHoverBg.name())
+                .arg(palette.primaryAccent.name())
+                .arg(palette.primaryText.name())
+            );
+        }
+        if (m_searchBar) {
+            m_searchBar->setStyleSheet(
+                QString("QLineEdit#SearchBar { background-color: %1; border: 1px solid %2; border-radius: 10px; color: %3; padding: 8px 12px; font-size: 13px; }"
+                        "QLineEdit#SearchBar:hover { border: 1px solid %4; }"
+                        "QLineEdit#SearchBar:focus { border: 1px solid %5; }")
+                .arg(palette.headerBg.name())
+                .arg(palette.cardBorder.name())
+                .arg(palette.primaryText.name())
+                .arg(palette.primaryAccent.name())
+                .arg(palette.secondaryAccent.name())
+            );
         }
     });
 

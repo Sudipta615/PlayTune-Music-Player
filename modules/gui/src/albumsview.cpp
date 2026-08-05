@@ -1,4 +1,5 @@
 #include "albumsview.h"
+#include "apptheme.h"
 
 #include <QHBoxLayout>
 #include <QVBoxLayout>
@@ -34,21 +35,34 @@ void AlbumsViewWidget::setupUi() {
     // Page 0: album grid inside AlbumsCard frame.
     auto* page0Card = new QFrame(m_stackedWidget);
     page0Card->setObjectName("AlbumsCard");
-    page0Card->setStyleSheet(
-        "QFrame#AlbumsCard {"
-        "   background-color: #0F121D;"
-        "   border: 1px solid #1E2538;"
-        "   border-radius: 16px;"
-        "}"
-    );
 
     auto* gridLayout = new QVBoxLayout(page0Card);
     gridLayout->setContentsMargins(16, 16, 16, 16);
     gridLayout->setSpacing(12);
 
     auto* titleLabel = new QLabel("Albums");
-    titleLabel->setStyleSheet(
-        "font-size: 22px; font-weight: 600; color: #F0F0F5; padding-bottom: 8px;");
+
+    auto applyTheme = [page0Card, titleLabel](const ThemePalette& p) {
+        if (page0Card) {
+            page0Card->setStyleSheet(QString(
+                "QFrame#AlbumsCard {"
+                "   background-color: %1;"
+                "   border: 1px solid %2;"
+                "   border-radius: 16px;"
+                "}"
+            ).arg(p.cardBg.name(), p.cardBorder.name()));
+        }
+        if (titleLabel) {
+            titleLabel->setStyleSheet(QString(
+                "font-size: 22px; font-weight: 600; color: %1; padding-bottom: 8px;"
+            ).arg(p.primaryText.name()));
+        }
+    };
+    applyTheme(ThemeManager::instance().currentTheme());
+    connect(&ThemeManager::instance(), &ThemeManager::themeChanged, this, [applyTheme](const ThemePalette& p) {
+        applyTheme(p);
+    });
+
     gridLayout->addWidget(titleLabel);
 
     // Use the shared MediaGridWidget so the look & behaviour is identical

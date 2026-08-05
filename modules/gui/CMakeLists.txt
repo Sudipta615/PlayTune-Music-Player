@@ -16,6 +16,8 @@ find_package(Qt6 COMPONENTS Widgets REQUIRED)
 
 # Define the source files for our modular UI library
 set(SOURCES
+    src/apptheme.cpp
+    src/apptheme.h
     src/gui_bridge.cpp
     src/gui_bridge.h
     src/mainwindow.cpp

@@ -9,6 +9,7 @@
 #include <QString>
 #include <QPoint>
 #include <QMouseEvent>
+#include "apptheme.h"
 
 struct TagEditorTrackData {
     int track_id;
@@ -40,6 +41,7 @@ private slots:
 
 private:
     void setupUi();
+    void updateThemeStyles(const ThemePalette& p);
     void updateCoverPreview();
 
     TagEditorTrackData m_originalData;

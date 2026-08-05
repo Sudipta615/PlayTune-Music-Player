@@ -644,5 +644,7 @@ pub fn populate_gui_state() {
     } else {
         AudioBackend::Auto
     };
-    push_audio_devices_to_gui(current_backend);
+    crate::app_state::spawn_worker("playtune-audio-devs", move || {
+        push_audio_devices_to_gui(current_backend);
+    });
 }

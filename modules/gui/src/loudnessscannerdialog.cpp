@@ -26,6 +26,11 @@ LoudnessScannerDialog::LoudnessScannerDialog(const QVector<int>& trackIds, QWidg
     connect(&GuiBridgeManager::instance(), &GuiBridgeManager::loudnessScanTrackResult, this, &LoudnessScannerDialog::onTrackResult);
     connect(&GuiBridgeManager::instance(), &GuiBridgeManager::loudnessScanFinished, this, &LoudnessScannerDialog::onScanFinished);
 
+    connect(&ThemeManager::instance(), &ThemeManager::themeChanged, this, [this](const ThemePalette& p) {
+        updateThemeStyles(p);
+    });
+    updateThemeStyles(ThemeManager::instance().currentTheme());
+
     // Start background scan
     m_scanning = true;
     m_writeBtn->setEnabled(false);
@@ -42,43 +47,46 @@ LoudnessScannerDialog::~LoudnessScannerDialog() {
     }
 }
 
-void LoudnessScannerDialog::setupUi() {
-    setStyleSheet(
-        "QDialog#LoudnessScannerDialog { background-color: #12151F; border: 1px solid #242A3D; border-radius: 10px; }"
-        "QLabel { color: #FFFFFF; font-size: 13px; }"
+void LoudnessScannerDialog::updateThemeStyles(const ThemePalette& p) {
+    setStyleSheet(QString(
+        "QDialog#LoudnessScannerDialog { background-color: %1; border: 1.5px solid %2; border-radius: 14px; }"
+        "QLabel { color: %3; font-size: 13px; background: transparent; }"
         "QProgressBar {"
-        "   border: 1px solid #242A3D; border-radius: 6px; background-color: #181B28;"
-        "   text-align: center; color: #FFFFFF; font-weight: bold; height: 18px;"
+        "   border: 1px solid %2; border-radius: 6px; background-color: %4;"
+        "   text-align: center; color: %3; font-weight: bold; height: 18px;"
         "}"
         "QProgressBar::chunk {"
-        "   background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #00E5FF, stop:1 #8B26B6);"
+        "   background-color: %5;"
         "   border-radius: 5px;"
         "}"
         "QTableWidget {"
-        "   background-color: #161926; border: 1px solid #242A3D; border-radius: 8px;"
-        "   color: #FFFFFF; gridline-color: #242A3D; font-size: 12px; selection-background-color: #2D354D;"
+        "   background-color: %4; border: 1px solid %2; border-radius: 8px;"
+        "   color: %3; gridline-color: %2; font-size: 12px; selection-background-color: %6;"
         "}"
         "QHeaderView::section {"
-        "   background-color: #181B28; color: #A0A6B8; font-weight: bold; border: none; border-bottom: 1px solid #242A3D; padding: 6px;"
+        "   background-color: %4; color: %7; font-weight: bold; border: none; border-bottom: 1px solid %2; padding: 6px;"
         "}"
         "QPushButton {"
-        "   font-size: 13px; font-weight: bold; color: #FFFFFF;"
-        "   background-color: #181B28; border: 1px solid #242A3D; border-radius: 6px;"
+        "   font-size: 13px; font-weight: bold; color: %3;"
+        "   background-color: %4; border: 1px solid %2; border-radius: 6px;"
         "   padding: 8px 16px; outline: none;"
         "}"
-        "QPushButton:hover { background-color: #232736; border-color: #38415C; }"
-        "QPushButton:disabled { color: #5B6275; border-color: #1E2233; background-color: #141722; }"
+        "QPushButton:hover { background-color: %6; border-color: %5; color: %8; }"
+        "QPushButton:disabled { color: %7; border-color: %2; background-color: %1; }"
         "QPushButton#WriteButton {"
-        "   background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #FF2A7A, stop:1 #8B26B6);"
-        "   border: 1px solid #FF2A7A; color: #FFFFFF;"
+        "   background-color: %5; border: none; color: #FFFFFF;"
         "}"
         "QPushButton#WriteButton:hover {"
-        "   background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #FF458D, stop:1 #9E3AC7);"
+        "   background-color: %8;"
         "}"
         "QPushButton#WriteButton:disabled {"
-        "   background: #181B28; border: 1px solid #242A3D; color: #5B6275;"
+        "   background-color: %4; border: 1px solid %2; color: %7;"
         "}"
-    );
+    ).arg(p.cardBg.name(), p.cardBorder.name(), p.primaryText.name(),
+          p.headerBg.name(), p.primaryAccent.name(), p.itemHoverBg.name(), p.mutedText.name(), p.secondaryAccent.name()));
+}
+
+void LoudnessScannerDialog::setupUi() {
 
     auto* mainLayout = new QVBoxLayout(this);
     mainLayout->setContentsMargins(20, 20, 20, 20);

@@ -23,41 +23,49 @@ TagEditorDialog::TagEditorDialog(const TagEditorTrackData& data, QWidget* parent
 
     setupUi();
     updateCoverPreview();
+
+    connect(&ThemeManager::instance(), &ThemeManager::themeChanged, this, [this](const ThemePalette& p) {
+        updateThemeStyles(p);
+    });
+    updateThemeStyles(ThemeManager::instance().currentTheme());
+}
+
+void TagEditorDialog::updateThemeStyles(const ThemePalette& p) {
+    setStyleSheet(QString(
+        "QDialog#TagEditorDialog { background-color: %1; border: 1.5px solid %2; border-radius: 14px; }"
+        "QLabel { color: %3; font-size: 13px; background: transparent; }"
+        "QLineEdit {"
+        "   background-color: %4; border: 1px solid %2; border-radius: 6px;"
+        "   padding: 6px 10px; color: %3; font-size: 13px; selection-background-color: %5;"
+        "}"
+        "QLineEdit:focus { border: 1px solid %5; background-color: %4; }"
+        "QSpinBox {"
+        "   background-color: %4; border: 1px solid %2; border-radius: 6px;"
+        "   padding: 6px 8px; padding-right: 24px; color: %3; font-size: 13px; selection-background-color: %5;"
+        "}"
+        "QSpinBox:focus { border: 1px solid %5; background-color: %4; }"
+        "QSpinBox::up-button { subcontrol-origin: border; subcontrol-position: top right; width: 22px; height: 14px; border-left: 1px solid %2; border-bottom: 1px solid %2; border-top-right-radius: 5px; background-color: %6; }"
+        "QSpinBox::up-button:hover { background-color: %5; }"
+        "QSpinBox::down-button { subcontrol-origin: border; subcontrol-position: bottom right; width: 22px; height: 14px; border-left: 1px solid %2; border-bottom-right-radius: 5px; background-color: %6; }"
+        "QSpinBox::down-button:hover { background-color: %5; }"
+        "QPushButton {"
+        "   font-size: 13px; font-weight: bold; color: %3;"
+        "   background-color: %4; border: 1px solid %2; border-radius: 6px;"
+        "   padding: 8px 16px; outline: none;"
+        "}"
+        "QPushButton:hover { background-color: %6; border-color: %5; color: %7; }"
+        "QPushButton#SaveButton {"
+        "   background-color: %5; border: none; color: #FFFFFF;"
+        "}"
+        "QPushButton#SaveButton:hover {"
+        "   background-color: %7;"
+        "}"
+        "QPushButton#RemoveCoverBtn:hover { background-color: rgba(229, 57, 53, 0.2); border-color: #E53935; color: #FF5252; }"
+    ).arg(p.cardBg.name(), p.cardBorder.name(), p.primaryText.name(),
+          p.headerBg.name(), p.primaryAccent.name(), p.itemHoverBg.name(), p.secondaryAccent.name()));
 }
 
 void TagEditorDialog::setupUi() {
-    setStyleSheet(
-        "QDialog#TagEditorDialog { background-color: #12151F; border: 1px solid #242A3D; border-radius: 10px; }"
-        "QLabel { color: #FFFFFF; font-size: 13px; }"
-        "QLineEdit {"
-        "   background-color: #181B28; border: 1px solid #242A3D; border-radius: 6px;"
-        "   padding: 6px 10px; color: #FFFFFF; font-size: 13px; selection-background-color: #FF2A7A;"
-        "}"
-        "QLineEdit:focus { border: 1px solid #00E5FF; background-color: #1E2233; }"
-        "QSpinBox {"
-        "   background-color: #181B28; border: 1px solid #242A3D; border-radius: 6px;"
-        "   padding: 6px 8px; padding-right: 24px; color: #FFFFFF; font-size: 13px; selection-background-color: #FF2A7A;"
-        "}"
-        "QSpinBox:focus { border: 1px solid #00E5FF; background-color: #1E2233; }"
-        "QSpinBox::up-button { subcontrol-origin: border; subcontrol-position: top right; width: 22px; height: 14px; border-left: 1px solid #242A3D; border-bottom: 1px solid #242A3D; border-top-right-radius: 5px; background-color: #242A3D; }"
-        "QSpinBox::up-button:hover { background-color: #7B1FA2; }"
-        "QSpinBox::down-button { subcontrol-origin: border; subcontrol-position: bottom right; width: 22px; height: 14px; border-left: 1px solid #242A3D; border-bottom-right-radius: 5px; background-color: #242A3D; }"
-        "QSpinBox::down-button:hover { background-color: #7B1FA2; }"
-        "QPushButton {"
-        "   font-size: 13px; font-weight: bold; color: #FFFFFF;"
-        "   background-color: #181B28; border: 1px solid #242A3D; border-radius: 6px;"
-        "   padding: 8px 16px; outline: none;"
-        "}"
-        "QPushButton:hover { background-color: #232736; border-color: #38415C; }"
-        "QPushButton#SaveButton {"
-        "   background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #FF2A7A, stop:1 #8B26B6);"
-        "   border: 1px solid #FF2A7A; color: #FFFFFF;"
-        "}"
-        "QPushButton#SaveButton:hover {"
-        "   background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #FF458D, stop:1 #9E3AC7);"
-        "}"
-        "QPushButton#RemoveCoverBtn:hover { background-color: #3D1022; border-color: #FF2A7A; color: #FF6688; }"
-    );
 
     auto* mainLayout = new QVBoxLayout(this);
     mainLayout->setContentsMargins(20, 20, 20, 20);

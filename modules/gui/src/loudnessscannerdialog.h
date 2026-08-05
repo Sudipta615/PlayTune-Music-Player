@@ -9,6 +9,7 @@
 #include <QVector>
 #include <QMouseEvent>
 #include "gui_bridge.h"
+#include "apptheme.h"
 
 struct ScannedTrackItem {
     int track_id;
@@ -40,6 +41,7 @@ private slots:
 
 private:
     void setupUi();
+    void updateThemeStyles(const ThemePalette& p);
 
     QVector<int> m_targetTrackIds;
     QVector<ScannedTrackItem> m_results;

@@ -6,6 +6,8 @@
 #include <QPushButton>
 #include <QListWidget>
 #include <QSpinBox>
+#include <QLabel>
+#include <QFrame>
 #include "custom_widgets.h"
 
 class SettingsPageWidget : public QWidget {
@@ -45,7 +47,6 @@ signals:
     void exportM3URequested();
 
 public slots:
-    // Update folder list in Settings from bridge signals
     void clearFolderList();
     void addFolderToList(int id, const QString& path, const QString& name, int trackCount);
     void clearAudioDeviceList();
@@ -58,39 +59,60 @@ private:
     void setupUi();
     void loadSettings();
     void saveSettings();
+    void updateThemeStyles(const ThemePalette& p);
 
-    QComboBox* m_themeCombo = nullptr;
-    QComboBox* m_backendCombo = nullptr;
-    QComboBox* m_deviceCombo = nullptr;
-    ToggleSwitch* m_tooltipToggle = nullptr;
-    ToggleSwitch* m_crossfadeToggle = nullptr;
-    ToggleSwitch* m_normalizeToggle = nullptr;
-    ToggleSwitch* m_gaplessToggle = nullptr;
-    ToggleSwitch* m_cursorFollowToggle = nullptr;
-    ToggleSwitch* m_notificationsToggle = nullptr;
-    ToggleSwitch* m_trayToggle = nullptr;
+    // ── Controls ─────────────────────────────────────────────────────────
+    QComboBox*    m_themeCombo           = nullptr;
+    QComboBox*    m_backendCombo         = nullptr;
+    QComboBox*    m_deviceCombo          = nullptr;
+    ToggleSwitch* m_tooltipToggle        = nullptr;
+    ToggleSwitch* m_crossfadeToggle      = nullptr;
+    ToggleSwitch* m_normalizeToggle      = nullptr;
+    ToggleSwitch* m_gaplessToggle        = nullptr;
+    ToggleSwitch* m_cursorFollowToggle   = nullptr;
+    ToggleSwitch* m_notificationsToggle  = nullptr;
+    ToggleSwitch* m_trayToggle           = nullptr;
     ToggleSwitch* m_minimizeToTrayToggle = nullptr;
-    ToggleSwitch* m_optimizedModeToggle = nullptr;
-    QPushButton*  m_loudnessScanBtn = nullptr;
-    QSpinBox* m_crossfadeDurationSpin = nullptr;
-    QPushButton* m_addSongsBtn = nullptr;
-    QPushButton* m_addFoldersBtn = nullptr;
-    QPushButton* m_importM3UBtn = nullptr;
-    QPushButton* m_exportM3UBtn = nullptr;
-    QListWidget* m_foldersListWidget = nullptr;  
+    ToggleSwitch* m_optimizedModeToggle  = nullptr;
+    QPushButton*  m_loudnessScanBtn      = nullptr;
+    QSpinBox*     m_crossfadeDurationSpin= nullptr;
+    QPushButton*  m_addSongsBtn          = nullptr;
+    QPushButton*  m_addFoldersBtn        = nullptr;
+    QPushButton*  m_importM3UBtn         = nullptr;
+    QPushButton*  m_exportM3UBtn         = nullptr;
+    QListWidget*  m_foldersListWidget    = nullptr;
 
-    bool m_tooltipsEnabled = true;
-    bool m_crossfadeEnabled = false;
-    bool m_normalizeEnabled = false;
-    bool m_gaplessEnabled = true;
-    bool m_cursorFollows = false;
-    bool m_notificationsEnabled = true;
-    bool m_trayEnabled = false;
-    bool m_minimizeToTray = false;
-    bool m_optimizedMode = false;
-    int m_currentBackend = 0;
-    QString m_currentDevice = "Default / Automatic";
-    QString m_currentTheme = "Dark (Default)";
+    // ── Cached label/frame references for O(1) theme updates ─────────────
+    QLabel*  m_pageTitle        = nullptr;
+    QLabel*  m_pageSub          = nullptr;
+    // Section header labels (APPEARANCE, ADD MUSIC, etc.)
+    QList<QLabel*> m_sectionHeaders;
+    // Setting row title labels (bold text on left of each row)
+    QList<QLabel*> m_settingTitleLabels;
+    // Setting row subtitle labels (small muted text)
+    QList<QLabel*> m_settingSubLabels;
+    // Horizontal separator frames inside cards
+    QList<QFrame*> m_cardSeparators;
+    // All SettingsCard frames
+    QList<QFrame*> m_settingsCards;
+    // Performance card (has accent border — stored separately)
+    QFrame* m_performanceCard   = nullptr;
+    // The info box label inside performance card
+    QLabel* m_perfInfoLabel     = nullptr;
+
+    // ── Settings state ────────────────────────────────────────────────────
+    bool    m_tooltipsEnabled   = true;
+    bool    m_crossfadeEnabled  = false;
+    bool    m_normalizeEnabled  = false;
+    bool    m_gaplessEnabled    = true;
+    bool    m_cursorFollows     = false;
+    bool    m_notificationsEnabled = true;
+    bool    m_trayEnabled       = false;
+    bool    m_minimizeToTray    = false;
+    bool    m_optimizedMode     = false;
+    int     m_currentBackend    = 0;
+    QString m_currentDevice     = "Default / Automatic";
+    QString m_currentTheme      = "Dark Premium (Purple)";
 };
 
 #endif // SETTINGSPAGE_H

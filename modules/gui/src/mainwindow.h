@@ -68,6 +68,7 @@ private:
     // Components
     SidebarWidget* m_sidebar = nullptr;
     QLineEdit* m_searchBar = nullptr;
+    QAction* m_searchAction = nullptr;
     QPushButton* m_toggleRightTopBtn = nullptr;
     NowPlayingCard* m_nowPlayingCard = nullptr;
     QStackedWidget* m_contentStack = nullptr;

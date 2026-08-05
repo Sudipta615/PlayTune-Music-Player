@@ -45,22 +45,18 @@ namespace {
 /// by the queue widget and the grid cards.
 static QPixmap loadThumbnail(const QString& coverPath) {
     if (AppSettings::instance().isOptimizedMode()) {
-        static QPixmap roundedDefault;
-        if (roundedDefault.isNull()) {
-            QPixmap def = getDefaultAlbumArt();
-            QPixmap target(44, 44);
-            target.fill(Qt::transparent);
-            QPainter painter(&target);
-            painter.setRenderHint(QPainter::Antialiasing, true);
-            painter.setRenderHint(QPainter::SmoothPixmapTransform, true);
-            QPainterPath path;
-            path.addRoundedRect(0, 0, 44, 44, 8, 8);
-            painter.setClipPath(path);
-            QPixmap scaled = def.scaled(44, 44, Qt::KeepAspectRatioByExpanding, Qt::SmoothTransformation);
-            painter.drawPixmap((44 - scaled.width()) / 2, (44 - scaled.height()) / 2, scaled);
-            roundedDefault = target;
-        }
-        return roundedDefault;
+        QPixmap def = getDefaultAlbumArt();
+        QPixmap target(44, 44);
+        target.fill(Qt::transparent);
+        QPainter painter(&target);
+        painter.setRenderHint(QPainter::Antialiasing, true);
+        painter.setRenderHint(QPainter::SmoothPixmapTransform, true);
+        QPainterPath path;
+        path.addRoundedRect(0, 0, 44, 44, 8, 8);
+        painter.setClipPath(path);
+        QPixmap scaled = def.scaled(44, 44, Qt::KeepAspectRatioByExpanding, Qt::SmoothTransformation);
+        painter.drawPixmap((44 - scaled.width()) / 2, (44 - scaled.height()) / 2, scaled);
+        return target;
     }
     QPixmap rounded;
     if (CoverLoader::instance().tryGetRounded(coverPath, 44, 8, rounded)) {
@@ -140,7 +136,8 @@ void PlayingEqualizerIcon::paintEvent(QPaintEvent* event) {
     double spacing = 2.0;
     double startX = (w - (3 * barW + 2 * spacing)) / 2.0;
 
-    painter.setBrush(QColor("#FF2A7A")); // Pink bars
+    const auto& p = ThemeManager::instance().currentTheme();
+    painter.setBrush(p.secondaryAccent);
     painter.setPen(Qt::NoPen);
 
     for (int i = 0; i < 3; ++i) {
@@ -170,13 +167,15 @@ public:
             isSelected = firstItem->isSelected();
         }
 
+        const auto& p = ThemeManager::instance().currentTheme();
+
         QColor bgColor = Qt::transparent;
         if (isPlaying) {
-            bgColor = QColor("#1B1130"); // Dark purple highlight for playing track
+            bgColor = p.itemSelectedBg;
         } else if (isHovered) {
-            bgColor = QColor("#1A122B"); // "kind of same" dark purple hover highlight
+            bgColor = p.itemHoverBg;
         } else if (isSelected) {
-            bgColor = QColor("#141822"); // Selected non-playing track
+            bgColor = p.itemSelectedBg;
         }
 
         if (bgColor.isValid() && bgColor != Qt::transparent) {
@@ -200,9 +199,9 @@ public:
 
         QColor textColor;
         if (isPlaying) {
-            textColor = QColor("#FF2A7A"); // Pink text for playing song
+            textColor = p.secondaryAccent;
         } else {
-            textColor = QColor("#7E8494"); // Normal muted gray text for #, Artist, Album, Time
+            textColor = p.secondaryText;
         }
 
         opt.palette.setColor(QPalette::Text, textColor);
@@ -229,16 +228,39 @@ void SongsTableWidget::setupUi() {
     mainLayout->setContentsMargins(0, 0, 0, 0);
     mainLayout->setSpacing(0);
 
-    // Card frame wrapping Songs section
     auto* cardFrame = new QFrame(this);
     cardFrame->setObjectName("SongsCard");
-    cardFrame->setStyleSheet(
-        "QFrame#SongsCard {"
-        "   background-color: #0F121D;"
-        "   border: 1px solid #1E2538;"
-        "   border-radius: 16px;"
-        "}"
-    );
+
+    auto applyCardStyle = [cardFrame](const ThemePalette& p) {
+        cardFrame->setStyleSheet(QString(
+            "QFrame#SongsCard {"
+            "   background-color: %1;"
+            "   border: 1px solid %2;"
+            "   border-radius: 16px;"
+            "}"
+        ).arg(p.cardBg.name(), p.cardBorder.name()));
+    };
+    applyCardStyle(ThemeManager::instance().currentTheme());
+    connect(&ThemeManager::instance(), &ThemeManager::themeChanged, this, [this, applyCardStyle](const ThemePalette& p) {
+        applyCardStyle(p);
+        if (m_table) {
+            int rows = m_table->rowCount();
+            for (int r = 0; r < rows; ++r) {
+                if (auto* titleWidget = m_table->cellWidget(r, 1)) {
+                    if (auto* thumbLabel = titleWidget->findChild<QLabel*>("SongRowThumbLabel")) {
+                        QString path = thumbLabel->property("coverPath").toString();
+                        if (path.isEmpty() || !QFile::exists(path)) {
+                            thumbLabel->setPixmap(loadThumbnail(path));
+                        }
+                    }
+                }
+                if (auto* actionBtn = qobject_cast<QPushButton*>(m_table->cellWidget(r, 6))) {
+                    actionBtn->setIcon(ThemeManager::tintedIcon(":/resources/icons/more.png", p.iconColor));
+                }
+            }
+            m_table->viewport()->update();
+        }
+    });
 
     auto* cardLayout = new QVBoxLayout(cardFrame);
     cardLayout->setContentsMargins(16, 16, 16, 16);
@@ -250,12 +272,19 @@ void SongsTableWidget::setupUi() {
 
     m_backBtn = new QPushButton("‹  Back", this);
     m_backBtn->setCursor(Qt::PointingHandCursor);
-    m_backBtn->setStyleSheet(
-        "QPushButton { background: transparent; border: none; color: #FF2A7A; font-size: 15px; font-weight: 600; padding: 0px 8px 0px 0px; margin-right: 4px; }"
-        "QPushButton:hover { color: #FF5A9A; }"
-    );
     m_backBtn->setVisible(false);
     connect(m_backBtn, &QPushButton::clicked, this, &SongsTableWidget::backButtonClicked);
+    // Back button color from theme
+    auto updateBackBtnStyle = [this](const ThemePalette& p) {
+        if (m_backBtn) m_backBtn->setStyleSheet(QString(
+            "QPushButton { background: transparent; border: none; color: %1; font-size: 15px; font-weight: 600; padding: 0px 8px 0px 0px; margin-right: 4px; }"
+            "QPushButton:hover { color: %2; }"
+        ).arg(p.secondaryAccent.name(), p.primaryAccent.name()));
+    };
+    updateBackBtnStyle(ThemeManager::instance().currentTheme());
+    connect(&ThemeManager::instance(), &ThemeManager::themeChanged, this, [updateBackBtnStyle](const ThemePalette& p) {
+        updateBackBtnStyle(p);
+    });
 
     auto* songsLabel = new QLabel("Songs", this);
     songsLabel->setObjectName("ContentHeader");
@@ -271,6 +300,7 @@ void SongsTableWidget::setupUi() {
 
     // Sort Dropdown
     auto* sortCombo = new QComboBox(this);
+    ThemeManager::setupComboBox(sortCombo);
     sortCombo->addItem("Sort by: Title");
     sortCombo->addItem("Sort by: Artist");
     sortCombo->addItem("Sort by: Date");
@@ -282,18 +312,26 @@ void SongsTableWidget::setupUi() {
     listBtn->setObjectName("IconButton");
     listBtn->setCheckable(true);
     listBtn->setChecked(true);
-    listBtn->setIcon(QIcon(":/resources/icons/list.png"));
+    listBtn->setIcon(ThemeManager::tintedIcon(":/resources/icons/list.png",
+        ThemeManager::instance().currentTheme().iconColor));
     listBtn->setIconSize(QSize(16, 16));
     listBtn->setFixedSize(30, 30);
     listBtn->setToolTip("Switch to Table List View");
+    connect(&ThemeManager::instance(), &ThemeManager::themeChanged, this, [listBtn](const ThemePalette& p) {
+        listBtn->setIcon(ThemeManager::tintedIcon(":/resources/icons/list.png", p.iconColor));
+    });
 
     auto* gridBtn = new QPushButton(this);
     gridBtn->setObjectName("IconButton");
     gridBtn->setCheckable(true);
-    gridBtn->setIcon(QIcon(":/resources/icons/grid.png"));
+    gridBtn->setIcon(ThemeManager::tintedIcon(":/resources/icons/grid.png",
+        ThemeManager::instance().currentTheme().iconColor));
     gridBtn->setIconSize(QSize(16, 16));
     gridBtn->setFixedSize(30, 30);
     gridBtn->setToolTip("Switch to Album Card Grid View");
+    connect(&ThemeManager::instance(), &ThemeManager::themeChanged, this, [gridBtn](const ThemePalette& p) {
+        gridBtn->setIcon(ThemeManager::tintedIcon(":/resources/icons/grid.png", p.iconColor));
+    });
 
     // Auto-exclusive button group for list/grid toggle buttons
     auto* viewGroup = new QButtonGroup(this);
@@ -318,9 +356,9 @@ void SongsTableWidget::setupUi() {
     m_table->setFocusPolicy(Qt::NoFocus);
     m_table->setVerticalScrollMode(QAbstractItemView::ScrollPerPixel);
     m_table->setStyleSheet(
-        "QTableWidget { background-color: transparent; color: #FFFFFF; border: none; }"
+        "QTableWidget { background-color: transparent; border: none; outline: none; }"
         "QHeaderView::section { background-color: transparent; color: #7E8494; font-weight: bold; padding: 6px; border: none; border-bottom: 1px solid #1E2538; }"
-        "QTableWidget::item { border-bottom: 1px solid #161C2B; }"
+        "QTableWidget::item { border-bottom: 1px solid rgba(255,255,255,0.04); }"
     );
 
     // Set horizontal headers
@@ -620,13 +658,11 @@ void SongsTableWidget::addSong(int index, int songId, bool isFavorite, const QSt
     titleLayout->setAlignment(Qt::AlignVCenter);
 
     auto* thumbLabel = new QLabel(titleContainer);
+    thumbLabel->setObjectName("SongRowThumbLabel");
+    thumbLabel->setProperty("coverPath", coverPath);
     thumbLabel->setFixedSize(44, 44);
     thumbLabel->setAlignment(Qt::AlignCenter);
     thumbLabel->setScaledContents(false);
-    // Lazy cover load: tryGetRounded returns false on miss, in which case
-    // loadThumbnail() shows the default cover and queues an async load.
-    // The lambda connected to CoverLoader::coverReady in setupUi will
-    // replace the pixmap when the load completes.
     thumbLabel->setPixmap(loadThumbnail(coverPath));
 
     auto* titleLabel = new QLabel(title, titleContainer);
@@ -688,7 +724,7 @@ void SongsTableWidget::addSong(int index, int songId, bool isFavorite, const QSt
     // 6. Three-dot Action Menu
     auto* actionBtn = new QPushButton(this);
     actionBtn->setObjectName("IconButton");
-    actionBtn->setIcon(QIcon(":/resources/icons/more.png"));
+    actionBtn->setIcon(ThemeManager::tintedIcon(":/resources/icons/more.png", ThemeManager::instance().currentTheme().iconColor));
     actionBtn->setIconSize(QSize(14, 14));
     actionBtn->setFixedSize(26, 26);
     actionBtn->setToolTip("Track Options & Actions");
@@ -752,6 +788,7 @@ void SongsTableWidget::setSongsBatch(QVector<SongRow> rows) {
     // O(n) widget-create + cover-load calls (each costing ~0.5 ms on
     // the GUI thread) into a single ~50 ms transaction for 1 000 rows.
     m_table->setUpdatesEnabled(false);
+    if (m_table->viewport()) m_table->viewport()->setUpdatesEnabled(false);
     m_table->blockSignals(true);
 
     // Remember whether the grid view was active so we can repopulate it
@@ -785,6 +822,8 @@ void SongsTableWidget::setSongsBatch(QVector<SongRow> rows) {
             titleLayout->setAlignment(Qt::AlignVCenter);
 
             auto* thumbLabel = new QLabel(titleContainer);
+            thumbLabel->setObjectName("SongRowThumbLabel");
+            thumbLabel->setProperty("coverPath", r.coverPath);
             thumbLabel->setFixedSize(44, 44);
             thumbLabel->setAlignment(Qt::AlignCenter);
             thumbLabel->setScaledContents(false);
@@ -840,17 +879,12 @@ void SongsTableWidget::setSongsBatch(QVector<SongRow> rows) {
                 const auto& cb = GuiBridgeManager::instance().callbacks();
                 if (cb.on_toggle_favorite) cb.on_toggle_favorite(songId);
             });
-            auto* favContainer = new QWidget(this);
-            auto* favLayout = new QHBoxLayout(favContainer);
-            favLayout->setContentsMargins(0, 0, 0, 0);
-            favLayout->setAlignment(Qt::AlignCenter);
-            favLayout->addWidget(favBtn);
-            m_table->setCellWidget(i, 5, favContainer);
+            m_table->setCellWidget(i, 5, favBtn);
 
             // 6. Three-dot Action Menu
             auto* actionBtn = new QPushButton(this);
             actionBtn->setObjectName("IconButton");
-            actionBtn->setIcon(QIcon(":/resources/icons/more.png"));
+            actionBtn->setIcon(ThemeManager::tintedIcon(":/resources/icons/more.png", ThemeManager::instance().currentTheme().iconColor));
             actionBtn->setIconSize(QSize(14, 14));
             actionBtn->setFixedSize(26, 26);
             actionBtn->setToolTip("Track Options & Actions");
@@ -878,12 +912,7 @@ void SongsTableWidget::setSongsBatch(QVector<SongRow> rows) {
                     if (cb1.on_remove_from_library) cb1.on_remove_from_library(songId);
                 }
             });
-            auto* actionContainer = new QWidget(this);
-            auto* actionLayout = new QHBoxLayout(actionContainer);
-            actionLayout->setContentsMargins(0, 0, 0, 0);
-            actionLayout->setAlignment(Qt::AlignCenter);
-            actionLayout->addWidget(actionBtn);
-            m_table->setCellWidget(i, 6, actionContainer);
+            m_table->setCellWidget(i, 6, actionBtn);
 
             // Restore playing-track highlight if this row matches.
             if (r.songId == m_playingSongId && m_playingSongId != -1) {
@@ -895,6 +924,7 @@ void SongsTableWidget::setSongsBatch(QVector<SongRow> rows) {
     }
 
     m_table->blockSignals(false);
+    if (m_table->viewport()) m_table->viewport()->setUpdatesEnabled(true);
     m_table->setUpdatesEnabled(true);
 
     if (m_songCountLabel) {

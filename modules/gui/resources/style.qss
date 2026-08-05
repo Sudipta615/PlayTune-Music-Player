@@ -189,9 +189,28 @@ QComboBox::drop-down {
 QComboBox QAbstractItemView {
     background-color: #0E121B;
     border: 1px solid #1D2333;
-    selection-background-color: #7B1FA2;
+    border-radius: 8px;
+    selection-background-color: #1B1130;
     selection-color: #FF2A7A;
     color: #E1E4EB;
+    outline: none;
+    padding: 4px;
+    show-decoration-selected: 1;
+}
+
+QComboBox QAbstractItemView::item {
+    padding: 7px 12px;
+    border-radius: 5px;
+    min-height: 26px;
+    color: #E1E4EB;
+    background-color: transparent;
+}
+
+QComboBox QAbstractItemView::item:hover,
+QComboBox QAbstractItemView::item:selected {
+    background-color: #1B1130;
+    color: #FF2A7A;
+    font-weight: bold;
 }
 
 /* SpinBox & DoubleSpinBox Styling */

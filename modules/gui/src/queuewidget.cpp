@@ -2,6 +2,8 @@
 #include "custom_widgets.h"
 #include "gui_bridge_p.h"
 #include "appsettings.h"
+#include "apptheme.h"
+#include <QFile>
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QHeaderView>
@@ -52,11 +54,13 @@ public:
             isSelected = firstItem->isSelected();
         }
 
+        const auto& p = ThemeManager::instance().currentTheme();
+
         QColor bgColor = Qt::transparent;
         if (isHovered) {
-            bgColor = QColor("#1B1130"); // Coherent hover color
+            bgColor = p.itemHoverBg;
         } else if (isSelected) {
-            bgColor = QColor("#1F1436"); // Selected color
+            bgColor = p.itemSelectedBg;
         }
 
         if (bgColor.isValid() && bgColor != Qt::transparent) {
@@ -74,7 +78,7 @@ public:
         QStyleOptionViewItem opt = option;
         opt.state &= ~QStyle::State_Selected;
         opt.state &= ~QStyle::State_HasFocus;
-        QColor textColor = QColor("#7E8494");
+        QColor textColor = p.secondaryText;
         opt.palette.setColor(QPalette::Text, textColor);
         opt.palette.setColor(QPalette::WindowText, textColor);
         opt.palette.setColor(QPalette::HighlightedText, textColor);
@@ -111,7 +115,21 @@ void QueueWidget::setupUi() {
     m_toggleRightBtn->setFixedSize(28, 28);
     m_toggleRightBtn->setCursor(Qt::PointingHandCursor);
     m_toggleRightBtn->setToolTip("Collapse Right Sidebar (Q)");
-    m_toggleRightBtn->setStyleSheet("QPushButton { border: none; background: transparent; color: #7E8494; font-size: 14px; font-weight: bold; border-radius: 6px; } QPushButton:hover { background-color: #1B1130; color: #FFFFFF; }");
+    {
+        const auto& p = ThemeManager::instance().currentTheme();
+        m_toggleRightBtn->setStyleSheet(QString(
+            "QPushButton { border: none; background: transparent; color: %1; font-size: 14px; font-weight: bold; border-radius: 6px; }"
+            "QPushButton:hover { background-color: %2; color: %3; }"
+        ).arg(p.mutedText.name(), p.itemHoverBg.name(), p.primaryText.name()));
+    }
+    connect(&ThemeManager::instance(), &ThemeManager::themeChanged, this, [this](const ThemePalette& p) {
+        if (m_toggleRightBtn) {
+            m_toggleRightBtn->setStyleSheet(QString(
+                "QPushButton { border: none; background: transparent; color: %1; font-size: 14px; font-weight: bold; border-radius: 6px; }"
+                "QPushButton:hover { background-color: %2; color: %3; }"
+            ).arg(p.mutedText.name(), p.itemHoverBg.name(), p.primaryText.name()));
+        }
+    });
     connect(m_toggleRightBtn, &QPushButton::clicked, this, &QueueWidget::toggleRightSidebarRequested);
 
     m_queueTab = new QPushButton("Queue", tabContainer);
@@ -138,8 +156,12 @@ void QueueWidget::setupUi() {
 
     // 2. Now Playing Mini Card
     auto* npHeader = new QLabel("Now Playing", this);
-    npHeader->setStyleSheet("color: #7E8494; font-size: 11px; text-transform: uppercase; font-weight: bold; margin-top: 5px;");
+    m_npHeaderLabel = npHeader;
     mainLayout->addWidget(npHeader);
+
+    // upNextLabel: created here with 'this' as parent so it can be referenced
+    // before queuePage is constructed. It will be reparented into queuePage's layout.
+    m_upNextLabel = new QLabel("Up Next", this);
 
     auto* npCard = new QWidget(this);
     auto* npCardLayout = new QHBoxLayout(npCard);
@@ -156,10 +178,48 @@ void QueueWidget::setupUi() {
     npInfoLayout->setContentsMargins(0, 0, 0, 0);
 
     m_miniTitle = new QLabel("No Track Playing", npCard);
-    m_miniTitle->setStyleSheet("font-size: 13px; font-weight: bold; color: #FFFFFF;");
-
     m_miniArtistAlbum = new QLabel("PlayTune Music Player", npCard);
-    m_miniArtistAlbum->setStyleSheet("font-size: 11px; color: #7E8494;");
+
+    auto applyTheme = [this](const ThemePalette& p) {
+        if (m_miniTitle) m_miniTitle->setStyleSheet(QString("font-size: 13px; font-weight: bold; color: %1;").arg(p.primaryText.name()));
+        if (m_miniArtistAlbum) m_miniArtistAlbum->setStyleSheet(QString("font-size: 11px; color: %1;").arg(p.mutedText.name()));
+        if (m_footerLabel) m_footerLabel->setStyleSheet(QString("color: %1; font-size: 11px; margin-left: 5px;").arg(p.mutedText.name()));
+        if (m_npHeaderLabel) m_npHeaderLabel->setStyleSheet(QString("color: %1; font-size: 11px; font-weight: bold; margin-top: 5px;").arg(p.mutedText.name()));
+        if (m_upNextLabel)  m_upNextLabel->setStyleSheet(QString("color: %1; font-size: 11px; font-weight: bold;").arg(p.mutedText.name()));
+        if (m_volumeLabel)  m_volumeLabel->setStyleSheet(QString("color: %1; font-size: 11px; min-width: 32px; font-weight: 500;").arg(p.mutedText.name()));
+        if (m_lyricsListWidget) {
+            m_lyricsListWidget->setStyleSheet(QString(
+                "QListWidget { background-color: %1; border-radius: 10px; border: 1px solid %2; outline: 0; }"
+                "QListWidget::item { padding: 10px 8px; }"
+                "QListWidget::item:hover { background: %3; border-radius: 6px; }"
+                "QListWidget::item:selected { background: transparent; }"
+            ).arg(p.headerBg.name(), p.cardBorder.name(), p.itemHoverBg.name()));
+        }
+        if (m_unsyncedLyricsLabel) {
+            m_unsyncedLyricsLabel->setStyleSheet(QString(
+                "QLabel { background-color: %1; border-radius: 10px; border: 1px solid %2;"
+                "  padding: 20px; color: %3; font-size: 13px; }"
+            ).arg(p.headerBg.name(), p.cardBorder.name(), p.primaryText.name()));
+        }
+        if (m_queueTable) {
+            int rows = m_queueTable->rowCount();
+            for (int r = 0; r < rows; ++r) {
+                if (auto* w = m_queueTable->cellWidget(r, 1)) {
+                    if (auto* thumbLabel = w->findChild<QLabel*>("QueueRowThumbLabel")) {
+                        QString path = thumbLabel->property("coverPath").toString();
+                        if (path.isEmpty() || !QFile::exists(path)) {
+                            thumbLabel->setPixmap(getRoundedPixmap(getDefaultAlbumArt(), 24, 6));
+                        }
+                    }
+                }
+            }
+            if (m_queueTable->viewport()) m_queueTable->viewport()->update();
+        }
+    };
+    applyTheme(ThemeManager::instance().currentTheme());
+    connect(&ThemeManager::instance(), &ThemeManager::themeChanged, this, [applyTheme](const ThemePalette& p) {
+        applyTheme(p);
+    });
 
     npInfoLayout->addWidget(m_miniTitle);
     npInfoLayout->addWidget(m_miniArtistAlbum);
@@ -179,9 +239,8 @@ void QueueWidget::setupUi() {
     queuePageLayout->setSpacing(10);
 
     auto* upNextHeaderLayout = new QHBoxLayout();
-    
-    auto* upNextLabel = new QLabel("Up Next", queuePage);
-    upNextLabel->setStyleSheet("color: #7E8494; font-size: 11px; text-transform: uppercase; font-weight: bold;");
+    // m_upNextLabel was already created above; add it to queuePage layout now
+    upNextHeaderLayout->addWidget(m_upNextLabel);
     
     auto* clearBtn = new QPushButton("Clear", queuePage);
     clearBtn->setObjectName("ResetBtn");
@@ -189,7 +248,6 @@ void QueueWidget::setupUi() {
     clearBtn->setStyleSheet("QPushButton { font-size: 11px; padding: 2px; }");
     clearBtn->setToolTip("Clear All Tracks from Up Next Queue");
 
-    upNextHeaderLayout->addWidget(upNextLabel);
     upNextHeaderLayout->addStretch();
     upNextHeaderLayout->addWidget(clearBtn);
     queuePageLayout->addLayout(upNextHeaderLayout);
@@ -287,24 +345,15 @@ void QueueWidget::setupUi() {
 
     m_lyricsListWidget = new QListWidget(lyricsPage);
     m_lyricsListWidget->setFrameShape(QFrame::NoFrame);
-    m_lyricsListWidget->setStyleSheet(QStringLiteral(
-        "QListWidget {"
-        "  background-color: #0E121B;"
-        "  border-radius: 10px;"
-        "  border: 1px solid #1A2030;"
-        "  outline: 0;"
-        "}"
-        "QListWidget::item {"
-        "  padding: 10px 8px;"
-        "}"
-        "QListWidget::item:hover {"
-        "  background: rgba(0, 229, 255, 0.1);"
-        "  border-radius: 6px;"
-        "}"
-        "QListWidget::item:selected {"
-        "  background: transparent;"
-        "}"
-    ));
+    {
+        const auto& p = ThemeManager::instance().currentTheme();
+        m_lyricsListWidget->setStyleSheet(QString(
+            "QListWidget { background-color: %1; border-radius: 10px; border: 1px solid %2; outline: 0; }"
+            "QListWidget::item { padding: 10px 8px; }"
+            "QListWidget::item:hover { background: %3; border-radius: 6px; }"
+            "QListWidget::item:selected { background: transparent; }"
+        ).arg(p.headerBg.name(), p.cardBorder.name(), p.itemHoverBg.name()));
+    }
     m_lyricsListWidget->setVerticalScrollMode(QAbstractItemView::ScrollPerPixel);
     m_lyricsListWidget->setFocusPolicy(Qt::NoFocus);
     connect(m_lyricsListWidget, &QListWidget::itemClicked, this, &QueueWidget::onLyricsLineClicked);
@@ -313,16 +362,13 @@ void QueueWidget::setupUi() {
     m_unsyncedLyricsLabel = new QLabel(lyricsPage);
     m_unsyncedLyricsLabel->setAlignment(Qt::AlignCenter);
     m_unsyncedLyricsLabel->setWordWrap(true);
-    m_unsyncedLyricsLabel->setStyleSheet(QStringLiteral(
-        "QLabel {"
-        "  background-color: #0E121B;"
-        "  border-radius: 10px;"
-        "  border: 1px solid #1A2030;"
-        "  padding: 20px;"
-        "  color: #E1E4EB;"
-        "  font-size: 13px;"
-        "}"
-    ));
+    {
+        const auto& p = ThemeManager::instance().currentTheme();
+        m_unsyncedLyricsLabel->setStyleSheet(QString(
+            "QLabel { background-color: %1; border-radius: 10px; border: 1px solid %2;"
+            "  padding: 20px; color: %3; font-size: 13px; }"
+        ).arg(p.headerBg.name(), p.cardBorder.name(), p.primaryText.name()));
+    }
     m_unsyncedLyricsLabel->hide();
     lyricsLayout->addWidget(m_unsyncedLyricsLabel, 1);
 
@@ -339,11 +385,14 @@ void QueueWidget::setupUi() {
 
     m_volumeIcon = new QPushButton(this);
     m_volumeIcon->setObjectName("IconButton");
-    m_volumeIcon->setIcon(QIcon(":/resources/icons/volume.png"));
+    m_volumeIcon->setIcon(ThemeManager::tintedIcon(":/resources/icons/volume.png",
+        ThemeManager::instance().currentTheme().iconColor));
     m_volumeIcon->setIconSize(QSize(18, 18));
     m_volumeIcon->setFixedSize(30, 30);
-    m_volumeIcon->setStyleSheet("QPushButton { border: none; background: transparent; } QPushButton:hover { background-color: #1B1130; border-radius: 4px; }");
     m_volumeIcon->setToolTip("Toggle Mute Audio (M)");
+    connect(&ThemeManager::instance(), &ThemeManager::themeChanged, this, [this](const ThemePalette& p) {
+        if (m_volumeIcon) m_volumeIcon->setIcon(ThemeManager::tintedIcon(":/resources/icons/volume.png", p.iconColor));
+    });
 
     m_volumeSlider = new ClickableSlider(Qt::Horizontal, this);
     m_volumeSlider->setObjectName("VolumeSlider");
@@ -598,7 +647,8 @@ void QueueWidget::addQueueSong(int index, const QString& title, const QString& a
     itemIndex->setData(Qt::UserRole + 3, duration);
     itemIndex->setData(Qt::UserRole + 4, coverPath);
     itemIndex->setTextAlignment(Qt::AlignLeft | Qt::AlignVCenter);
-    itemIndex->setForeground(QBrush(QColor("#7E8494")));
+    const auto& p = ThemeManager::instance().currentTheme();
+    itemIndex->setForeground(p.mutedText);
     itemIndex->setFlags(itemIndex->flags() ^ Qt::ItemIsEditable);
     m_queueTable->setItem(row, 0, itemIndex);
 
@@ -610,6 +660,7 @@ void QueueWidget::addQueueSong(int index, const QString& title, const QString& a
 
     auto* thumbLabel = new QLabel(detailsContainer);
     thumbLabel->setObjectName("QueueRowThumbLabel");
+    thumbLabel->setProperty("coverPath", coverPath);
     thumbLabel->setFixedSize(24, 24);
 
     if (AppSettings::instance().isOptimizedMode()) {
@@ -639,10 +690,10 @@ void QueueWidget::addQueueSong(int index, const QString& title, const QString& a
     infoVLayout->setAlignment(Qt::AlignVCenter);
 
     auto* titleLabel = new QLabel(title, detailsContainer);
-    titleLabel->setStyleSheet("font-size: 12px; font-weight: 500; color: #E1E4EB; background: transparent; margin: 0px; padding: 0px;");
+    titleLabel->setObjectName("QueueRowTitleLabel");
     
     auto* artistLabel = new QLabel(artist, detailsContainer);
-    artistLabel->setStyleSheet("font-size: 10px; color: #7E8494; background: transparent; margin: 0px; padding: 0px;");
+    artistLabel->setObjectName("QueueRowArtistLabel");
 
     infoVLayout->addWidget(titleLabel);
     infoVLayout->addWidget(artistLabel);
@@ -737,7 +788,8 @@ void QueueWidget::reorderQueueRow(int fromRow, int toRow) {
     itemIndex->setData(Qt::UserRole + 3, duration);
     itemIndex->setData(Qt::UserRole + 4, coverPath);
     itemIndex->setTextAlignment(Qt::AlignLeft | Qt::AlignVCenter);
-    itemIndex->setForeground(QBrush(QColor("#7E8494")));
+    const auto& p = ThemeManager::instance().currentTheme();
+    itemIndex->setForeground(p.mutedText);
     itemIndex->setFlags(itemIndex->flags() ^ Qt::ItemIsEditable);
     m_queueTable->setItem(toRow, 0, itemIndex);
 
@@ -747,6 +799,8 @@ void QueueWidget::reorderQueueRow(int fromRow, int toRow) {
     detailsLayout->setSpacing(8);
 
     auto* thumbLabel = new QLabel(detailsContainer);
+    thumbLabel->setObjectName("QueueRowThumbLabel");
+    thumbLabel->setProperty("coverPath", coverPath);
     thumbLabel->setFixedSize(24, 24);
     QPixmap cover;
     if (!coverPath.isEmpty() && cover.load(coverPath)) {
@@ -761,10 +815,10 @@ void QueueWidget::reorderQueueRow(int fromRow, int toRow) {
     infoVLayout->setAlignment(Qt::AlignVCenter);
 
     auto* titleLabel = new QLabel(title, detailsContainer);
-    titleLabel->setStyleSheet("font-size: 12px; font-weight: 500; color: #E1E4EB; background: transparent; margin: 0px; padding: 0px;");
+    titleLabel->setObjectName("QueueRowTitleLabel");
 
     auto* artistLabel = new QLabel(artist, detailsContainer);
-    artistLabel->setStyleSheet("font-size: 10px; color: #7E8494; background: transparent; margin: 0px; padding: 0px;");
+    artistLabel->setObjectName("QueueRowArtistLabel");
 
     infoVLayout->addWidget(titleLabel);
     infoVLayout->addWidget(artistLabel);

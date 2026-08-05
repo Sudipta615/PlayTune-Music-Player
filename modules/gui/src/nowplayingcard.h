@@ -76,6 +76,7 @@ private:
     QPushButton* m_shuffleBtn = nullptr;
     QPushButton* m_eqBtn = nullptr;
     QPushButton* m_sleepTimerBtn = nullptr;
+    QPushButton* m_editTagsBtn = nullptr;
     QLabel* m_sleepTimerLabel = nullptr;
     int m_sleepTimerRemaining = 0;
 
@@ -91,6 +92,7 @@ private:
     QColor m_currentBorderColor = QColor("#23283E");
 
     // Responsive sizing members
+    bool         m_hasCustomCover = false;
     QPixmap      m_coverPixmap;
     int          m_coverSize = 140;
     bool         m_optimizedMode = false;

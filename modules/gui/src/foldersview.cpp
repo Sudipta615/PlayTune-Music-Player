@@ -1,4 +1,5 @@
 #include "foldersview.h"
+#include "apptheme.h"
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QLabel>
@@ -22,13 +23,6 @@ void FoldersViewWidget::setupUi() {
     // ── Page 0: Folders List Page (inside FoldersCard Frame) ───────────────────
     auto* page0Card = new QFrame(m_stackedWidget);
     page0Card->setObjectName("FoldersCard");
-    page0Card->setStyleSheet(
-        "QFrame#FoldersCard {"
-        "   background-color: #0F121D;"
-        "   border: 1px solid #1E2538;"
-        "   border-radius: 16px;"
-        "}"
-    );
 
     auto* page0Layout = new QVBoxLayout(page0Card);
     page0Layout->setContentsMargins(16, 16, 16, 16);
@@ -36,7 +30,6 @@ void FoldersViewWidget::setupUi() {
 
     auto* headerLayout = new QHBoxLayout();
     auto* titleLabel = new QLabel("Imported Folders", page0Card);
-    titleLabel->setStyleSheet("font-size: 20px; font-weight: bold; color: #FFFFFF;");
     headerLayout->addWidget(titleLabel);
     headerLayout->addStretch();
     page0Layout->addLayout(headerLayout);
@@ -59,13 +52,33 @@ void FoldersViewWidget::setupUi() {
     m_table->horizontalHeader()->setSectionResizeMode(1, QHeaderView::Fixed);
     m_table->setColumnWidth(1, 120);
 
-    m_table->setStyleSheet(
-        "QTableWidget { background-color: transparent; color: #FFFFFF; font-size: 14px; border: none; }"
-        "QHeaderView::section { background-color: transparent; color: #7E8494; font-size: 11px; font-weight: bold; padding: 8px 12px; border: none; border-bottom: 1px solid #1E2538; }"
-        "QTableWidget::item { border-bottom: 1px solid #161C2B; padding-left: 8px; padding-right: 8px; }"
-        "QTableWidget::item:selected { background-color: #1B1130; color: #FF2A7A; border-radius: 8px; }"
-        "QTableWidget::item:hover { background-color: #1A122B; border-radius: 8px; }"
-    );
+    auto applyTheme = [this, page0Card, titleLabel](const ThemePalette& p) {
+        if (page0Card) {
+            page0Card->setStyleSheet(QString(
+                "QFrame#FoldersCard {"
+                "   background-color: %1;"
+                "   border: 1px solid %2;"
+                "   border-radius: 16px;"
+                "}"
+            ).arg(p.cardBg.name(), p.cardBorder.name()));
+        }
+        if (titleLabel) {
+            titleLabel->setStyleSheet(QString("font-size: 20px; font-weight: bold; color: %1;").arg(p.primaryText.name()));
+        }
+        if (m_table) {
+            m_table->setStyleSheet(QString(
+                "QTableWidget { background-color: transparent; color: %1; font-size: 14px; border: none; outline: none; }"
+                "QHeaderView::section { background-color: transparent; color: %2; font-size: 11px; font-weight: bold; padding: 8px 12px; border: none; border-bottom: 1px solid %3; }"
+                "QTableWidget::item { border-bottom: 1px solid %3; padding-left: 8px; padding-right: 8px; outline: none; }"
+                "QTableWidget::item:selected { background-color: %4; color: %5; border-radius: 8px; outline: none; }"
+                "QTableWidget::item:hover { background-color: %6; border-radius: 8px; outline: none; }"
+            ).arg(p.primaryText.name(), p.mutedText.name(), p.cardBorder.name(), p.itemSelectedBg.name(), p.secondaryAccent.name(), p.itemHoverBg.name()));
+        }
+    };
+    applyTheme(ThemeManager::instance().currentTheme());
+    connect(&ThemeManager::instance(), &ThemeManager::themeChanged, this, [applyTheme](const ThemePalette& p) {
+        applyTheme(p);
+    });
 
     page0Layout->addWidget(m_table);
     m_stackedWidget->addWidget(page0Card); // index 0

@@ -38,6 +38,22 @@ NowPlayingCard::NowPlayingCard(QWidget* parent) : QFrame(parent) {
     setObjectName("NowPlayingCard");
     m_coverPixmap = getDefaultAlbumArt();
     setupUi();
+
+    connect(&ThemeManager::instance(), &ThemeManager::themeChanged, this, [this](const ThemePalette& p) {
+        if (!m_hasCustomCover) {
+            m_coverPixmap = getDefaultAlbumArt();
+            updateCoverPixmap();
+            applyCardStyle(p.cardBgGradStart, p.cardBgGradEnd, p.cardBorder);
+        }
+        // Update icon tinting & hover for NowPlayingCard white buttons
+        if (m_editTagsBtn) {
+            m_editTagsBtn->setIcon(ThemeManager::tintedIcon(":/resources/icons/more.png", QColor("#FFFFFF")));
+            m_editTagsBtn->setStyleSheet(QString(
+                "QPushButton { border: none; background: transparent; }"
+                "QPushButton:hover { background-color: %1; border-radius: 8px; }"
+            ).arg(p.primaryAccent.name()));
+        }
+    });
 }
 
 void NowPlayingCard::setupUi() {
@@ -85,11 +101,15 @@ void NowPlayingCard::setupUi() {
     topInfoLayout->addLayout(infoVLayout, 1);
 
     auto* editTagsBtn = new QPushButton(this);
+    m_editTagsBtn = editTagsBtn;
     editTagsBtn->setObjectName("IconButton");
-    editTagsBtn->setIcon(QIcon(":/resources/icons/more.png"));
+    editTagsBtn->setIcon(ThemeManager::tintedIcon(":/resources/icons/more.png", QColor("#FFFFFF")));
     editTagsBtn->setIconSize(QSize(18, 18));
     editTagsBtn->setFixedSize(32, 32);
-    editTagsBtn->setStyleSheet("QPushButton { border: none; background: transparent; } QPushButton:hover { background-color: #1B1130; border-radius: 6px; }");
+    editTagsBtn->setStyleSheet(QString(
+        "QPushButton { border: none; background: transparent; }"
+        "QPushButton:hover { background-color: %1; border-radius: 8px; }"
+    ).arg(ThemeManager::instance().currentTheme().primaryAccent.name()));
     editTagsBtn->setToolTip("Edit Track Metadata Tags...");
     connect(editTagsBtn, &QPushButton::clicked, this, &NowPlayingCard::editTagsClicked);
     topInfoLayout->addWidget(editTagsBtn, 0, Qt::AlignTop | Qt::AlignRight);
@@ -196,7 +216,7 @@ void NowPlayingCard::setupUi() {
     // Repeat button
     m_repeatBtn = new QPushButton(this);
     m_repeatBtn->setObjectName("MediaControlBtn");
-    m_repeatBtn->setIcon(QIcon(":/resources/icons/repeat.png"));
+    m_repeatBtn->setIcon(ThemeManager::tintedIcon(":/resources/icons/repeat.png", QColor("#FFFFFF")));
     m_repeatBtn->setIconSize(QSize(22, 22));
     m_repeatBtn->setFixedSize(38, 38);
     m_repeatBtn->setCheckable(true);
@@ -208,7 +228,7 @@ void NowPlayingCard::setupUi() {
     // Prev button
     m_prevBtn = new QPushButton(this);
     m_prevBtn->setObjectName("MediaControlBtn");
-    m_prevBtn->setIcon(QIcon(":/resources/icons/prev.png"));
+    m_prevBtn->setIcon(ThemeManager::tintedIcon(":/resources/icons/prev.png", QColor("#FFFFFF")));
     m_prevBtn->setIconSize(QSize(26, 26));
     m_prevBtn->setFixedSize(38, 38);
     m_prevBtn->setToolTip("Previous Track (← / Ctrl+←)");
@@ -216,7 +236,7 @@ void NowPlayingCard::setupUi() {
     // Play/Pause button
     m_playPauseBtn = new QPushButton(this);
     m_playPauseBtn->setObjectName("PlayPauseBtn");
-    m_playPauseBtn->setIcon(QIcon(":/resources/icons/pause.png")); // Default state is pause
+    m_playPauseBtn->setIcon(ThemeManager::tintedIcon(":/resources/icons/pause.png", QColor("#FFFFFF")));
     m_playPauseBtn->setIconSize(QSize(28, 28));
     m_playPauseBtn->setFixedSize(50, 50);
     m_playPauseBtn->setToolTip("Pause Audio (Space)");
@@ -224,7 +244,7 @@ void NowPlayingCard::setupUi() {
     // Next button
     m_nextBtn = new QPushButton(this);
     m_nextBtn->setObjectName("MediaControlBtn");
-    m_nextBtn->setIcon(QIcon(":/resources/icons/next.png"));
+    m_nextBtn->setIcon(ThemeManager::tintedIcon(":/resources/icons/next.png", QColor("#FFFFFF")));
     m_nextBtn->setIconSize(QSize(26, 26));
     m_nextBtn->setFixedSize(38, 38);
     m_nextBtn->setToolTip("Next Track (→ / Ctrl+→)");
@@ -232,7 +252,7 @@ void NowPlayingCard::setupUi() {
     // Shuffle button
     m_shuffleBtn = new QPushButton(this);
     m_shuffleBtn->setObjectName("MediaControlBtn");
-    m_shuffleBtn->setIcon(QIcon(":/resources/icons/shuffle.png"));
+    m_shuffleBtn->setIcon(ThemeManager::tintedIcon(":/resources/icons/shuffle.png", QColor("#FFFFFF")));
     m_shuffleBtn->setIconSize(QSize(22, 22));
     m_shuffleBtn->setFixedSize(38, 38);
     m_shuffleBtn->setCheckable(true);
@@ -244,7 +264,7 @@ void NowPlayingCard::setupUi() {
     // EQ button (Equalizer)
     m_eqBtn = new QPushButton(this);
     m_eqBtn->setObjectName("MediaControlBtn");
-    m_eqBtn->setIcon(QIcon(":/resources/icons/equalizer.png"));
+    m_eqBtn->setIcon(ThemeManager::tintedIcon(":/resources/icons/equalizer.png", QColor("#FFFFFF")));
     m_eqBtn->setIconSize(QSize(22, 22));
     m_eqBtn->setFixedSize(38, 38);
     m_eqBtn->setToolTip("Open DSP Equalizer & Resampler Window (E)");
@@ -252,7 +272,7 @@ void NowPlayingCard::setupUi() {
     // Sleep timer button.
     m_sleepTimerBtn = new QPushButton(this);
     m_sleepTimerBtn->setObjectName("MediaControlBtn");
-    m_sleepTimerBtn->setIcon(QIcon(":/resources/icons/recently_played.png"));
+    m_sleepTimerBtn->setIcon(ThemeManager::tintedIcon(":/resources/icons/recently_played.png", QColor("#FFFFFF")));
     m_sleepTimerBtn->setIconSize(QSize(22, 22));
     m_sleepTimerBtn->setFixedSize(38, 38);
     m_sleepTimerBtn->setToolTip("Sleep Timer");
@@ -263,6 +283,16 @@ void NowPlayingCard::setupUi() {
     m_sleepTimerLabel->setAlignment(Qt::AlignCenter);
     m_sleepTimerLabel->setVisible(false);
     connect(m_sleepTimerBtn, &QPushButton::clicked, this, &NowPlayingCard::sleepTimerClicked);
+
+    // Reconnect themeChanged for media buttons
+    connect(&ThemeManager::instance(), &ThemeManager::themeChanged, this, [this](const ThemePalette&) {
+        if (m_repeatBtn) m_repeatBtn->setIcon(ThemeManager::tintedIcon(":/resources/icons/repeat.png", QColor("#FFFFFF")));
+        if (m_prevBtn)   m_prevBtn->setIcon(ThemeManager::tintedIcon(":/resources/icons/prev.png", QColor("#FFFFFF")));
+        if (m_nextBtn)   m_nextBtn->setIcon(ThemeManager::tintedIcon(":/resources/icons/next.png", QColor("#FFFFFF")));
+        if (m_shuffleBtn) m_shuffleBtn->setIcon(ThemeManager::tintedIcon(":/resources/icons/shuffle.png", QColor("#FFFFFF")));
+        if (m_eqBtn)     m_eqBtn->setIcon(ThemeManager::tintedIcon(":/resources/icons/equalizer.png", QColor("#FFFFFF")));
+        if (m_sleepTimerBtn) m_sleepTimerBtn->setIcon(ThemeManager::tintedIcon(":/resources/icons/recently_played.png", QColor("#FFFFFF")));
+    });
 
     controlsLayout->addStretch();
     controlsLayout->addWidget(m_repeatBtn);
@@ -306,63 +336,65 @@ void NowPlayingCard::setTrackInfo(const QString& title, const QString& artist, c
     QPixmap cover;
     if (!coverPath.isEmpty() && cover.load(coverPath)) {
         m_coverPixmap = cover;
+        m_hasCustomCover = true;
     } else {
         m_coverPixmap = getDefaultAlbumArt();
+        m_hasCustomCover = false;
     }
     updateCoverPixmap();
 
-    // Dynamic vibrant gradient from album cover with visible, colorful results.
-    // The algorithm:
-    //   1. Sample the cover image on a coarse grid.
-    //   2. Collect saturated colors (the "vibrant" ones).
-    //   3. Pick the most saturated as the primary color.
-    //   4. Find a secondary color with a different hue for contrast.
-    //   5. Darken both to a moderate-dark level (lightness 18-35,
-    //      saturation 50-140) so text remains readable but the
-    //      gradient is clearly colored — not near-black.
-    //   6. Set the border to a slightly brighter tint of the primary.
-    QImage img = m_coverPixmap.toImage().scaled(32, 32, Qt::IgnoreAspectRatio, Qt::SmoothTransformation);
-    QColor c1 = QColor("#151624");
-    QColor c2 = QColor("#0F111D");
-    QColor borderColor = QColor("#23283E");
-    if (!img.isNull()) {
-        QVector<QColor> vibrantColors;
-        int stepX = qMax(1, img.width() / 8);
-        int stepY = qMax(1, img.height() / 8);
-        for (int y = 0; y < img.height(); y += stepY) {
-            for (int x = 0; x < img.width(); x += stepX) {
-                QColor c = img.pixelColor(x, y);
-                int s = c.hslSaturation();
-                int l = c.lightness();
-                if (s > 40 && l > 20 && l < 220) {
-                    vibrantColors.append(c);
+    QColor c1, c2, borderColor;
+    if (m_hasCustomCover) {
+        // Dynamic vibrant gradient from album cover with visible, colorful results.
+        QImage img = m_coverPixmap.toImage().scaled(32, 32, Qt::IgnoreAspectRatio, Qt::SmoothTransformation);
+        c1 = QColor("#151624");
+        c2 = QColor("#0F111D");
+        borderColor = QColor("#23283E");
+        if (!img.isNull()) {
+            QVector<QColor> vibrantColors;
+            int stepX = qMax(1, img.width() / 8);
+            int stepY = qMax(1, img.height() / 8);
+            for (int y = 0; y < img.height(); y += stepY) {
+                for (int x = 0; x < img.width(); x += stepX) {
+                    QColor c = img.pixelColor(x, y);
+                    int s = c.hslSaturation();
+                    int l = c.lightness();
+                    if (s > 40 && l > 20 && l < 220) {
+                        vibrantColors.append(c);
+                    }
                 }
             }
-        }
-        if (!vibrantColors.isEmpty()) {
-            std::sort(vibrantColors.begin(), vibrantColors.end(), [](const QColor& a, const QColor& b) {
-                return a.hslSaturation() > b.hslSaturation();
-            });
-            c1 = vibrantColors.first();
-            bool foundSecond = false;
-            for (const QColor& c : vibrantColors) {
-                if (std::abs(c.hslHue() - c1.hslHue()) > 40) {
-                    c2 = c;
-                    foundSecond = true;
-                    break;
+            if (!vibrantColors.isEmpty()) {
+                std::sort(vibrantColors.begin(), vibrantColors.end(), [](const QColor& a, const QColor& b) {
+                    return a.hslSaturation() > b.hslSaturation();
+                });
+                c1 = vibrantColors.first();
+                bool foundSecond = false;
+                for (const QColor& c : vibrantColors) {
+                    if (std::abs(c.hslHue() - c1.hslHue()) > 40) {
+                        c2 = c;
+                        foundSecond = true;
+                        break;
+                    }
                 }
+                if (!foundSecond) {
+                    int h, s, l;
+                    c1.getHsl(&h, &s, &l);
+                    c2.setHsl((h + 50) % 360, qMax(50, s - 20), qBound(15, l - 8, 30));
+                }
+                int h1, s1, l1;
+                c1.getHsl(&h1, &s1, &l1);
+                c1.setHsl(h1, qBound(50, s1, 140), qBound(18, l1, 35));
+                borderColor.setHsl(h1, qBound(60, s1, 160), qBound(25, l1 + 12, 50));
             }
-            if (!foundSecond) {
-                int h, s, l;
-                c1.getHsl(&h, &s, &l);
-                c2.setHsl((h + 50) % 360, qMax(50, s - 20), qBound(15, l - 8, 30));
-            }
-            int h1, s1, l1;
-            c1.getHsl(&h1, &s1, &l1);
-            c1.setHsl(h1, qBound(50, s1, 140), qBound(18, l1, 35));
-            borderColor.setHsl(h1, qBound(60, s1, 160), qBound(25, l1 + 12, 50));
         }
+    } else {
+        const auto& p = ThemeManager::instance().currentTheme();
+        c1 = p.cardBgGradStart;
+        c2 = p.cardBgGradEnd;
+        borderColor = p.cardBorder;
     }
+
     // Apply gradient colors: bypass the 400 ms animation in Optimized Mode (no QVariantAnimation cost).
     if (m_optimizedMode)
         applyCardStyle(c1, c2, borderColor);
@@ -466,12 +498,13 @@ void NowPlayingCard::animateToColors(const QColor& targetC1, const QColor& targe
 
 void NowPlayingCard::setPlayState(bool playing) {
     m_isPlaying = playing;
+    const auto& p = ThemeManager::instance().currentTheme();
     if (playing) {
-        m_playPauseBtn->setIcon(QIcon(":/resources/icons/pause.png"));
+        m_playPauseBtn->setIcon(ThemeManager::tintedIcon(":/resources/icons/pause.png", QColor("#FFFFFF")));
         m_playPauseBtn->setToolTip("Pause Audio (Space)");
         m_visualizer->setPlaying(true);
     } else {
-        m_playPauseBtn->setIcon(QIcon(":/resources/icons/play.png"));
+        m_playPauseBtn->setIcon(ThemeManager::tintedIcon(":/resources/icons/play.png", QColor("#FFFFFF")));
         m_playPauseBtn->setToolTip("Play Audio (Space)");
         m_visualizer->setPlaying(false);
     }
