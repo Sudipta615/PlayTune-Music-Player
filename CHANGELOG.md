@@ -42,6 +42,29 @@ All developers and contributors **MUST** follow the standard 3-way (`x.y.z`) Sem
 
 ## 🗓️ Version History
 
+### [1.2.0] — 2026-08-05 — Multi-Theme Engine & Dynamic Palette Styling
+
+#### Summary
+Introduced a comprehensive **Multi-Theme Engine** featuring 6 curated visual presets (Dark Premium, Light Premium, Emerald Teal, Amber Flame, Cyber Cyan, Crimson Pulse), instant dynamic theme switching, full Light Mode high-contrast legibility, and uniform theme propagation across all application views and controls.
+
+#### Added
+- **Multi-Theme Engine (`ThemeManager`)**:
+  - Implemented 6 curated theme palettes in `apptheme.h` & `apptheme.cpp`: **Dark Premium** (Default dark navy), **Light Premium** (High-contrast bright canvas), **Emerald Teal** (Vivid teal accent), **Amber Flame** (Warm gold/amber accent), **Cyber Cyan** (Futuristic cyan accent), and **Crimson Pulse** (Deep crimson/rose accent).
+  - Dynamic stylesheet generator (`generateStylesheet()`) propagating color tokens (`windowBg`, `sidebarBg`, `queueBg`, `cardBg`, `cardBorder`, `headerBg`, `separatorColor`, `primaryText`, `secondaryText`, `mutedText`, `primaryAccent`, `secondaryAccent`, `itemHoverBg`, `itemSelectedBg`, `scrollbarHandle`, `tooltipBg`, `tooltipBorder`, `placeholderGradStart`, `placeholderGradEnd`, `cardBgGradStart`, `cardBgGradEnd`).
+  - Active theme persistence in `QSettings` restoring selected visual theme across restarts.
+
+#### Fixed
+- **Settings Tab Theme Uniformity**: Updated `SettingsPageWidget` with dynamic `updateThemeStyles()` handler, styling all cards (`SettingsCard`), section headers, titles, descriptions, action buttons (`Add Songs`, `Add Folder`, `Import/Export Playlist`, `Scan ReplayGain`), and `FoldersListWidget` with active palette tokens.
+- **Spinbox Stepper Button Hover Colors**: Removed hardcoded `#7B1FA2` spinbox hover styles in `settingspage.cpp`, making up/down button hover states adapt to the active theme accent.
+- **QComboBox Dropdown Item Hover Effect**: Added explicit `QComboBox QAbstractItemView::item:hover` (`p.itemHoverBg`) and `:selected` (`p.secondaryAccent`) rules in `apptheme.cpp` stylesheet generator.
+- **Instant Theme Switching & Flash Elimination**: Connected `m_themeCombo` to `&QComboBox::activated` and removed disk-reading `style.qss` reloader in `MainWindow` that caused UI stutter and flashing old themes during selection.
+- **Songs Table Focus Border Removal**: Added `outline: none; border: none;` to `QTableWidget` and item selection/focus states, removing unnecessary focus outlines around selected tracks.
+- **Queue Panel Hover Alignment**: Updated `QueueTableRowDelegate::paint` and Queue track labels to use active theme hover (`itemHoverBg`), selected (`itemSelectedBg`), and text colors (`primaryText` / `mutedText`), perfectly matching Songs table row highlights.
+- **Album, Artist & Folder Card Container Styling**: Subscribed `AlbumsCard`, `ArtistsCard`, and `FoldersCard` frames to `ThemeManager::themeChanged` to update outer container backgrounds (`cardBg`) and borders (`cardBorder`).
+- **Light Mode Readability**: Refined `Light Premium` palette tokens and updated text labels in QueueWidget, SongsTableWidget, FoldersViewWidget, and SettingsPageWidget to use dark slate text (`#0F172A` / `#334155`) on off-white/white cards for crisp legibility.
+
+---
+
 ### [1.1.0] — 2026-08-03 — Optimized Mode & High-Contrast Description Badges
 
 #### Summary
