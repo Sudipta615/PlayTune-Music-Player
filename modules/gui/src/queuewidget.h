@@ -95,8 +95,12 @@ private:
     QLabel* m_miniCover = nullptr;
     QLabel* m_miniTitle = nullptr;
     QLabel* m_miniArtistAlbum = nullptr;
+<<<<<<< HEAD
     QLabel* m_npHeaderLabel = nullptr;  // "Now Playing" section header
     QLabel* m_upNextLabel = nullptr;    // "Up Next" section header
+=======
+    QString m_miniCoverPath;      // last cover path shown on the mini card
+>>>>>>> mulberry-calendula
 
     // Stacked widget for Queue vs Lyrics
     QStackedWidget* m_contentStack = nullptr;

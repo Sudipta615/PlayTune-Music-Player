@@ -50,6 +50,16 @@ private:
     void selectPresetButton(int presetIdx);
     void setPresetGains(int presetIdx);
     void updateAdvancedBandControls(int bandIdx);
+    void applyTheme(const ThemePalette& p);
+
+    // Theme-able widgets (labels get an objectName *role*; the theme handler
+    // restyles them so the window follows Light/Dark/colored themes).
+    QLabel* m_eqTitleLabel = nullptr;
+    QLabel* m_preampHeaderLabel = nullptr;
+    QLabel* m_preampMinLabel = nullptr;
+    QLabel* m_preampMaxLabel = nullptr;
+    QFrame* m_resamplerCard = nullptr;
+    QFrame* m_bandEditorCard = nullptr;
 
     // Widgets
     ToggleSwitch* m_enableToggle = nullptr;

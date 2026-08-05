@@ -3,7 +3,10 @@
 #include "gui_bridge_p.h"
 #include "appsettings.h"
 #include "apptheme.h"
+<<<<<<< HEAD
 #include <QFile>
+=======
+>>>>>>> mulberry-calendula
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QHeaderView>
@@ -184,6 +187,7 @@ void QueueWidget::setupUi() {
         if (m_miniTitle) m_miniTitle->setStyleSheet(QString("font-size: 13px; font-weight: bold; color: %1;").arg(p.primaryText.name()));
         if (m_miniArtistAlbum) m_miniArtistAlbum->setStyleSheet(QString("font-size: 11px; color: %1;").arg(p.mutedText.name()));
         if (m_footerLabel) m_footerLabel->setStyleSheet(QString("color: %1; font-size: 11px; margin-left: 5px;").arg(p.mutedText.name()));
+<<<<<<< HEAD
         if (m_npHeaderLabel) m_npHeaderLabel->setStyleSheet(QString("color: %1; font-size: 11px; font-weight: bold; margin-top: 5px;").arg(p.mutedText.name()));
         if (m_upNextLabel)  m_upNextLabel->setStyleSheet(QString("color: %1; font-size: 11px; font-weight: bold;").arg(p.mutedText.name()));
         if (m_volumeLabel)  m_volumeLabel->setStyleSheet(QString("color: %1; font-size: 11px; min-width: 32px; font-weight: 500;").arg(p.mutedText.name()));
@@ -209,11 +213,36 @@ void QueueWidget::setupUi() {
                         QString path = thumbLabel->property("coverPath").toString();
                         if (path.isEmpty() || !QFile::exists(path)) {
                             thumbLabel->setPixmap(getRoundedPixmap(getDefaultAlbumArt(), 24, 6));
+=======
+        // The mini cover shows the theme-aware default art when the current
+        // track has no cover; regenerate it so it follows the new palette.
+        if (m_miniCover && m_miniCoverPath.isEmpty() && !AppSettings::instance().isOptimizedMode()) {
+            m_miniCover->setPixmap(getRoundedPixmap(getDefaultAlbumArt(), 44, 8));
+        }
+        // Queue rows without a real cover also show theme-generated art.
+        if (m_queueTable) {
+            int rows = m_queueTable->rowCount();
+            for (int row = 0; row < rows; ++row) {
+                if (auto* firstItem = m_queueTable->item(row, 0)) {
+                    if (!firstItem->data(Qt::UserRole + 4).toString().isEmpty()) continue;
+                    if (auto* details = m_queueTable->cellWidget(row, 1)) {
+                        const auto labels = details->findChildren<QLabel*>();
+                        for (QLabel* l : labels) {
+                            if (l->objectName() == "QueueRowThumbLabel" ||
+                                (l->minimumWidth() <= 24 && l->maximumWidth() <= 24)) {
+                                l->setPixmap(getRoundedPixmap(getThumbnail(QString()), 24, 6));
+                                break;
+                            }
+>>>>>>> mulberry-calendula
                         }
                     }
                 }
             }
+<<<<<<< HEAD
             if (m_queueTable->viewport()) m_queueTable->viewport()->update();
+=======
+            m_queueTable->viewport()->update();
+>>>>>>> mulberry-calendula
         }
     };
     applyTheme(ThemeManager::instance().currentTheme());
@@ -479,7 +508,8 @@ void QueueWidget::setupUi() {
 
 void QueueWidget::setTrackInfo(const QString& title, const QString& artist, const QString& album, const QString& coverPath) {
     m_miniTitle->setText(title.isEmpty() ? "Unknown Title" : title);
-    
+    m_miniCoverPath = coverPath;
+
     QString artistAlbum = (artist.isEmpty() ? "Unknown Artist" : artist);
     if (!album.isEmpty()) {
         artistAlbum += " • " + album;
@@ -689,11 +719,19 @@ void QueueWidget::addQueueSong(int index, const QString& title, const QString& a
     infoVLayout->setContentsMargins(0, 0, 0, 0);
     infoVLayout->setAlignment(Qt::AlignVCenter);
 
+    const auto& p = ThemeManager::instance().currentTheme();
     auto* titleLabel = new QLabel(title, detailsContainer);
+<<<<<<< HEAD
     titleLabel->setObjectName("QueueRowTitleLabel");
     
     auto* artistLabel = new QLabel(artist, detailsContainer);
     artistLabel->setObjectName("QueueRowArtistLabel");
+=======
+    titleLabel->setStyleSheet(QString("font-size: 12px; font-weight: 500; color: %1; background: transparent; margin: 0px; padding: 0px;").arg(p.primaryText.name()));
+    
+    auto* artistLabel = new QLabel(artist, detailsContainer);
+    artistLabel->setStyleSheet(QString("font-size: 10px; color: %1; background: transparent; margin: 0px; padding: 0px;").arg(p.mutedText.name()));
+>>>>>>> mulberry-calendula
 
     infoVLayout->addWidget(titleLabel);
     infoVLayout->addWidget(artistLabel);
@@ -814,11 +852,19 @@ void QueueWidget::reorderQueueRow(int fromRow, int toRow) {
     infoVLayout->setContentsMargins(0, 0, 0, 0);
     infoVLayout->setAlignment(Qt::AlignVCenter);
 
+    const auto& p = ThemeManager::instance().currentTheme();
     auto* titleLabel = new QLabel(title, detailsContainer);
+<<<<<<< HEAD
     titleLabel->setObjectName("QueueRowTitleLabel");
 
     auto* artistLabel = new QLabel(artist, detailsContainer);
     artistLabel->setObjectName("QueueRowArtistLabel");
+=======
+    titleLabel->setStyleSheet(QString("font-size: 12px; font-weight: 500; color: %1; background: transparent; margin: 0px; padding: 0px;").arg(p.primaryText.name()));
+
+    auto* artistLabel = new QLabel(artist, detailsContainer);
+    artistLabel->setStyleSheet(QString("font-size: 10px; color: %1; background: transparent; margin: 0px; padding: 0px;").arg(p.mutedText.name()));
+>>>>>>> mulberry-calendula
 
     infoVLayout->addWidget(titleLabel);
     infoVLayout->addWidget(artistLabel);

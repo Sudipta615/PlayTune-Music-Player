@@ -164,17 +164,34 @@ void SidebarWidget::setupUi() {
         m_playlistList->setStyleSheet(QString(
             "QListWidget { background-color: transparent; border: none; color: %1; "
             "font-size: 13px; outline: none; }"
+<<<<<<< HEAD
             "QListWidget::item { padding: 6px 8px; border-radius: 4px; }"
+=======
+            "QListWidget::item { padding: 6px 8px 6px 28px; border-radius: 4px; "
+            "background-image: url(:/resources/icons/list.png); "
+            "background-position: 6px center; background-repeat: no-repeat; }"
+>>>>>>> mulberry-calendula
             "QListWidget::item:hover { background-color: %2; color: %3; }"
             "QListWidget::item:selected { background-color: %2; color: %4; font-weight: bold; }"
         ).arg(p.secondaryText.name(), p.itemHoverBg.name(), p.primaryText.name(), p.secondaryAccent.name()));
     };
     applyListStyle(ThemeManager::instance().currentTheme());
+<<<<<<< HEAD
     connect(&ThemeManager::instance(), &ThemeManager::themeChanged, this, [this, applyListStyle](const ThemePalette& p) {
         applyListStyle(p);
         // Retint all nav button icons
         for (int i = 0; i < m_allNavButtons.size(); ++i) {
             // Reconstruct icon paths from the button index
+=======
+    connect(&ThemeManager::instance(), &ThemeManager::themeChanged, this, [applyListStyle, this](const ThemePalette& p) {
+        applyListStyle(p);
+        // If the sidebar is currently collapsed, the nav buttons carry a
+        // widget-level stylesheet (see setCollapsed); refresh it so icons
+        // keep matching the new theme. Expanded buttons inherit the global
+        // QSS, so nothing is needed for them.
+        if (m_isCollapsed) {
+            applyNavButtonStyles();
+>>>>>>> mulberry-calendula
         }
     });
     m_playlistList->setContextMenuPolicy(Qt::CustomContextMenu);
@@ -266,14 +283,36 @@ void SidebarWidget::setCollapsed(bool collapsed) {
     for (int i = 0; i < m_allNavButtons.size(); ++i) {
         if (m_isCollapsed) {
             m_allNavButtons[i]->setText("");
+<<<<<<< HEAD
             // Use a minimal override only for alignment; theme QSS handles all colors
             m_allNavButtons[i]->setStyleSheet("QPushButton#SidebarBtn { text-align: center; padding: 10px 0px; }");
+=======
+>>>>>>> mulberry-calendula
         } else {
             m_allNavButtons[i]->setText(m_allNavTexts[i]);
             m_allNavButtons[i]->setStyleSheet(""); // let global QSS take over
         }
     }
+    if (m_isCollapsed) {
+        applyNavButtonStyles();
+    }
     emit collapsedToggled(m_isCollapsed);
+}
+
+void SidebarWidget::applyNavButtonStyles() {
+    const auto& p = ThemeManager::instance().currentTheme();
+    const QString collapsedStyle = QString(
+        "QPushButton { background: transparent; border: none; color: %1;"
+        " text-align: center; padding: 10px 0px; font-size: 14px; border-radius: 8px; }"
+        "QPushButton:hover { background-color: %2; color: %3; }"
+        "QPushButton:checked { background-color: %2; color: %4; font-weight: bold; }"
+    ).arg(p.mutedText.name(), p.itemHoverBg.name(), p.primaryText.name(), p.secondaryAccent.name());
+    for (int i = 0; i < m_allNavButtons.size(); ++i) {
+        // Clear the icon back to the (themed) color — the icon pixmaps are
+        // monochrome so tinting via QSS isn't possible; the styling at least
+        // keeps hover/checked feedback theme-consistent and transparent bg.
+        m_allNavButtons[i]->setStyleSheet(collapsedStyle);
+    }
 }
 
 void SidebarWidget::clearPlaylists() {

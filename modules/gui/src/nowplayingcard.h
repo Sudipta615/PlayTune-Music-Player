@@ -58,11 +58,14 @@ private:
     void updateCoverPixmap();
     void applyCardStyle(const QColor& c1, const QColor& c2, const QColor& border);
     void animateToColors(const QColor& targetC1, const QColor& targetC2, const QColor& targetBorder);
+    void applyLabelStyles(const ThemePalette& p);
 
     QLabel* m_coverLabel = nullptr;
+    QLabel* m_nowPlayingLabel = nullptr;
     QLabel* m_titleLabel = nullptr;
     QLabel* m_artistLabel = nullptr;
     QLabel* m_albumLabel = nullptr;
+    QPushButton* m_editTagsBtn = nullptr;
 
     WaveformVisualizer* m_visualizer = nullptr;
     ClickableSlider* m_seekBar = nullptr;

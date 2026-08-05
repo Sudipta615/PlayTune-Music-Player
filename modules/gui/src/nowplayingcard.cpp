@@ -40,11 +40,16 @@ NowPlayingCard::NowPlayingCard(QWidget* parent) : QFrame(parent) {
     setupUi();
 
     connect(&ThemeManager::instance(), &ThemeManager::themeChanged, this, [this](const ThemePalette& p) {
+<<<<<<< HEAD
+=======
+        applyLabelStyles(p);
+>>>>>>> mulberry-calendula
         if (!m_hasCustomCover) {
             m_coverPixmap = getDefaultAlbumArt();
             updateCoverPixmap();
             applyCardStyle(p.cardBgGradStart, p.cardBgGradEnd, p.cardBorder);
         }
+<<<<<<< HEAD
         // Update icon tinting & hover for NowPlayingCard white buttons
         if (m_editTagsBtn) {
             m_editTagsBtn->setIcon(ThemeManager::tintedIcon(":/resources/icons/more.png", QColor("#FFFFFF")));
@@ -53,6 +58,8 @@ NowPlayingCard::NowPlayingCard(QWidget* parent) : QFrame(parent) {
                 "QPushButton:hover { background-color: %1; border-radius: 8px; }"
             ).arg(p.primaryAccent.name()));
         }
+=======
+>>>>>>> mulberry-calendula
     });
 }
 
@@ -89,8 +96,8 @@ void NowPlayingCard::setupUi() {
     infoVLayout->setSpacing(2);
 
     auto* nowPlayingLabel = new QLabel("Now Playing", this);
-    nowPlayingLabel->setStyleSheet("color: #7E8494; font-size: 11px; text-transform: uppercase; font-weight: bold;");
-    
+    m_nowPlayingLabel = nowPlayingLabel;
+
     m_titleLabel = new QLabel("No Track Playing", this);
     m_titleLabel->setObjectName("NowPlayingTitle");
     m_titleLabel->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
@@ -106,10 +113,13 @@ void NowPlayingCard::setupUi() {
     editTagsBtn->setIcon(ThemeManager::tintedIcon(":/resources/icons/more.png", QColor("#FFFFFF")));
     editTagsBtn->setIconSize(QSize(18, 18));
     editTagsBtn->setFixedSize(32, 32);
+<<<<<<< HEAD
     editTagsBtn->setStyleSheet(QString(
         "QPushButton { border: none; background: transparent; }"
         "QPushButton:hover { background-color: %1; border-radius: 8px; }"
     ).arg(ThemeManager::instance().currentTheme().primaryAccent.name()));
+=======
+>>>>>>> mulberry-calendula
     editTagsBtn->setToolTip("Edit Track Metadata Tags...");
     connect(editTagsBtn, &QPushButton::clicked, this, &NowPlayingCard::editTagsClicked);
     topInfoLayout->addWidget(editTagsBtn, 0, Qt::AlignTop | Qt::AlignRight);
@@ -319,6 +329,10 @@ void NowPlayingCard::setupUi() {
 
     // Initially animate the waveform
     m_visualizer->setPlaying(true);
+
+    // Apply theme-aware label styling (labels no longer rely on the global
+    // stylesheet, whose hard-coded colors were unreadable on light themes).
+    applyLabelStyles(ThemeManager::instance().currentTheme());
 }
 
 void NowPlayingCard::setTrackInfo(const QString& title, const QString& artist, const QString& album, const QString& coverPath) {
@@ -445,6 +459,51 @@ void NowPlayingCard::setOptimizedMode(bool enabled) {
             sh->setBlurRadius(8); sh->setColor(QColor(0, 0, 0, 180)); sh->setOffset(0, 2);
             m_timeTotal->setGraphicsEffect(sh);
         }
+    }
+}
+
+void NowPlayingCard::applyLabelStyles(const ThemePalette& p) {
+    if (m_nowPlayingLabel) {
+        m_nowPlayingLabel->setStyleSheet(QString(
+            "color: %1; font-size: 11px; text-transform: uppercase; font-weight: bold;"
+        ).arg(p.mutedText.name()));
+    }
+    if (m_titleLabel) {
+        m_titleLabel->setStyleSheet(QString(
+            "font-size: 22px; font-weight: bold; color: %1; background: transparent; border: none;"
+        ).arg(p.primaryText.name()));
+    }
+
+    // Pill backgrounds behind the artist/album/time chips. Translucent so
+    // they read well over both the dark and the light Now-Playing gradient.
+    const QColor pillBg     = p.isLight ? QColor(15, 23, 42, 26) : QColor(10, 12, 20, 150);
+    const QColor pillBorder = p.isLight ? QColor(15, 23, 42, 46) : QColor(255, 255, 255, 55);
+
+    const QString chipStyle = QString(
+        "font-size: 12px; font-weight: 500; color: %1;"
+        "background-color: %2; border: 1px solid %3;"
+        "border-radius: 6px; padding: 3px 8px;"
+    ).arg(p.secondaryText.name())
+     .arg(pillBg.name(QColor::HexArgb))
+     .arg(pillBorder.name(QColor::HexArgb));
+    if (m_artistLabel) m_artistLabel->setStyleSheet(chipStyle);
+    if (m_albumLabel)  m_albumLabel->setStyleSheet(chipStyle);
+
+    const QString timeStyle = QString(
+        "font-size: 11px; font-weight: 600; color: %1;"
+        "background-color: %2; border: 1px solid %3;"
+        "border-radius: 6px; padding: 3px 6px;"
+    ).arg(p.primaryText.name())
+     .arg(pillBg.name(QColor::HexArgb))
+     .arg(pillBorder.name(QColor::HexArgb));
+    if (m_timeElapsed) m_timeElapsed->setStyleSheet(timeStyle);
+    if (m_timeTotal)   m_timeTotal->setStyleSheet(timeStyle);
+
+    if (m_editTagsBtn) {
+        m_editTagsBtn->setStyleSheet(QString(
+            "QPushButton { border: none; background: transparent; }"
+            "QPushButton:hover { background-color: %1; border-radius: 6px; }"
+        ).arg(p.itemHoverBg.name()));
     }
 }
 

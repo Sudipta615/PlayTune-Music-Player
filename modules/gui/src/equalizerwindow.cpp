@@ -1,5 +1,6 @@
 #include "equalizerwindow.h"
 #include "apptheme.h"
+#include "apptheme.h"
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QGridLayout>
@@ -33,6 +34,7 @@ EqualizerWindow::EqualizerWindow(QWidget* parent) : QWidget(parent) {
     });
 
     setupUi();
+    applyTheme(ThemeManager::instance().currentTheme());
     loadSettings();
     updateThemeStyles(ThemeManager::instance().currentTheme());
     hide();
@@ -519,7 +521,7 @@ void EqualizerWindow::setupUi() {
     m_preampSlider->setRange(-120, 120); // -12.0dB to +12.0dB
     m_preampSlider->setValue(0);
     m_preampSlider->setToolTip("Master Preamp Gain (+0.0 dB)");
-    
+
     auto* preampMaxLabel = new QLabel("+12dB", m_eqContentWidget);
     m_preampMaxLabel = preampMaxLabel;
 
@@ -529,7 +531,7 @@ void EqualizerWindow::setupUi() {
     preampVLayout->addLayout(preampSliderLayout);
 
     m_preampValueLabel = new QLabel("0.0 dB", m_eqContentWidget);
-    m_preampValueLabel->setStyleSheet("QLabel { font-size: 11px; color: #7E8494; } QLabel:disabled { color: #353845; }");
+    m_preampValueLabel->setObjectName("EqValueLabel");
     m_preampValueLabel->setAlignment(Qt::AlignCenter);
     preampVLayout->addWidget(m_preampValueLabel);
 
@@ -739,7 +741,7 @@ QWidget* EqualizerWindow::createParamSliderCard(const QString& name, double minV
 
     // Value display label below
     auto* valLabel = new QLabel(card);
-    valLabel->setStyleSheet("QLabel { font-size: 10px; color: #7E8494; } QLabel:disabled { color: #353845; }");
+    valLabel->setObjectName("EqValueLabel");
     valLabel->setAlignment(Qt::AlignCenter);
     cardLayout->addWidget(valLabel);
 
@@ -854,6 +856,116 @@ void EqualizerWindow::updateAdvancedBandControls(int bandIdx) {
     if (m_advBandToggle) {
         QSignalBlocker blocker(m_advBandToggle);
         m_advBandToggle->setChecked(b.enabled);
+    }
+}
+
+// Restyle every Equalizer control from the active palette. Called once at
+// construction and on every ThemeManager::themeChanged, so the floating EQ
+// window follows the Light/Dark/colored themes instead of staying pinned to
+// the hard-coded purple look.
+void EqualizerWindow::applyTheme(const ThemePalette& p) {
+    const QString primaryTextC  = p.primaryText.name();
+    const QString secondaryTextC = p.secondaryText.name();
+    const QString mutedTextC    = p.mutedText.name();
+    const QString accentC       = p.primaryAccent.name();
+    const QString accent2C      = p.secondaryAccent.name();
+    const QString surfaceC      = p.headerBg.name();      // control / button surface
+    const QString cardBgC       = p.cardBg.name();
+    const QString cardBorderC   = p.cardBorder.name();
+    const QString hoverC        = p.itemHoverBg.name();
+
+    // --- Segmented tab buttons (10 Bands / Controls / Advanced) ---
+    const QString tabBase = QString(
+        "QPushButton { font-size: 13px; font-weight: bold; color: %1; background-color: %2;"
+        " border: 1px solid %3; padding: 10px 20px; outline: none; }"
+        "QPushButton:hover { background-color: %4; color: %5; }"
+        "QPushButton:checked { background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 %6, stop:1 %7);"
+        " color: #FFFFFF; border: 1px solid %6; }"
+        "QPushButton:disabled { color: %8; background-color: %2; border: 1px solid %3; }"
+        "QPushButton:disabled:checked { color: %8; background-color: %4; border: 1px solid %3; }"
+    ).arg(secondaryTextC, surfaceC, cardBorderC, hoverC, primaryTextC, accent2C, accentC, mutedTextC);
+
+    if (m_tab10BandsBtn) {
+        m_tab10BandsBtn->setStyleSheet(tabBase +
+            "QPushButton { border-top-left-radius: 6px; border-bottom-left-radius: 6px; border-right: none; }"
+            "QPushButton:checked { border-top-left-radius: 6px; border-bottom-left-radius: 6px; border: 1px solid " + accent2C + "; }"
+            "QPushButton:disabled:checked { border-top-left-radius: 6px; border-bottom-left-radius: 6px; border: 1px solid " + cardBorderC + "; }");
+    }
+    if (m_tabControlsBtn) {
+        m_tabControlsBtn->setStyleSheet(tabBase +
+            "QPushButton { border-radius: 0px; border-right: none; }"
+            "QPushButton:checked { border-radius: 0px; border: 1px solid " + accent2C + "; }"
+            "QPushButton:disabled:checked { border-radius: 0px; border: 1px solid " + cardBorderC + "; }");
+    }
+    if (m_tabAdvancedBtn) {
+        m_tabAdvancedBtn->setStyleSheet(tabBase +
+            "QPushButton { border-top-right-radius: 6px; border-bottom-right-radius: 6px; }"
+            "QPushButton:checked { border-top-right-radius: 6px; border-bottom-right-radius: 6px; border: 1px solid " + accent2C + "; }"
+            "QPushButton:disabled:checked { border-top-right-radius: 6px; border-bottom-right-radius: 6px; border: 1px solid " + cardBorderC + "; }");
+    }
+
+    // --- Pill buttons (presets, resampler modes, advanced bands) ---
+    const QString pillStyle = QString(
+        "QPushButton { font-size: 11px; font-weight: bold; color: %1; background-color: %2;"
+        " border: 1px solid %3; border-radius: 6px; padding: 6px 12px; }"
+        "QPushButton:hover { background-color: %4; color: %5; }"
+        "QPushButton:checked { background-color: %6; border-color: %7; color: #FFFFFF; }"
+        "QPushButton:disabled { color: %8; background-color: %2; border: 1px solid %3; }"
+        "QPushButton:disabled:checked { color: %8; background-color: %4; border: 1px solid %3; }"
+    ).arg(secondaryTextC, surfaceC, cardBorderC, hoverC, primaryTextC, accentC, accent2C, mutedTextC);
+    for (QPushButton* b : m_presetBtns)    if (b) b->setStyleSheet(pillStyle);
+    for (QPushButton* b : m_resamplerBtns) if (b) b->setStyleSheet(pillStyle);
+    for (QPushButton* b : m_advBandBtns)   if (b) b->setStyleSheet(pillStyle);
+
+    // --- Section cards (Resampler + Band editor) ---
+    const QString cardStyle = QString(
+        "QFrame { background-color: %1; border: 1px solid %2; border-radius: 8px; }"
+    ).arg(cardBgC, cardBorderC);
+    if (m_resamplerCard) m_resamplerCard->setStyleSheet(cardStyle);
+    if (m_bandEditorCard) m_bandEditorCard->setStyleSheet(cardStyle);
+
+    // --- Filter type combo + advance frequency/Q spin boxes ---
+    const QString comboStyle = QString(
+        "QComboBox { background-color: %1; color: %2; border: 1px solid %3; border-radius: 5px;"
+        " padding: 4px 8px; font-size: 12px; }"
+        "QComboBox::drop-down { border: none; }"
+        "QComboBox QAbstractItemView { background-color: %1; color: %2;"
+        " selection-background-color: %4; border: 1px solid %3; outline: none; }"
+    ).arg(surfaceC, primaryTextC, cardBorderC, accentC);
+    if (m_advFilterTypeCombo) m_advFilterTypeCombo->setStyleSheet(comboStyle);
+
+    const QString spinStyle = QString(
+        "QDoubleSpinBox { background-color: %1; color: %2; border: 1px solid %3; border-radius: 5px;"
+        " padding: 4px; padding-right: 22px; font-size: 12px; }"
+        "QDoubleSpinBox::up-button { subcontrol-origin: border; subcontrol-position: top right;"
+        " width: 20px; height: 12px; border-left: 1px solid %3; border-bottom: 1px solid %3;"
+        " border-top-right-radius: 5px; background-color: %5; }"
+        "QDoubleSpinBox::up-button:hover { background-color: %4; }"
+        "QDoubleSpinBox::down-button { subcontrol-origin: border; subcontrol-position: bottom right;"
+        " width: 20px; height: 12px; border-left: 1px solid %3; border-bottom-right-radius: 5px;"
+        " background-color: %5; }"
+        "QDoubleSpinBox::down-button:hover { background-color: %4; }"
+    ).arg(surfaceC, primaryTextC, cardBorderC, accentC, hoverC);
+    if (m_advFreqSpin) m_advFreqSpin->setStyleSheet(spinStyle);
+    if (m_advQSpin)    m_advQSpin->setStyleSheet(spinStyle);
+
+    // --- Labels, tagged by objectName role in setupUi() ---
+    const QString titleLabelStyle   = QString("font-size: 18px; font-weight: bold; color: %1;").arg(primaryTextC);
+    const QString sectionLabelStyle = QString("font-size: 13px; font-weight: bold; color: %1; border: none;").arg(primaryTextC);
+    const QString headerLabelStyle  = QString("font-size: 12px; font-weight: bold; color: %1; border: none;").arg(primaryTextC);
+    const QString subLabelStyle     = QString("font-size: 10px; color: %1; border: none;").arg(mutedTextC);
+
+    for (QLabel* l : findChildren<QLabel*>()) {
+        const QString on = l->objectName();
+        if (on == "EqTitleLabel") {
+            l->setStyleSheet(titleLabelStyle);
+        } else if (on == "EqSectionHeaderLabel") {
+            l->setStyleSheet(sectionLabelStyle);
+        } else if (on == "EqHeaderLabel") {
+            l->setStyleSheet(headerLabelStyle);
+        } else if (on == "EqValueLabel" || on == "EqSubLabel") {
+            l->setStyleSheet(subLabelStyle);
+        }
     }
 }
 

@@ -243,6 +243,7 @@ void SongsTableWidget::setupUi() {
     applyCardStyle(ThemeManager::instance().currentTheme());
     connect(&ThemeManager::instance(), &ThemeManager::themeChanged, this, [this, applyCardStyle](const ThemePalette& p) {
         applyCardStyle(p);
+<<<<<<< HEAD
         if (m_table) {
             int rows = m_table->rowCount();
             for (int r = 0; r < rows; ++r) {
@@ -257,6 +258,24 @@ void SongsTableWidget::setupUi() {
                 if (auto* actionBtn = qobject_cast<QPushButton*>(m_table->cellWidget(r, 6))) {
                     actionBtn->setIcon(ThemeManager::tintedIcon(":/resources/icons/more.png", p.iconColor));
                 }
+=======
+        // Rows without a cover show the theme-generated default art — refresh
+        // their thumbnails so they switch palette immediately.
+        if (m_table) {
+            for (int row = 0; row < m_table->rowCount(); ++row) {
+                if (auto* firstItem = m_table->item(row, 0)) {
+                    const QString cp = firstItem->data(Qt::UserRole + 1).toString();
+                    if (!cp.isEmpty()) continue;
+                    if (auto* titleCont = m_table->cellWidget(row, 1)) {
+                        const auto labels = titleCont->findChildren<QLabel*>();
+                        for (QLabel* l : labels) {
+                            if (l->objectName() == "SongTitleLabel") continue;
+                            l->setPixmap(loadThumbnail(""));
+                            break;
+                        }
+                    }
+                }
+>>>>>>> mulberry-calendula
             }
             m_table->viewport()->update();
         }

@@ -82,6 +82,7 @@ private:
     QPushButton*  m_exportM3UBtn         = nullptr;
     QListWidget*  m_foldersListWidget    = nullptr;
 
+<<<<<<< HEAD
     // ── Cached label/frame references for O(1) theme updates ─────────────
     QLabel*  m_pageTitle        = nullptr;
     QLabel*  m_pageSub          = nullptr;
@@ -113,6 +114,20 @@ private:
     int     m_currentBackend    = 0;
     QString m_currentDevice     = "Default / Automatic";
     QString m_currentTheme      = "Dark Premium (Purple)";
+=======
+    bool m_tooltipsEnabled = true;
+    bool m_crossfadeEnabled = false;
+    bool m_normalizeEnabled = false;
+    bool m_gaplessEnabled = true;
+    bool m_cursorFollows = false;
+    bool m_notificationsEnabled = true;
+    bool m_trayEnabled = false;
+    bool m_minimizeToTray = false;
+    bool m_optimizedMode = false;
+    int m_currentBackend = 0;
+    QString m_currentDevice = "Default / Automatic";
+    QString m_currentTheme;
+>>>>>>> mulberry-calendula
 };
 
 #endif // SETTINGSPAGE_H

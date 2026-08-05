@@ -1,5 +1,6 @@
 #include "coverloader.h"
 #include "custom_widgets.h"  // getDefaultAlbumArt
+#include "apptheme.h"
 #include <QPixmapCache>
 #include <QThreadPool>
 #include <QRunnable>
