@@ -2,6 +2,7 @@
 #include "coverloader.h"
 #include "custom_widgets.h"  // getDefaultAlbumArt
 #include "appsettings.h"
+#include "apptheme.h"
 #include <QVBoxLayout>
 #include <QFontMetrics>
 #include <QTimer>
@@ -15,14 +16,7 @@
 
 namespace {
 
-/// Maximum number of concurrent async cover loads. Spawning a QRunnable
-/// per card for a 1000-track library saturated QThreadPool and caused a
-/// visible CPU spike on tab/grid-switch. This cap spreads the work across
-/// timer ticks instead.
 static const int kMaxConcurrentLoads = 20;
-
-/// Interval (ms) for the staggered cover-load timer. Each tick triggers
-/// up to kMaxConcurrentLoads async loads.
 static const int kCoverLoadIntervalMs = 30;
 
 } // namespace
@@ -33,17 +27,6 @@ static const int kCoverLoadIntervalMs = 30;
 
 MediaGridCard::MediaGridCard(QWidget* parent) : QFrame(parent) {
     setObjectName("CardFrame");
-    setStyleSheet(
-        "QFrame#CardFrame {"
-        "  background-color: #0E121B;"
-        "  border: 1px solid #1D2333;"
-        "  border-radius: 14px;"
-        "}"
-        "QFrame#CardFrame:hover {"
-        "  background-color: #141824;"
-        "  border: 1px solid #7B1FA266;"
-        "}"
-    );
 
     auto* layout = new QVBoxLayout(this);
     layout->setContentsMargins(4, 4, 4, 4);
@@ -55,17 +38,12 @@ MediaGridCard::MediaGridCard(QWidget* parent) : QFrame(parent) {
 
     m_titleLabel = new QLabel(this);
     m_titleLabel->setAlignment(Qt::AlignCenter);
-    m_titleLabel->setStyleSheet(
-        "font-weight: 600; font-size: 11px; color: #E1E4EB; "
-        "background: transparent; border: none;");
     m_titleLabel->setWordWrap(false);
     m_titleLabel->setTextFormat(Qt::PlainText);
     m_titleLabel->setFixedHeight(16);
 
     m_subtitleLabel = new QLabel(this);
     m_subtitleLabel->setAlignment(Qt::AlignCenter);
-    m_subtitleLabel->setStyleSheet(
-        "font-size: 10px; color: #7E8494; background: transparent; border: none;");
     m_subtitleLabel->setWordWrap(false);
     m_subtitleLabel->setTextFormat(Qt::PlainText);
     m_subtitleLabel->setFixedHeight(14);
@@ -75,9 +53,17 @@ MediaGridCard::MediaGridCard(QWidget* parent) : QFrame(parent) {
     layout->addWidget(m_titleLabel);
     layout->addWidget(m_subtitleLabel);
 
-    // Subscribe to the singleton's coverReady signal so any card can
-    // refresh its cover when the async load completes. We filter by
-    // path in refreshCover().
+    setPlaying(false);
+
+    connect(&ThemeManager::instance(), &ThemeManager::themeChanged, this, [this](const ThemePalette&) {
+        setPlaying(m_playing);
+        // Tiles with no cover show the theme-generated default art; refresh
+        // them immediately so they pick up the new palette.
+        if (m_coverPath.isEmpty()) {
+            refreshCover();
+        }
+    });
+
     connect(&CoverLoader::instance(), &CoverLoader::coverReady,
             this, [this](const QString& path, int size, const QPixmap& pix) {
         if (path == m_coverPath && size == m_coverSize) {
@@ -88,8 +74,6 @@ MediaGridCard::MediaGridCard(QWidget* parent) : QFrame(parent) {
                                      Qt::SmoothTransformation);
             } else if (!CoverLoader::instance().tryGetRounded(
                            path, m_coverSize, 10, rounded)) {
-                // Rounded variant not yet built — build it inline from
-                // the just-arrived pixmap.
                 rounded = pix.scaled(m_coverSize, m_coverSize,
                                      Qt::KeepAspectRatioByExpanding,
                                      Qt::SmoothTransformation);
@@ -132,38 +116,42 @@ void MediaGridCard::setContent(const QString& title,
 }
 
 void MediaGridCard::setPlaying(bool playing) {
-    if (m_playing == playing) return;
     m_playing = playing;
+    const auto& p = ThemeManager::instance().currentTheme();
     if (m_playing) {
-        m_titleLabel->setStyleSheet(
-            "font-weight: 600; font-size: 11px; color: #FF2A7A; "
-            "background: transparent; border: none;");
-        setStyleSheet(
+        m_titleLabel->setStyleSheet(QString(
+            "font-weight: 600; font-size: 11px; color: %1; "
+            "background: transparent; border: none;").arg(p.secondaryAccent.name()));
+        m_subtitleLabel->setStyleSheet(QString(
+            "font-size: 10px; color: %1; background: transparent; border: none;").arg(p.secondaryText.name()));
+        setStyleSheet(QString(
             "QFrame#CardFrame {"
-            "  background-color: #1B1130;"
-            "  border: 1px solid #FF2A7A;"
+            "  background-color: %1;"
+            "  border: 1px solid %2;"
             "  border-radius: 14px;"
             "}"
             "QFrame#CardFrame:hover {"
-            "  background-color: #1B1130;"
-            "  border: 1px solid #FF2A7A;"
+            "  background-color: %1;"
+            "  border: 1px solid %2;"
             "}"
-        );
+        ).arg(p.itemSelectedBg.name(), p.secondaryAccent.name()));
     } else {
-        m_titleLabel->setStyleSheet(
-            "font-weight: 600; font-size: 11px; color: #E1E4EB; "
-            "background: transparent; border: none;");
-        setStyleSheet(
+        m_titleLabel->setStyleSheet(QString(
+            "font-weight: 600; font-size: 11px; color: %1; "
+            "background: transparent; border: none;").arg(p.secondaryText.name()));
+        m_subtitleLabel->setStyleSheet(QString(
+            "font-size: 10px; color: %1; background: transparent; border: none;").arg(p.mutedText.name()));
+        setStyleSheet(QString(
             "QFrame#CardFrame {"
-            "  background-color: #0E121B;"
-            "  border: 1px solid #1D2333;"
+            "  background-color: %1;"
+            "  border: 1px solid %2;"
             "  border-radius: 14px;"
             "}"
             "QFrame#CardFrame:hover {"
-            "  background-color: #141824;"
-            "  border: 1px solid #7B1FA266;"
+            "  background-color: %3;"
+            "  border: 1px solid %4;"
             "}"
-        );
+        ).arg(p.cardBg.name(), p.cardBorder.name(), p.itemHoverBg.name(), p.primaryAccent.name()));
     }
 }
 

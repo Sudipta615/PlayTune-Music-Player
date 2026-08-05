@@ -178,44 +178,10 @@ private:
     double m_animationPhase = 0.0;
 };
 
-#include <QPixmap>
-#include <QPainter>
-#include <QLinearGradient>
+#include "apptheme.h"
 
 inline QPixmap getDefaultAlbumArt() {
-    static QPixmap cachedCover;
-    if (!cachedCover.isNull()) {
-        return cachedCover;
-    }
-    const int size = 300;
-    cachedCover = QPixmap(size, size);
-    cachedCover.fill(Qt::transparent);
-
-    QPainter painter(&cachedCover);
-    painter.setRenderHint(QPainter::Antialiasing);
-    painter.setRenderHint(QPainter::SmoothPixmapTransform);
-
-    // Sleek, professional dark gradient tile background
-    QLinearGradient bgGrad(0, 0, size, size);
-    bgGrad.setColorAt(0.0, QColor("#1F2338"));
-    bgGrad.setColorAt(1.0, QColor("#141624"));
-    painter.fillRect(0, 0, size, size, bgGrad);
-
-    // Subtle inner border / highlight
-    painter.setPen(QPen(QColor("#2E3350"), 2));
-    painter.setBrush(Qt::NoBrush);
-    painter.drawRect(1, 1, size - 2, size - 2);
-
-    // Center the app logo (`:/resources/icons/playtune_logo.png`)
-    QPixmap logo(":/resources/icons/playtune_logo.png");
-    if (!logo.isNull()) {
-        int logoSize = size * 0.55; // ~165px
-        QPixmap scaledLogo = logo.scaled(logoSize, logoSize, Qt::KeepAspectRatio, Qt::SmoothTransformation);
-        int x = (size - scaledLogo.width()) / 2;
-        int y = (size - scaledLogo.height()) / 2;
-        painter.drawPixmap(x, y, scaledLogo);
-    }
-    return cachedCover;
+    return ThemeManager::instance().defaultAlbumArt();
 }
 
 #endif // CUSTOM_WIDGETS_H

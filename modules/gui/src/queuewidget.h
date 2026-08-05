@@ -95,6 +95,7 @@ private:
     QLabel* m_miniCover = nullptr;
     QLabel* m_miniTitle = nullptr;
     QLabel* m_miniArtistAlbum = nullptr;
+    QString m_miniCoverPath;      // last cover path shown on the mini card
 
     // Stacked widget for Queue vs Lyrics
     QStackedWidget* m_contentStack = nullptr;

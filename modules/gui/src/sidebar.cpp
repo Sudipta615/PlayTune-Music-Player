@@ -1,4 +1,5 @@
 #include "sidebar.h"
+#include "apptheme.h"
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QLabel>
@@ -156,14 +157,30 @@ void SidebarWidget::setupUi() {
     // Dynamic user-defined playlist list.
     m_playlistList = new QListWidget(this);
     m_playlistList->setObjectName("UserPlaylistsList");
-    m_playlistList->setStyleSheet(
-        "QListWidget { background-color: transparent; border: none; color: #C8C8D0; "
-        "font-size: 13px; outline: none; }"
-        "QListWidget::item { padding: 6px 8px 6px 28px; border-radius: 4px; "
-        "background-image: url(:/resources/icons/list.png); "
-        "background-position: 6px center; background-repeat: no-repeat; }"
-        "QListWidget::item:hover { background-color: rgba(255, 255, 255, 0.05); }"
-        "QListWidget::item:selected { background-color: rgba(255, 42, 122, 0.18); color: #FFFFFF; }");
+
+    auto applyListStyle = [this](const ThemePalette& p) {
+        if (!m_playlistList) return;
+        m_playlistList->setStyleSheet(QString(
+            "QListWidget { background-color: transparent; border: none; color: %1; "
+            "font-size: 13px; outline: none; }"
+            "QListWidget::item { padding: 6px 8px 6px 28px; border-radius: 4px; "
+            "background-image: url(:/resources/icons/list.png); "
+            "background-position: 6px center; background-repeat: no-repeat; }"
+            "QListWidget::item:hover { background-color: %2; color: %3; }"
+            "QListWidget::item:selected { background-color: %2; color: %4; font-weight: bold; }"
+        ).arg(p.secondaryText.name(), p.itemHoverBg.name(), p.primaryText.name(), p.secondaryAccent.name()));
+    };
+    applyListStyle(ThemeManager::instance().currentTheme());
+    connect(&ThemeManager::instance(), &ThemeManager::themeChanged, this, [applyListStyle, this](const ThemePalette& p) {
+        applyListStyle(p);
+        // If the sidebar is currently collapsed, the nav buttons carry a
+        // widget-level stylesheet (see setCollapsed); refresh it so icons
+        // keep matching the new theme. Expanded buttons inherit the global
+        // QSS, so nothing is needed for them.
+        if (m_isCollapsed) {
+            applyNavButtonStyles();
+        }
+    });
     m_playlistList->setContextMenuPolicy(Qt::CustomContextMenu);
     m_playlistList->setMinimumHeight(0);
     m_playlistList->setMaximumHeight(220);
@@ -225,13 +242,31 @@ void SidebarWidget::setCollapsed(bool collapsed) {
     for (int i = 0; i < m_allNavButtons.size(); ++i) {
         if (m_isCollapsed) {
             m_allNavButtons[i]->setText("");
-            m_allNavButtons[i]->setStyleSheet("QPushButton { text-align: center; padding: 10px 0px; }");
         } else {
             m_allNavButtons[i]->setText(m_allNavTexts[i]);
             m_allNavButtons[i]->setStyleSheet("");
         }
     }
+    if (m_isCollapsed) {
+        applyNavButtonStyles();
+    }
     emit collapsedToggled(m_isCollapsed);
+}
+
+void SidebarWidget::applyNavButtonStyles() {
+    const auto& p = ThemeManager::instance().currentTheme();
+    const QString collapsedStyle = QString(
+        "QPushButton { background: transparent; border: none; color: %1;"
+        " text-align: center; padding: 10px 0px; font-size: 14px; border-radius: 8px; }"
+        "QPushButton:hover { background-color: %2; color: %3; }"
+        "QPushButton:checked { background-color: %2; color: %4; font-weight: bold; }"
+    ).arg(p.mutedText.name(), p.itemHoverBg.name(), p.primaryText.name(), p.secondaryAccent.name());
+    for (int i = 0; i < m_allNavButtons.size(); ++i) {
+        // Clear the icon back to the (themed) color — the icon pixmaps are
+        // monochrome so tinting via QSS isn't possible; the styling at least
+        // keeps hover/checked feedback theme-consistent and transparent bg.
+        m_allNavButtons[i]->setStyleSheet(collapsedStyle);
+    }
 }
 
 void SidebarWidget::clearPlaylists() {

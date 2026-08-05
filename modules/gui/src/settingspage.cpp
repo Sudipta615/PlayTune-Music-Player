@@ -1,6 +1,7 @@
 #include "settingspage.h"
 #include "loudnessscannerdialog.h"
 #include "appsettings.h"
+#include "apptheme.h"
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QLabel>
@@ -18,9 +19,13 @@
 SettingsPageWidget::SettingsPageWidget(QWidget* parent) : QWidget(parent) {
     setObjectName("SettingsPage");
     setAttribute(Qt::WA_StyledBackground, true);
-    setStyleSheet("QWidget#SettingsPage { background-color: #0E111A; }");
     setupUi();
     loadSettings();
+
+    updateThemeStyles(ThemeManager::instance().currentTheme());
+    connect(&ThemeManager::instance(), &ThemeManager::themeChanged, this, [this](const ThemePalette& p) {
+        updateThemeStyles(p);
+    });
 }
 
 void SettingsPageWidget::setupUi() {
@@ -128,7 +133,9 @@ void SettingsPageWidget::setupUi() {
 
         m_themeCombo = new QComboBox(card);
         m_themeCombo->setObjectName("ThemeComboBox");
-        m_themeCombo->addItem("Dark Premium (Default)", "dark");
+        for (const auto& pair : ThemeManager::instance().availableThemes()) {
+            m_themeCombo->addItem(pair.second, pair.first);
+        }
         m_themeCombo->setFixedHeight(34);
         m_themeCombo->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
         m_themeCombo->setStyleSheet(
@@ -152,10 +159,11 @@ void SettingsPageWidget::setupUi() {
         connect(m_tooltipToggle, &ToggleSwitch::toggled, this, [this](bool on) {
             m_tooltipsEnabled = on; saveSettings(); emit tooltipsToggled(on);
         });
-        connect(m_themeCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), this, [this](int) {
-            m_currentTheme = m_themeCombo->currentText();
+        connect(m_themeCombo, &QComboBox::activated, this, [this](int idx) {
+            m_currentTheme = m_themeCombo->itemText(idx);
+            QString themeId = m_themeCombo->itemData(idx).toString();
             saveSettings();
-            emit themeChanged(m_themeCombo->currentData().toString());
+            ThemeManager::instance().setTheme(themeId);
         });
 
         leftCol->addWidget(card);
@@ -671,7 +679,7 @@ void SettingsPageWidget::loadSettings() {
     m_trayEnabled = settings.value("tray_enabled", false).toBool();
     m_minimizeToTray = settings.value("minimize_to_tray", false).toBool();
     int crossfade_ms = settings.value("crossfade_duration_ms", 3000).toInt();
-    m_currentTheme = settings.value("theme_text", "Dark Premium (Default)").toString();
+    m_currentTheme = settings.value("theme_text", ThemeManager::instance().currentTheme().name).toString();
     m_currentBackend = settings.value("audio_backend", 0).toInt();
     m_currentDevice = settings.value("audio_device", "Default / Automatic").toString();
 
@@ -702,7 +710,9 @@ void SettingsPageWidget::loadSettings() {
         m_crossfadeDurationSpin->setValue(crossfade_ms);
     }
     if (m_themeCombo) {
-        int idx = m_themeCombo->findText(m_currentTheme);
+        QString activeId = ThemeManager::instance().currentThemeId();
+        int idx = m_themeCombo->findData(activeId);
+        if (idx < 0) idx = m_themeCombo->findText(m_currentTheme);
         if (idx >= 0) {
             QSignalBlocker b(m_themeCombo);
             m_themeCombo->setCurrentIndex(idx);
@@ -780,4 +790,104 @@ void SettingsPageWidget::showEvent(QShowEvent* event) {
 
 bool SettingsPageWidget::isTooltipsEnabled() const {
     return m_tooltipsEnabled;
+}
+
+void SettingsPageWidget::updateThemeStyles(const ThemePalette& p) {
+    setStyleSheet(QString("QWidget#SettingsPage { background-color: %1; }").arg(p.windowBg.name()));
+
+    const QString cardStyle = QString(
+        "QFrame#SettingsCard {"
+        "  background-color: %1;"
+        "  border: 1px solid %2;"
+        "  border-radius: 14px;"
+        "}"
+    ).arg(p.cardBg.name(), p.cardBorder.name());
+
+    const QString sepStyle = QString(
+        "QFrame { background-color: %1; max-height: 1px; min-height: 1px; border: none; }"
+    ).arg(p.cardBorder.name());
+
+    const QString comboStyle = QString(
+        "QComboBox { background-color: %1; color: %2; border: 1px solid %3;"
+        "  border-radius: 8px; padding: 4px 12px; font-size: 12px; font-weight: 500; }"
+        "QComboBox:hover { border-color: %4; }"
+        "QComboBox::drop-down { border: none; width: 24px; }"
+        "QComboBox QAbstractItemView { background-color: %1; color: %2;"
+        "  selection-background-color: %5; selection-color: %6; border: 1px solid %3; border-radius: 6px; padding: 4px; outline: none; }"
+        "QComboBox QAbstractItemView::item { padding: 6px 12px; border-radius: 4px; color: %2; background-color: transparent; }"
+        "QComboBox QAbstractItemView::item:hover { background-color: %5; color: %2; }"
+        "QComboBox QAbstractItemView::item:selected { background-color: %5; color: %6; font-weight: bold; }"
+    ).arg(p.headerBg.name(), p.primaryText.name(), p.cardBorder.name(), p.primaryAccent.name(), p.itemHoverBg.name(), p.secondaryAccent.name());
+
+    const QString spinStyle = QString(
+        "QSpinBox { background-color: %1; color: %2; border: 1px solid %3; "
+        "border-radius: 8px; padding: 4px 8px; padding-right: 24px; font-size: 12px; }"
+        "QSpinBox::up-button { subcontrol-origin: border; subcontrol-position: top right; width: 22px; height: 14px; border-left: 1px solid %3; border-bottom: 1px solid %3; border-top-right-radius: 7px; background-color: %5; }"
+        "QSpinBox::up-button:hover { background-color: %4; }"
+        "QSpinBox::down-button { subcontrol-origin: border; subcontrol-position: bottom right; width: 22px; height: 14px; border-left: 1px solid %3; border-bottom-right-radius: 7px; background-color: %5; }"
+        "QSpinBox::down-button:hover { background-color: %4; }"
+    ).arg(p.headerBg.name(), p.primaryText.name(), p.cardBorder.name(), p.primaryAccent.name(), p.itemHoverBg.name());
+
+    const QString primaryBtnStyle = QString(
+        "QPushButton { background-color: %1; color: #FFFFFF; font-size: 13px;"
+        "  font-weight: 600; border: none; border-radius: 8px; padding: 0px 14px; }"
+        "QPushButton:hover { background-color: %2; }"
+        "QPushButton:pressed { background-color: %1; }"
+    ).arg(p.secondaryAccent.name(), p.primaryAccent.name());
+
+    const QString secondaryBtnStyle = QString(
+        "QPushButton { background-color: %1; color: %2; font-size: 13px;"
+        "  font-weight: 600; border: 1px solid %3; border-radius: 8px; padding: 0px 14px; }"
+        "QPushButton:hover { background-color: %4; border-color: %5; color: %6; }"
+        "QPushButton:pressed { background-color: %1; }"
+    ).arg(p.headerBg.name(), p.secondaryText.name(), p.cardBorder.name(), p.itemHoverBg.name(), p.primaryAccent.name(), p.primaryText.name());
+
+    for (auto* card : findChildren<QFrame*>("SettingsCard")) {
+        card->setStyleSheet(cardStyle);
+    }
+    for (auto* sep : findChildren<QFrame*>()) {
+        if (sep->objectName() != "SettingsCard" && sep->frameShape() == QFrame::HLine) {
+            sep->setStyleSheet(sepStyle);
+        }
+    }
+
+    if (m_themeCombo) m_themeCombo->setStyleSheet(comboStyle);
+    if (m_backendCombo) m_backendCombo->setStyleSheet(comboStyle);
+    if (m_deviceCombo) m_deviceCombo->setStyleSheet(comboStyle);
+    if (m_crossfadeDurationSpin) m_crossfadeDurationSpin->setStyleSheet(spinStyle);
+
+    if (m_addSongsBtn) m_addSongsBtn->setStyleSheet(primaryBtnStyle);
+    if (m_loudnessScanBtn) m_loudnessScanBtn->setStyleSheet(primaryBtnStyle);
+
+    if (m_addFoldersBtn) m_addFoldersBtn->setStyleSheet(secondaryBtnStyle);
+    if (m_importM3UBtn) m_importM3UBtn->setStyleSheet(secondaryBtnStyle);
+    if (m_exportM3UBtn) m_exportM3UBtn->setStyleSheet(secondaryBtnStyle);
+
+    if (m_foldersListWidget) {
+        m_foldersListWidget->setStyleSheet(QString(
+            "QListWidget { background-color: %1; border: 1px solid %2;"
+            "  border-radius: 8px; color: %3; font-size: 12px; padding: 4px; }"
+            "QListWidget::item { padding: 0px; border-radius: 6px; margin-bottom: 2px; }"
+            "QListWidget::item:alternate { background-color: %4; }"
+            "QListWidget::item:hover { background-color: %5; }"
+        ).arg(p.headerBg.name(), p.cardBorder.name(), p.primaryText.name(), p.cardBg.name(), p.itemHoverBg.name()));
+    }
+
+    for (auto* label : findChildren<QLabel*>()) {
+        QString text = label->text();
+        if (text.startsWith("APPEARANCE") || text.startsWith("PERFORMANCE") || text.startsWith("ADD MUSIC") ||
+            text.startsWith("LIBRARY FOLDERS") || text.startsWith("PLAYBACK") || text.startsWith("AUDIO ANALYSIS")) {
+            label->setStyleSheet(QString("font-size: 11px; font-weight: 700; color: %1; letter-spacing: 1px; border: none; background: transparent;").arg(p.secondaryAccent.name()));
+        } else if (text == "Settings & Library Management") {
+            label->setStyleSheet(QString("font-size: 24px; font-weight: 800; color: %1; letter-spacing: -0.5px; border: none; background: transparent;").arg(p.primaryText.name()));
+        } else if (text.contains("Configure your audio") || text.contains("Directories synchronized") || text.contains("Import audio tracks") || text.contains("Scan library using")) {
+            label->setStyleSheet(QString("font-size: 13px; color: %1; border: none; background: transparent;").arg(p.mutedText.name()));
+        } else if (!label->parentWidget() || label->parentWidget()->objectName() == "SettingsCard") {
+            if (label->font().weight() >= QFont::Bold || label->styleSheet().contains("font-weight: 600")) {
+                label->setStyleSheet(QString("font-size: 14px; font-weight: 600; color: %1; border: none; background: transparent;").arg(p.primaryText.name()));
+            } else if (label->styleSheet().contains("font-size: 12px")) {
+                label->setStyleSheet(QString("font-size: 12px; color: %1; border: none; background: transparent;").arg(p.mutedText.name()));
+            }
+        }
+    }
 }

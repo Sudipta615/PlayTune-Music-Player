@@ -1,5 +1,6 @@
 #include "mainwindow.h"
 #include "gui_bridge_p.h"
+#include "apptheme.h"
 #include <QHBoxLayout>
 #include <QVBoxLayout>
 #include <QFile>
@@ -314,12 +315,7 @@ void MainWindow::setupUi() {
 }
 
 void MainWindow::loadStyleSheet() {
-    QFile file(":/resources/style.qss");
-    if (file.open(QFile::ReadOnly | QFile::Text)) {
-        QString styleSheet = QString::fromUtf8(file.readAll());
-        qApp->setStyleSheet(styleSheet);
-        file.close();
-    }
+    qApp->setStyleSheet(ThemeManager::instance().generateStylesheet());
 }
 
 void MainWindow::connectBridge() {
@@ -507,15 +503,46 @@ void MainWindow::connectBridge() {
     // We now apply a QSS overlay that overrides the accent color used by
     // buttons, sliders, and highlights. The base QSS is preserved (loaded
     // once in loadStyleSheet()); we append the per-theme overrides here.
-    // The overlay is also re-applied on every subsequent theme change.
-    connect(m_settingsPage, &SettingsPageWidget::themeChanged, this, [this](const QString& theme) {
-        qDebug() << "Theme changed to:" << theme;
-        QFile baseFile(":/resources/style.qss");
-        if (baseFile.open(QFile::ReadOnly | QFile::Text)) {
-            QString baseQss = QString::fromUtf8(baseFile.readAll());
-            baseFile.close();
-            qApp->setStyleSheet(baseQss);
+    // The overlay is applied immediately for the currently active (saved)
+    // theme and re-applied on every subsequent theme change. Without the
+    // immediate call, widgets whose styles were hard-coded in setupUi (e.g.
+    // the separators) kept the dark-theme colors when the app started with
+    // a light theme saved.
+    auto applyThemeOverlay = [this](const ThemePalette& palette) {
+        if (m_sep1) {
+            m_sep1->setStyleSheet(QString("color: %1; background-color: %1; min-width: 1px; max-width: 1px; border: none;").arg(palette.separatorColor.name()));
         }
+        if (m_sep2) {
+            m_sep2->setStyleSheet(QString("color: %1; background-color: %1; min-width: 1px; max-width: 1px; border: none;").arg(palette.separatorColor.name()));
+        }
+        if (m_toggleRightTopBtn) {
+            m_toggleRightTopBtn->setStyleSheet(
+                QString("QPushButton { background-color: %1; color: %2; border: 1px solid %3; border-radius: 6px; font-size: 12px; font-weight: bold; }"
+                        "QPushButton:hover { background-color: %4; border-color: %5; color: %6; }")
+                .arg(palette.headerBg.name())
+                .arg(palette.secondaryText.name())
+                .arg(palette.cardBorder.name())
+                .arg(palette.itemHoverBg.name())
+                .arg(palette.primaryAccent.name())
+                .arg(palette.primaryText.name())
+            );
+        }
+        if (m_searchBar) {
+            m_searchBar->setStyleSheet(
+                QString("QLineEdit#SearchBar { background-color: %1; border: 1px solid %2; border-radius: 10px; color: %3; padding: 8px 12px; font-size: 13px; }"
+                        "QLineEdit#SearchBar:hover { border: 1px solid %4; }"
+                        "QLineEdit#SearchBar:focus { border: 1px solid %5; }")
+                .arg(palette.headerBg.name())
+                .arg(palette.cardBorder.name())
+                .arg(palette.primaryText.name())
+                .arg(palette.primaryAccent.name())
+                .arg(palette.secondaryAccent.name())
+            );
+        }
+    };
+    applyThemeOverlay(ThemeManager::instance().currentTheme());
+    connect(&ThemeManager::instance(), &ThemeManager::themeChanged, this, [applyThemeOverlay](const ThemePalette& palette) {
+        applyThemeOverlay(palette);
     });
 
     connect(m_settingsPage, &SettingsPageWidget::tooltipsToggled, this, [this](bool enabled) {

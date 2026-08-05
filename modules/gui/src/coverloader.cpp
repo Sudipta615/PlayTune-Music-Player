@@ -1,5 +1,6 @@
 #include "coverloader.h"
 #include "custom_widgets.h"  // getDefaultAlbumArt
+#include "apptheme.h"
 #include <QPixmapCache>
 #include <QThreadPool>
 #include <QRunnable>
@@ -112,6 +113,15 @@ CoverLoader::CoverLoader() : QObject(nullptr) {
     m_flushTimer.setSingleShot(false);
     connect(&m_flushTimer, &QTimer::timeout, this, &CoverLoader::flushDeliveries);
     m_flushTimer.start();
+
+    // The default album-art placeholder is themed. Drop the cached copy on
+    // theme change so the next defaultCover() call regenerates it with the
+    // new palette (the full pixmap cache is left untouched — real covers are
+    // theme-independent).
+    connect(&ThemeManager::instance(), &ThemeManager::themeChanged, this, [this](const ThemePalette&) {
+        m_defaultCover = QPixmap();
+        m_defaultCoverSize = 0;
+    });
 }
 
 bool CoverLoader::tryGet(const QString& path, int size, QPixmap& out) const {

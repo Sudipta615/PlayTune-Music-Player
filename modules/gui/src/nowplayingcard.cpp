@@ -38,6 +38,15 @@ NowPlayingCard::NowPlayingCard(QWidget* parent) : QFrame(parent) {
     setObjectName("NowPlayingCard");
     m_coverPixmap = getDefaultAlbumArt();
     setupUi();
+
+    connect(&ThemeManager::instance(), &ThemeManager::themeChanged, this, [this](const ThemePalette& p) {
+        applyLabelStyles(p);
+        if (!m_hasCustomCover) {
+            m_coverPixmap = getDefaultAlbumArt();
+            updateCoverPixmap();
+            applyCardStyle(p.cardBgGradStart, p.cardBgGradEnd, p.cardBorder);
+        }
+    });
 }
 
 void NowPlayingCard::setupUi() {
@@ -73,8 +82,8 @@ void NowPlayingCard::setupUi() {
     infoVLayout->setSpacing(2);
 
     auto* nowPlayingLabel = new QLabel("Now Playing", this);
-    nowPlayingLabel->setStyleSheet("color: #7E8494; font-size: 11px; text-transform: uppercase; font-weight: bold;");
-    
+    m_nowPlayingLabel = nowPlayingLabel;
+
     m_titleLabel = new QLabel("No Track Playing", this);
     m_titleLabel->setObjectName("NowPlayingTitle");
     m_titleLabel->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
@@ -85,11 +94,11 @@ void NowPlayingCard::setupUi() {
     topInfoLayout->addLayout(infoVLayout, 1);
 
     auto* editTagsBtn = new QPushButton(this);
+    m_editTagsBtn = editTagsBtn;
     editTagsBtn->setObjectName("IconButton");
     editTagsBtn->setIcon(QIcon(":/resources/icons/more.png"));
     editTagsBtn->setIconSize(QSize(18, 18));
     editTagsBtn->setFixedSize(32, 32);
-    editTagsBtn->setStyleSheet("QPushButton { border: none; background: transparent; } QPushButton:hover { background-color: #1B1130; border-radius: 6px; }");
     editTagsBtn->setToolTip("Edit Track Metadata Tags...");
     connect(editTagsBtn, &QPushButton::clicked, this, &NowPlayingCard::editTagsClicked);
     topInfoLayout->addWidget(editTagsBtn, 0, Qt::AlignTop | Qt::AlignRight);
@@ -289,6 +298,10 @@ void NowPlayingCard::setupUi() {
 
     // Initially animate the waveform
     m_visualizer->setPlaying(true);
+
+    // Apply theme-aware label styling (labels no longer rely on the global
+    // stylesheet, whose hard-coded colors were unreadable on light themes).
+    applyLabelStyles(ThemeManager::instance().currentTheme());
 }
 
 void NowPlayingCard::setTrackInfo(const QString& title, const QString& artist, const QString& album, const QString& coverPath) {
@@ -306,63 +319,65 @@ void NowPlayingCard::setTrackInfo(const QString& title, const QString& artist, c
     QPixmap cover;
     if (!coverPath.isEmpty() && cover.load(coverPath)) {
         m_coverPixmap = cover;
+        m_hasCustomCover = true;
     } else {
         m_coverPixmap = getDefaultAlbumArt();
+        m_hasCustomCover = false;
     }
     updateCoverPixmap();
 
-    // Dynamic vibrant gradient from album cover with visible, colorful results.
-    // The algorithm:
-    //   1. Sample the cover image on a coarse grid.
-    //   2. Collect saturated colors (the "vibrant" ones).
-    //   3. Pick the most saturated as the primary color.
-    //   4. Find a secondary color with a different hue for contrast.
-    //   5. Darken both to a moderate-dark level (lightness 18-35,
-    //      saturation 50-140) so text remains readable but the
-    //      gradient is clearly colored — not near-black.
-    //   6. Set the border to a slightly brighter tint of the primary.
-    QImage img = m_coverPixmap.toImage().scaled(32, 32, Qt::IgnoreAspectRatio, Qt::SmoothTransformation);
-    QColor c1 = QColor("#151624");
-    QColor c2 = QColor("#0F111D");
-    QColor borderColor = QColor("#23283E");
-    if (!img.isNull()) {
-        QVector<QColor> vibrantColors;
-        int stepX = qMax(1, img.width() / 8);
-        int stepY = qMax(1, img.height() / 8);
-        for (int y = 0; y < img.height(); y += stepY) {
-            for (int x = 0; x < img.width(); x += stepX) {
-                QColor c = img.pixelColor(x, y);
-                int s = c.hslSaturation();
-                int l = c.lightness();
-                if (s > 40 && l > 20 && l < 220) {
-                    vibrantColors.append(c);
+    QColor c1, c2, borderColor;
+    if (m_hasCustomCover) {
+        // Dynamic vibrant gradient from album cover with visible, colorful results.
+        QImage img = m_coverPixmap.toImage().scaled(32, 32, Qt::IgnoreAspectRatio, Qt::SmoothTransformation);
+        c1 = QColor("#151624");
+        c2 = QColor("#0F111D");
+        borderColor = QColor("#23283E");
+        if (!img.isNull()) {
+            QVector<QColor> vibrantColors;
+            int stepX = qMax(1, img.width() / 8);
+            int stepY = qMax(1, img.height() / 8);
+            for (int y = 0; y < img.height(); y += stepY) {
+                for (int x = 0; x < img.width(); x += stepX) {
+                    QColor c = img.pixelColor(x, y);
+                    int s = c.hslSaturation();
+                    int l = c.lightness();
+                    if (s > 40 && l > 20 && l < 220) {
+                        vibrantColors.append(c);
+                    }
                 }
             }
-        }
-        if (!vibrantColors.isEmpty()) {
-            std::sort(vibrantColors.begin(), vibrantColors.end(), [](const QColor& a, const QColor& b) {
-                return a.hslSaturation() > b.hslSaturation();
-            });
-            c1 = vibrantColors.first();
-            bool foundSecond = false;
-            for (const QColor& c : vibrantColors) {
-                if (std::abs(c.hslHue() - c1.hslHue()) > 40) {
-                    c2 = c;
-                    foundSecond = true;
-                    break;
+            if (!vibrantColors.isEmpty()) {
+                std::sort(vibrantColors.begin(), vibrantColors.end(), [](const QColor& a, const QColor& b) {
+                    return a.hslSaturation() > b.hslSaturation();
+                });
+                c1 = vibrantColors.first();
+                bool foundSecond = false;
+                for (const QColor& c : vibrantColors) {
+                    if (std::abs(c.hslHue() - c1.hslHue()) > 40) {
+                        c2 = c;
+                        foundSecond = true;
+                        break;
+                    }
                 }
+                if (!foundSecond) {
+                    int h, s, l;
+                    c1.getHsl(&h, &s, &l);
+                    c2.setHsl((h + 50) % 360, qMax(50, s - 20), qBound(15, l - 8, 30));
+                }
+                int h1, s1, l1;
+                c1.getHsl(&h1, &s1, &l1);
+                c1.setHsl(h1, qBound(50, s1, 140), qBound(18, l1, 35));
+                borderColor.setHsl(h1, qBound(60, s1, 160), qBound(25, l1 + 12, 50));
             }
-            if (!foundSecond) {
-                int h, s, l;
-                c1.getHsl(&h, &s, &l);
-                c2.setHsl((h + 50) % 360, qMax(50, s - 20), qBound(15, l - 8, 30));
-            }
-            int h1, s1, l1;
-            c1.getHsl(&h1, &s1, &l1);
-            c1.setHsl(h1, qBound(50, s1, 140), qBound(18, l1, 35));
-            borderColor.setHsl(h1, qBound(60, s1, 160), qBound(25, l1 + 12, 50));
         }
+    } else {
+        const auto& p = ThemeManager::instance().currentTheme();
+        c1 = p.cardBgGradStart;
+        c2 = p.cardBgGradEnd;
+        borderColor = p.cardBorder;
     }
+
     // Apply gradient colors: bypass the 400 ms animation in Optimized Mode (no QVariantAnimation cost).
     if (m_optimizedMode)
         applyCardStyle(c1, c2, borderColor);
@@ -413,6 +428,51 @@ void NowPlayingCard::setOptimizedMode(bool enabled) {
             sh->setBlurRadius(8); sh->setColor(QColor(0, 0, 0, 180)); sh->setOffset(0, 2);
             m_timeTotal->setGraphicsEffect(sh);
         }
+    }
+}
+
+void NowPlayingCard::applyLabelStyles(const ThemePalette& p) {
+    if (m_nowPlayingLabel) {
+        m_nowPlayingLabel->setStyleSheet(QString(
+            "color: %1; font-size: 11px; text-transform: uppercase; font-weight: bold;"
+        ).arg(p.mutedText.name()));
+    }
+    if (m_titleLabel) {
+        m_titleLabel->setStyleSheet(QString(
+            "font-size: 22px; font-weight: bold; color: %1; background: transparent; border: none;"
+        ).arg(p.primaryText.name()));
+    }
+
+    // Pill backgrounds behind the artist/album/time chips. Translucent so
+    // they read well over both the dark and the light Now-Playing gradient.
+    const QColor pillBg     = p.isLight ? QColor(15, 23, 42, 26) : QColor(10, 12, 20, 150);
+    const QColor pillBorder = p.isLight ? QColor(15, 23, 42, 46) : QColor(255, 255, 255, 55);
+
+    const QString chipStyle = QString(
+        "font-size: 12px; font-weight: 500; color: %1;"
+        "background-color: %2; border: 1px solid %3;"
+        "border-radius: 6px; padding: 3px 8px;"
+    ).arg(p.secondaryText.name())
+     .arg(pillBg.name(QColor::HexArgb))
+     .arg(pillBorder.name(QColor::HexArgb));
+    if (m_artistLabel) m_artistLabel->setStyleSheet(chipStyle);
+    if (m_albumLabel)  m_albumLabel->setStyleSheet(chipStyle);
+
+    const QString timeStyle = QString(
+        "font-size: 11px; font-weight: 600; color: %1;"
+        "background-color: %2; border: 1px solid %3;"
+        "border-radius: 6px; padding: 3px 6px;"
+    ).arg(p.primaryText.name())
+     .arg(pillBg.name(QColor::HexArgb))
+     .arg(pillBorder.name(QColor::HexArgb));
+    if (m_timeElapsed) m_timeElapsed->setStyleSheet(timeStyle);
+    if (m_timeTotal)   m_timeTotal->setStyleSheet(timeStyle);
+
+    if (m_editTagsBtn) {
+        m_editTagsBtn->setStyleSheet(QString(
+            "QPushButton { border: none; background: transparent; }"
+            "QPushButton:hover { background-color: %1; border-radius: 6px; }"
+        ).arg(p.itemHoverBg.name()));
     }
 }
 

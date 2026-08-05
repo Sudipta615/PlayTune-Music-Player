@@ -58,6 +58,7 @@ protected:
 
 private:
     void setupUi();
+    void applyNavButtonStyles();
     QButtonGroup* m_navGroup = nullptr;
     QWidget* m_logoContainer = nullptr;
     QLabel* m_logoIcon = nullptr;

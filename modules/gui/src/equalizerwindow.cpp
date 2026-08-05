@@ -1,4 +1,5 @@
 #include "equalizerwindow.h"
+#include "apptheme.h"
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QGridLayout>
@@ -26,7 +27,13 @@ EqualizerWindow::EqualizerWindow(QWidget* parent) : QWidget(parent) {
     m_saveTimer->setInterval(300);
     connect(m_saveTimer, &QTimer::timeout, this, &EqualizerWindow::saveSettings);
 
+    connect(&ThemeManager::instance(), &ThemeManager::themeChanged, this, [this](const ThemePalette& p) {
+        applyTheme(p);
+        update();
+    });
+
     setupUi();
+    applyTheme(ThemeManager::instance().currentTheme());
     loadSettings();
     hide();
 }
@@ -46,7 +53,8 @@ void EqualizerWindow::setupUi() {
     eqIcon->setAttribute(Qt::WA_TransparentForMouseEvents);
     
     auto* eqTitle = new QLabel("Equalizer", this);
-    eqTitle->setStyleSheet("font-size: 18px; font-weight: bold; color: #FFFFFF;");
+    m_eqTitleLabel = eqTitle;
+    eqTitle->setObjectName("EqTitleLabel");
     eqTitle->setAttribute(Qt::WA_TransparentForMouseEvents);
 
     m_enableToggle = new ToggleSwitch(this);
@@ -252,13 +260,14 @@ void EqualizerWindow::setupUi() {
 
     // Card 1: DSP Engine Resampler & Oversampling Mode
     auto* resamplerCard = new QFrame(pageAdvanced);
+    m_resamplerCard = resamplerCard;
     resamplerCard->setStyleSheet("QFrame { background-color: #131622; border: 1px solid #282E43; border-radius: 8px; }");
     auto* resamplerLayout = new QVBoxLayout(resamplerCard);
     resamplerLayout->setContentsMargins(15, 12, 15, 12);
     resamplerLayout->setSpacing(8);
 
     auto* resamplerHeader = new QLabel("DSP Resampler & Oversampling Engine Mode", resamplerCard);
-    resamplerHeader->setStyleSheet("font-size: 13px; font-weight: bold; color: #FFFFFF; border: none;");
+    resamplerHeader->setObjectName("EqSectionHeaderLabel");
     resamplerLayout->addWidget(resamplerHeader);
 
     auto* resamplerBtnsLayout = new QHBoxLayout();
@@ -323,6 +332,7 @@ void EqualizerWindow::setupUi() {
 
     // Card 3: Band Parameters Editor
     auto* bandEditorCard = new QFrame(pageAdvanced);
+    m_bandEditorCard = bandEditorCard;
     bandEditorCard->setStyleSheet("QFrame { background-color: #131622; border: 1px solid #282E43; border-radius: 8px; }");
     auto* bandEditorLayout = new QGridLayout(bandEditorCard);
     bandEditorLayout->setContentsMargins(15, 15, 15, 15);
@@ -330,7 +340,7 @@ void EqualizerWindow::setupUi() {
 
     // Row 0: Filter Type & Band Enable Toggle
     auto* typeLabel = new QLabel("Filter Type:", bandEditorCard);
-    typeLabel->setStyleSheet("font-size: 12px; font-weight: bold; color: #C4C8D4; border: none;");
+    typeLabel->setObjectName("EqHeaderLabel");
     m_advFilterTypeCombo = new QComboBox(bandEditorCard);
     m_advFilterTypeCombo->addItems({"Low Shelf", "Peaking", "High Shelf", "Low Pass", "High Pass", "Bandpass", "Notch"});
     m_advFilterTypeCombo->setStyleSheet(
@@ -344,7 +354,7 @@ void EqualizerWindow::setupUi() {
     auto* toggleLayout = new QHBoxLayout(toggleContainer);
     toggleLayout->setContentsMargins(0, 0, 0, 0);
     auto* enableLabel = new QLabel("Active:", bandEditorCard);
-    enableLabel->setStyleSheet("font-size: 12px; font-weight: bold; color: #C4C8D4; border: none;");
+    enableLabel->setObjectName("EqHeaderLabel");
     m_advBandToggle = new ToggleSwitch(bandEditorCard);
     m_advBandToggle->setChecked(true);
     m_advBandToggle->setToolTip("Activate / Deactivate Selected Frequency Band");
@@ -358,7 +368,7 @@ void EqualizerWindow::setupUi() {
 
     // Row 1: Center Frequency
     auto* freqLabel = new QLabel("Center Freq:", bandEditorCard);
-    freqLabel->setStyleSheet("font-size: 12px; font-weight: bold; color: #C4C8D4; border: none;");
+    freqLabel->setObjectName("EqHeaderLabel");
     m_advFreqSlider = new QSlider(Qt::Horizontal, bandEditorCard);
     m_advFreqSlider->setRange(20, 20000);
     m_advFreqSlider->setValue(1000);
@@ -384,7 +394,7 @@ void EqualizerWindow::setupUi() {
 
     // Row 2: Quality Factor (Q)
     auto* qLabel = new QLabel("Q Factor:", bandEditorCard);
-    qLabel->setStyleSheet("font-size: 12px; font-weight: bold; color: #C4C8D4; border: none;");
+    qLabel->setObjectName("EqHeaderLabel");
     m_advQSlider = new QSlider(Qt::Horizontal, bandEditorCard);
     m_advQSlider->setRange(1, 240); // 0.1 to 24.0 (value / 10.0)
     m_advQSlider->setValue(10);
@@ -403,13 +413,13 @@ void EqualizerWindow::setupUi() {
 
     // Row 3: Band Gain (dB)
     auto* gainLabel = new QLabel("Band Gain:", bandEditorCard);
-    gainLabel->setStyleSheet("font-size: 12px; font-weight: bold; color: #C4C8D4; border: none;");
+    gainLabel->setObjectName("EqHeaderLabel");
     m_advGainSlider = new QSlider(Qt::Horizontal, bandEditorCard);
     m_advGainSlider->setRange(-120, 120); // -12.0 to +12.0 dB
     m_advGainSlider->setValue(0);
     m_advGainSlider->setToolTip("Adjust Band Gain (-12.0 dB to +12.0 dB)");
     m_advGainLabel = new QLabel("0.0 dB", bandEditorCard);
-    m_advGainLabel->setStyleSheet("font-size: 12px; font-weight: bold; color: #FFFFFF; border: none;");
+    m_advGainLabel->setObjectName("EqHeaderLabel");
     m_advGainLabel->setAlignment(Qt::AlignCenter);
 
     bandEditorLayout->addWidget(gainLabel, 3, 0);
@@ -504,22 +514,25 @@ void EqualizerWindow::setupUi() {
     preampVLayout->setSpacing(2);
     
     auto* preampHeader = new QLabel("Preamp", m_eqContentWidget);
-    preampHeader->setStyleSheet("QLabel { font-size: 12px; font-weight: bold; color: #FFFFFF; } QLabel:disabled { color: #4C5264; }");
+    m_preampHeaderLabel = preampHeader;
+    preampHeader->setObjectName("EqHeaderLabel");
     preampVLayout->addWidget(preampHeader);
 
     auto* preampSliderLayout = new QHBoxLayout();
     preampSliderLayout->setSpacing(10);
 
     auto* preampMinLabel = new QLabel("-12dB", m_eqContentWidget);
-    preampMinLabel->setStyleSheet("QLabel { font-size: 10px; color: #7E8494; } QLabel:disabled { color: #353845; }");
-    
+    m_preampMinLabel = preampMinLabel;
+    preampMinLabel->setObjectName("EqSubLabel");
+
     m_preampSlider = new QSlider(Qt::Horizontal, m_eqContentWidget);
     m_preampSlider->setRange(-120, 120); // -12.0dB to +12.0dB
     m_preampSlider->setValue(0);
     m_preampSlider->setToolTip("Master Preamp Gain (+0.0 dB)");
-    
+
     auto* preampMaxLabel = new QLabel("+12dB", m_eqContentWidget);
-    preampMaxLabel->setStyleSheet("QLabel { font-size: 10px; color: #7E8494; } QLabel:disabled { color: #353845; }");
+    m_preampMaxLabel = preampMaxLabel;
+    preampMaxLabel->setObjectName("EqSubLabel");
 
     preampSliderLayout->addWidget(preampMinLabel);
     preampSliderLayout->addWidget(m_preampSlider);
@@ -527,7 +540,7 @@ void EqualizerWindow::setupUi() {
     preampVLayout->addLayout(preampSliderLayout);
 
     m_preampValueLabel = new QLabel("0.0 dB", m_eqContentWidget);
-    m_preampValueLabel->setStyleSheet("QLabel { font-size: 11px; color: #7E8494; } QLabel:disabled { color: #353845; }");
+    m_preampValueLabel->setObjectName("EqValueLabel");
     m_preampValueLabel->setAlignment(Qt::AlignCenter);
     preampVLayout->addWidget(m_preampValueLabel);
 
@@ -687,8 +700,8 @@ QWidget* EqualizerWindow::createParamSliderCard(const QString& name, double minV
     auto* headerLayout = new QHBoxLayout();
     
     auto* labelName = new QLabel(name, card);
-    labelName->setStyleSheet("QLabel { font-size: 12px; font-weight: bold; color: #FFFFFF; } QLabel:disabled { color: #4C5264; }");
-    
+    labelName->setObjectName("EqHeaderLabel");
+
     auto* infoBtn = new QPushButton(card);
     infoBtn->setIcon(QIcon(":/resources/icons/info.png"));
     infoBtn->setIconSize(QSize(12, 12));
@@ -706,8 +719,8 @@ QWidget* EqualizerWindow::createParamSliderCard(const QString& name, double minV
     sliderLayout->setSpacing(8);
 
     auto* minLabel = new QLabel(QString::number(minVal) + unit, card);
-    minLabel->setStyleSheet("QLabel { font-size: 10px; color: #7E8494; } QLabel:disabled { color: #353845; }");
-    
+    minLabel->setObjectName("EqSubLabel");
+
     auto* slider = new QSlider(Qt::Horizontal, card);
     
     // Scale mapping based on value ranges
@@ -727,7 +740,7 @@ QWidget* EqualizerWindow::createParamSliderCard(const QString& name, double minV
     }
 
     auto* maxLabel = new QLabel(QString("%1%2%3").arg(maxVal > 0 && unit == "dB" ? "+" : "").arg(maxVal).arg(unit), card);
-    maxLabel->setStyleSheet("QLabel { font-size: 10px; color: #7E8494; } QLabel:disabled { color: #353845; }");
+    maxLabel->setObjectName("EqSubLabel");
 
     sliderLayout->addWidget(minLabel);
     sliderLayout->addWidget(slider);
@@ -736,7 +749,7 @@ QWidget* EqualizerWindow::createParamSliderCard(const QString& name, double minV
 
     // Value display label below
     auto* valLabel = new QLabel(card);
-    valLabel->setStyleSheet("QLabel { font-size: 10px; color: #7E8494; } QLabel:disabled { color: #353845; }");
+    valLabel->setObjectName("EqValueLabel");
     valLabel->setAlignment(Qt::AlignCenter);
     cardLayout->addWidget(valLabel);
 
@@ -851,6 +864,116 @@ void EqualizerWindow::updateAdvancedBandControls(int bandIdx) {
     if (m_advBandToggle) {
         QSignalBlocker blocker(m_advBandToggle);
         m_advBandToggle->setChecked(b.enabled);
+    }
+}
+
+// Restyle every Equalizer control from the active palette. Called once at
+// construction and on every ThemeManager::themeChanged, so the floating EQ
+// window follows the Light/Dark/colored themes instead of staying pinned to
+// the hard-coded purple look.
+void EqualizerWindow::applyTheme(const ThemePalette& p) {
+    const QString primaryTextC  = p.primaryText.name();
+    const QString secondaryTextC = p.secondaryText.name();
+    const QString mutedTextC    = p.mutedText.name();
+    const QString accentC       = p.primaryAccent.name();
+    const QString accent2C      = p.secondaryAccent.name();
+    const QString surfaceC      = p.headerBg.name();      // control / button surface
+    const QString cardBgC       = p.cardBg.name();
+    const QString cardBorderC   = p.cardBorder.name();
+    const QString hoverC        = p.itemHoverBg.name();
+
+    // --- Segmented tab buttons (10 Bands / Controls / Advanced) ---
+    const QString tabBase = QString(
+        "QPushButton { font-size: 13px; font-weight: bold; color: %1; background-color: %2;"
+        " border: 1px solid %3; padding: 10px 20px; outline: none; }"
+        "QPushButton:hover { background-color: %4; color: %5; }"
+        "QPushButton:checked { background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 %6, stop:1 %7);"
+        " color: #FFFFFF; border: 1px solid %6; }"
+        "QPushButton:disabled { color: %8; background-color: %2; border: 1px solid %3; }"
+        "QPushButton:disabled:checked { color: %8; background-color: %4; border: 1px solid %3; }"
+    ).arg(secondaryTextC, surfaceC, cardBorderC, hoverC, primaryTextC, accent2C, accentC, mutedTextC);
+
+    if (m_tab10BandsBtn) {
+        m_tab10BandsBtn->setStyleSheet(tabBase +
+            "QPushButton { border-top-left-radius: 6px; border-bottom-left-radius: 6px; border-right: none; }"
+            "QPushButton:checked { border-top-left-radius: 6px; border-bottom-left-radius: 6px; border: 1px solid " + accent2C + "; }"
+            "QPushButton:disabled:checked { border-top-left-radius: 6px; border-bottom-left-radius: 6px; border: 1px solid " + cardBorderC + "; }");
+    }
+    if (m_tabControlsBtn) {
+        m_tabControlsBtn->setStyleSheet(tabBase +
+            "QPushButton { border-radius: 0px; border-right: none; }"
+            "QPushButton:checked { border-radius: 0px; border: 1px solid " + accent2C + "; }"
+            "QPushButton:disabled:checked { border-radius: 0px; border: 1px solid " + cardBorderC + "; }");
+    }
+    if (m_tabAdvancedBtn) {
+        m_tabAdvancedBtn->setStyleSheet(tabBase +
+            "QPushButton { border-top-right-radius: 6px; border-bottom-right-radius: 6px; }"
+            "QPushButton:checked { border-top-right-radius: 6px; border-bottom-right-radius: 6px; border: 1px solid " + accent2C + "; }"
+            "QPushButton:disabled:checked { border-top-right-radius: 6px; border-bottom-right-radius: 6px; border: 1px solid " + cardBorderC + "; }");
+    }
+
+    // --- Pill buttons (presets, resampler modes, advanced bands) ---
+    const QString pillStyle = QString(
+        "QPushButton { font-size: 11px; font-weight: bold; color: %1; background-color: %2;"
+        " border: 1px solid %3; border-radius: 6px; padding: 6px 12px; }"
+        "QPushButton:hover { background-color: %4; color: %5; }"
+        "QPushButton:checked { background-color: %6; border-color: %7; color: #FFFFFF; }"
+        "QPushButton:disabled { color: %8; background-color: %2; border: 1px solid %3; }"
+        "QPushButton:disabled:checked { color: %8; background-color: %4; border: 1px solid %3; }"
+    ).arg(secondaryTextC, surfaceC, cardBorderC, hoverC, primaryTextC, accentC, accent2C, mutedTextC);
+    for (QPushButton* b : m_presetBtns)    if (b) b->setStyleSheet(pillStyle);
+    for (QPushButton* b : m_resamplerBtns) if (b) b->setStyleSheet(pillStyle);
+    for (QPushButton* b : m_advBandBtns)   if (b) b->setStyleSheet(pillStyle);
+
+    // --- Section cards (Resampler + Band editor) ---
+    const QString cardStyle = QString(
+        "QFrame { background-color: %1; border: 1px solid %2; border-radius: 8px; }"
+    ).arg(cardBgC, cardBorderC);
+    if (m_resamplerCard) m_resamplerCard->setStyleSheet(cardStyle);
+    if (m_bandEditorCard) m_bandEditorCard->setStyleSheet(cardStyle);
+
+    // --- Filter type combo + advance frequency/Q spin boxes ---
+    const QString comboStyle = QString(
+        "QComboBox { background-color: %1; color: %2; border: 1px solid %3; border-radius: 5px;"
+        " padding: 4px 8px; font-size: 12px; }"
+        "QComboBox::drop-down { border: none; }"
+        "QComboBox QAbstractItemView { background-color: %1; color: %2;"
+        " selection-background-color: %4; border: 1px solid %3; outline: none; }"
+    ).arg(surfaceC, primaryTextC, cardBorderC, accentC);
+    if (m_advFilterTypeCombo) m_advFilterTypeCombo->setStyleSheet(comboStyle);
+
+    const QString spinStyle = QString(
+        "QDoubleSpinBox { background-color: %1; color: %2; border: 1px solid %3; border-radius: 5px;"
+        " padding: 4px; padding-right: 22px; font-size: 12px; }"
+        "QDoubleSpinBox::up-button { subcontrol-origin: border; subcontrol-position: top right;"
+        " width: 20px; height: 12px; border-left: 1px solid %3; border-bottom: 1px solid %3;"
+        " border-top-right-radius: 5px; background-color: %5; }"
+        "QDoubleSpinBox::up-button:hover { background-color: %4; }"
+        "QDoubleSpinBox::down-button { subcontrol-origin: border; subcontrol-position: bottom right;"
+        " width: 20px; height: 12px; border-left: 1px solid %3; border-bottom-right-radius: 5px;"
+        " background-color: %5; }"
+        "QDoubleSpinBox::down-button:hover { background-color: %4; }"
+    ).arg(surfaceC, primaryTextC, cardBorderC, accentC, hoverC);
+    if (m_advFreqSpin) m_advFreqSpin->setStyleSheet(spinStyle);
+    if (m_advQSpin)    m_advQSpin->setStyleSheet(spinStyle);
+
+    // --- Labels, tagged by objectName role in setupUi() ---
+    const QString titleLabelStyle   = QString("font-size: 18px; font-weight: bold; color: %1;").arg(primaryTextC);
+    const QString sectionLabelStyle = QString("font-size: 13px; font-weight: bold; color: %1; border: none;").arg(primaryTextC);
+    const QString headerLabelStyle  = QString("font-size: 12px; font-weight: bold; color: %1; border: none;").arg(primaryTextC);
+    const QString subLabelStyle     = QString("font-size: 10px; color: %1; border: none;").arg(mutedTextC);
+
+    for (QLabel* l : findChildren<QLabel*>()) {
+        const QString on = l->objectName();
+        if (on == "EqTitleLabel") {
+            l->setStyleSheet(titleLabelStyle);
+        } else if (on == "EqSectionHeaderLabel") {
+            l->setStyleSheet(sectionLabelStyle);
+        } else if (on == "EqHeaderLabel") {
+            l->setStyleSheet(headerLabelStyle);
+        } else if (on == "EqValueLabel" || on == "EqSubLabel") {
+            l->setStyleSheet(subLabelStyle);
+        }
     }
 }
 

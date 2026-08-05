@@ -140,7 +140,8 @@ void PlayingEqualizerIcon::paintEvent(QPaintEvent* event) {
     double spacing = 2.0;
     double startX = (w - (3 * barW + 2 * spacing)) / 2.0;
 
-    painter.setBrush(QColor("#FF2A7A")); // Pink bars
+    const auto& p = ThemeManager::instance().currentTheme();
+    painter.setBrush(p.secondaryAccent);
     painter.setPen(Qt::NoPen);
 
     for (int i = 0; i < 3; ++i) {
@@ -170,13 +171,15 @@ public:
             isSelected = firstItem->isSelected();
         }
 
+        const auto& p = ThemeManager::instance().currentTheme();
+
         QColor bgColor = Qt::transparent;
         if (isPlaying) {
-            bgColor = QColor("#1B1130"); // Dark purple highlight for playing track
+            bgColor = p.itemSelectedBg;
         } else if (isHovered) {
-            bgColor = QColor("#1A122B"); // "kind of same" dark purple hover highlight
+            bgColor = p.itemHoverBg;
         } else if (isSelected) {
-            bgColor = QColor("#141822"); // Selected non-playing track
+            bgColor = p.itemSelectedBg;
         }
 
         if (bgColor.isValid() && bgColor != Qt::transparent) {
@@ -200,9 +203,9 @@ public:
 
         QColor textColor;
         if (isPlaying) {
-            textColor = QColor("#FF2A7A"); // Pink text for playing song
+            textColor = p.secondaryAccent;
         } else {
-            textColor = QColor("#7E8494"); // Normal muted gray text for #, Artist, Album, Time
+            textColor = p.secondaryText;
         }
 
         opt.palette.setColor(QPalette::Text, textColor);
@@ -229,16 +232,41 @@ void SongsTableWidget::setupUi() {
     mainLayout->setContentsMargins(0, 0, 0, 0);
     mainLayout->setSpacing(0);
 
-    // Card frame wrapping Songs section
     auto* cardFrame = new QFrame(this);
     cardFrame->setObjectName("SongsCard");
-    cardFrame->setStyleSheet(
-        "QFrame#SongsCard {"
-        "   background-color: #0F121D;"
-        "   border: 1px solid #1E2538;"
-        "   border-radius: 16px;"
-        "}"
-    );
+
+    auto applyCardStyle = [cardFrame](const ThemePalette& p) {
+        cardFrame->setStyleSheet(QString(
+            "QFrame#SongsCard {"
+            "   background-color: %1;"
+            "   border: 1px solid %2;"
+            "   border-radius: 16px;"
+            "}"
+        ).arg(p.cardBg.name(), p.cardBorder.name()));
+    };
+    applyCardStyle(ThemeManager::instance().currentTheme());
+    connect(&ThemeManager::instance(), &ThemeManager::themeChanged, this, [this, applyCardStyle](const ThemePalette& p) {
+        applyCardStyle(p);
+        // Rows without a cover show the theme-generated default art — refresh
+        // their thumbnails so they switch palette immediately.
+        if (m_table) {
+            for (int row = 0; row < m_table->rowCount(); ++row) {
+                if (auto* firstItem = m_table->item(row, 0)) {
+                    const QString cp = firstItem->data(Qt::UserRole + 1).toString();
+                    if (!cp.isEmpty()) continue;
+                    if (auto* titleCont = m_table->cellWidget(row, 1)) {
+                        const auto labels = titleCont->findChildren<QLabel*>();
+                        for (QLabel* l : labels) {
+                            if (l->objectName() == "SongTitleLabel") continue;
+                            l->setPixmap(loadThumbnail(""));
+                            break;
+                        }
+                    }
+                }
+            }
+            m_table->viewport()->update();
+        }
+    });
 
     auto* cardLayout = new QVBoxLayout(cardFrame);
     cardLayout->setContentsMargins(16, 16, 16, 16);

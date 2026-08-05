@@ -58,6 +58,7 @@ private:
     void setupUi();
     void loadSettings();
     void saveSettings();
+    void updateThemeStyles(const ThemePalette& p);
 
     QComboBox* m_themeCombo = nullptr;
     QComboBox* m_backendCombo = nullptr;
@@ -90,7 +91,7 @@ private:
     bool m_optimizedMode = false;
     int m_currentBackend = 0;
     QString m_currentDevice = "Default / Automatic";
-    QString m_currentTheme = "Dark (Default)";
+    QString m_currentTheme;
 };
 
 #endif // SETTINGSPAGE_H
