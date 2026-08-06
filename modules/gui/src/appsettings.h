@@ -20,9 +20,13 @@ public:
     bool isOptimizedMode() const { return m_optimizedMode; }
     void setOptimizedMode(bool enabled) { m_optimizedMode = enabled; }
 
+    bool isGpuAccelerationEnabled() const { return m_gpuAcceleration; }
+    void setGpuAccelerationEnabled(bool enabled) { m_gpuAcceleration = enabled; }
+
 private:
     AppSettings() = default;
     bool m_optimizedMode = false;
+    bool m_gpuAcceleration = false;
 };
 
 #endif // APPSETTINGS_H

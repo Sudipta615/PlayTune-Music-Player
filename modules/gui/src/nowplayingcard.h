@@ -28,6 +28,8 @@ public:
     void setSleepTimerRemaining(int seconds_remaining);
     /// Apply or remove Optimized Mode optimizations (live, no restart needed).
     void setOptimizedMode(bool enabled);
+    /// Apply or remove GPU acceleration for visualizers live.
+    void setGpuAccelerationEnabled(bool enabled);
 
     // Getter for keyboard seek
     double elapsedSeconds() const { return m_elapsedSeconds; }

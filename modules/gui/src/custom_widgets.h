@@ -145,8 +145,11 @@ private:
     }
 };
 
-// Waveform Seekbar Visualizer
-class WaveformVisualizer : public QWidget {
+#include <QOpenGLWidget>
+#include <QOpenGLFunctions>
+
+// Waveform Seekbar Visualizer (GPU-Accelerated with CPU QPainter Fallback)
+class WaveformVisualizer : public QOpenGLWidget, protected QOpenGLFunctions {
     Q_OBJECT
 public:
     explicit WaveformVisualizer(QWidget* parent = nullptr);
@@ -155,11 +158,17 @@ public:
     void setPlaybackProgress(double progress); // 0.0 to 1.0
     void updateBuffer(const QVector<float>& buffer);
     void setPlaying(bool playing);
+    void setGpuAccelerationEnabled(bool enabled);
+
+    bool isGpuAccelerated() const { return m_gpuAccelerated && m_gpuUserSettingEnabled; }
 
 signals:
     void seekRequested(double ratio); // 0.0 to 1.0
 
 protected:
+    void initializeGL() override;
+    void resizeGL(int w, int h) override;
+    void paintGL() override;
     void paintEvent(QPaintEvent* event) override;
     void timerEvent(QTimerEvent* event) override;
     void hideEvent(QHideEvent* event) override;
@@ -168,7 +177,11 @@ protected:
 
 private:
     void generateDefaultWaveform();
+    void renderWaveform(QPainter* painter);
 
+    bool m_gpuInitialized = false;
+    bool m_gpuAccelerated = false;
+    bool m_gpuUserSettingEnabled = false;
     QVector<float> m_heights;      // height of each bar (0.0 to 1.0)
     QVector<float> m_levels;       // animated current level of each bar
     double m_progress = 0.0;       // playback position (0.0 to 1.0)

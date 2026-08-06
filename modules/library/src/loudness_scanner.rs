@@ -66,7 +66,12 @@ pub fn scan_track_loudness(
     let mut max_peak = 0.0f32;
     let mut total_frames_processed = 0usize;
 
+    let mut chunk_count = 0u32;
     while let Ok(chunk) = decoder.decode_next(4096) {
+        chunk_count += 1;
+        if chunk_count % 32 == 0 {
+            std::thread::yield_now();
+        }
         if chunk.frame_count == 0 {
             break;
         }

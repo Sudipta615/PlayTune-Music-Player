@@ -18,6 +18,7 @@ public:
 
     bool isTooltipsEnabled() const;
     bool isOptimizedMode() const { return m_optimizedMode; }
+    bool isGpuRenderingEnabled() const { return m_gpuRendering; }
     bool isCrossfadeEnabled() const { return m_crossfadeEnabled; }
     bool isNormalizeEnabled() const { return m_normalizeEnabled; }
     bool isGaplessEnabled() const { return m_gaplessEnabled; }
@@ -40,6 +41,7 @@ signals:
     void outputBackendChanged(int backend);
     void outputDeviceChanged(const QString& deviceName);
     void optimizedModeToggled(bool enabled);
+    void gpuRenderingToggled(bool enabled);
     void addSongsRequested();
     void addFoldersRequested();
     void deleteFolderRequested(int folderId);
@@ -74,6 +76,7 @@ private:
     ToggleSwitch* m_trayToggle           = nullptr;
     ToggleSwitch* m_minimizeToTrayToggle = nullptr;
     ToggleSwitch* m_optimizedModeToggle  = nullptr;
+    ToggleSwitch* m_gpuRenderingToggle   = nullptr;
     QPushButton*  m_loudnessScanBtn      = nullptr;
     QSpinBox*     m_crossfadeDurationSpin= nullptr;
     QPushButton*  m_addSongsBtn          = nullptr;
@@ -110,6 +113,7 @@ private:
     bool    m_trayEnabled       = false;
     bool    m_minimizeToTray    = false;
     bool    m_optimizedMode     = false;
+    bool    m_gpuRendering      = false;
     int     m_currentBackend    = 0;
     QString m_currentDevice     = "Default / Automatic";
     QString m_currentTheme      = "Dark Premium (Purple)";

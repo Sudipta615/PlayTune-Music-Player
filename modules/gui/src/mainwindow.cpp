@@ -639,6 +639,8 @@ void MainWindow::connectBridge() {
     // QPixmapCache limit and flushes covers immediately when enabling.
     connect(m_settingsPage, &SettingsPageWidget::optimizedModeToggled,
             m_nowPlayingCard,  &NowPlayingCard::setOptimizedMode);
+    connect(m_settingsPage, &SettingsPageWidget::gpuRenderingToggled,
+            m_nowPlayingCard,  &NowPlayingCard::setGpuAccelerationEnabled);
     connect(m_settingsPage, &SettingsPageWidget::optimizedModeToggled,
             m_songsTable,      &SongsTableWidget::setOptimizedMode);
     connect(m_settingsPage, &SettingsPageWidget::optimizedModeToggled,
@@ -669,6 +671,10 @@ void MainWindow::connectBridge() {
             if (cb.on_eq_enabled) cb.on_eq_enabled(0);
             QPixmapCache::setCacheLimit(2 * 1024);
         });
+    }
+
+    if (m_settingsPage->isGpuRenderingEnabled()) {
+        m_nowPlayingCard->setGpuAccelerationEnabled(true);
     }
     // ─────────────────────────────────────────────────────────────────────
 

@@ -316,6 +316,19 @@ void SettingsPageWidget::setupUi() {
             "Minimize CPU & RAM usage. Ideal for low-power devices or background listening.",
             m_optimizedModeToggle));
 
+        auto* divGpu = new QFrame(card);
+        divGpu->setFrameShape(QFrame::HLine);
+        m_cardSeparators.append(divGpu);
+        cl->addWidget(divGpu);
+
+        m_gpuRenderingToggle = new ToggleSwitch(card);
+        m_gpuRenderingToggle->setToolTip("Enable GPU Acceleration for audio visualizer rendering (Default: Off)");
+        cl->addLayout(createSettingRow(
+            card,
+            "Enable GPU Acceleration",
+            "Use hardware OpenGL context for visualizers (offloads repaints from CPU).",
+            m_gpuRenderingToggle));
+
         connect(m_optimizedModeToggle, &ToggleSwitch::toggled, this, [this](bool on) {
             m_optimizedMode = on;
             AppSettings::instance().setOptimizedMode(on);
@@ -329,6 +342,13 @@ void SettingsPageWidget::setupUi() {
             }
             saveSettings();
             emit optimizedModeToggled(on);
+        });
+
+        connect(m_gpuRenderingToggle, &ToggleSwitch::toggled, this, [this](bool on) {
+            m_gpuRendering = on;
+            AppSettings::instance().setGpuAccelerationEnabled(on);
+            saveSettings();
+            emit gpuRenderingToggled(on);
         });
 
         rightCol->addWidget(card);
@@ -590,6 +610,8 @@ void SettingsPageWidget::loadSettings() {
     m_tooltipsEnabled  = settings.value("tooltips", true).toBool();
     m_optimizedMode    = settings.value("optimized_mode", false).toBool();
     AppSettings::instance().setOptimizedMode(m_optimizedMode);
+    m_gpuRendering     = settings.value("gpu_acceleration", false).toBool();
+    AppSettings::instance().setGpuAccelerationEnabled(m_gpuRendering);
     m_crossfadeEnabled = settings.value("crossfade", false).toBool();
     m_normalizeEnabled = settings.value("normalize", false).toBool();
     m_gaplessEnabled   = settings.value("gapless", true).toBool();
@@ -608,6 +630,7 @@ void SettingsPageWidget::loadSettings() {
         if (m_optimizedMode) m_tooltipToggle->setToolTip("Tooltips hints are disabled in Optimized Mode");
     }
     if (m_optimizedModeToggle) m_optimizedModeToggle->setChecked(m_optimizedMode);
+    if (m_gpuRenderingToggle)   m_gpuRenderingToggle->setChecked(m_gpuRendering);
     if (m_loudnessScanBtn) {
         m_loudnessScanBtn->setEnabled(!m_optimizedMode);
         m_loudnessScanBtn->setToolTip(m_optimizedMode ? "Disabled in Optimized Mode" : "Scan Library for ReplayGain...");
@@ -638,6 +661,7 @@ void SettingsPageWidget::saveSettings() {
     QSettings settings("PlayTune", "Settings");
     settings.setValue("tooltips",               m_tooltipsEnabled);
     settings.setValue("optimized_mode",         m_optimizedMode);
+    settings.setValue("gpu_acceleration",       m_gpuRendering);
     settings.setValue("crossfade",              m_crossfadeEnabled);
     settings.setValue("normalize",              m_normalizeEnabled);
     settings.setValue("gapless",                m_gaplessEnabled);
@@ -654,6 +678,7 @@ void SettingsPageWidget::saveSettings() {
 void SettingsPageWidget::showEvent(QShowEvent* event) {
     QWidget::showEvent(event);
     if (m_tooltipToggle   && m_tooltipToggle->isChecked()   != m_tooltipsEnabled)  { QSignalBlocker b(m_tooltipToggle);   m_tooltipToggle->setChecked(m_tooltipsEnabled); }
+    if (m_gpuRenderingToggle && m_gpuRenderingToggle->isChecked() != m_gpuRendering) { QSignalBlocker b(m_gpuRenderingToggle); m_gpuRenderingToggle->setChecked(m_gpuRendering); }
     if (m_crossfadeToggle && m_crossfadeToggle->isChecked() != m_crossfadeEnabled) { QSignalBlocker b(m_crossfadeToggle); m_crossfadeToggle->setChecked(m_crossfadeEnabled); }
     if (m_normalizeToggle && m_normalizeToggle->isChecked() != m_normalizeEnabled) { QSignalBlocker b(m_normalizeToggle); m_normalizeToggle->setChecked(m_normalizeEnabled); }
     if (m_gaplessToggle   && m_gaplessToggle->isChecked()   != m_gaplessEnabled)   { QSignalBlocker b(m_gaplessToggle);   m_gaplessToggle->setChecked(m_gaplessEnabled); }

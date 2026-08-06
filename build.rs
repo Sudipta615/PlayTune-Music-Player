@@ -57,7 +57,7 @@ fn main() {
             // target_link_libraries(... PUBLIC Qt6::Widgets ...), but a
             // static lib does NOT propagate link directives to the final
             // Rust binary's link line — we must emit them here.
-            for lib in ["Qt6Widgets", "Qt6Core", "Qt6Gui"] {
+            for lib in ["Qt6Widgets", "Qt6Core", "Qt6Gui", "Qt6OpenGL", "Qt6OpenGLWidgets"] {
                 if cfg!(target_os = "windows") && cfg!(target_env = "msvc") {
                     // MSVC: <name>.lib, linked as `<name>` (no `lib` prefix).
                     println!("cargo:rustc-link-lib=dylib={}", lib);
@@ -76,7 +76,7 @@ fn main() {
         }
     }
     if qt_found {
-        for lib in ["Qt6Gui", "Qt6Core"] {
+        for lib in ["Qt6Gui", "Qt6Core", "Qt6OpenGL", "Qt6OpenGLWidgets"] {
             if let Err(e) = pkg_config::Config::new().probe(lib) {
                 println!("cargo:warning=Failed to find {} via pkg-config: {}", lib, e);
                 println!(

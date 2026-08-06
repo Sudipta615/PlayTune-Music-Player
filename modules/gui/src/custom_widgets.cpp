@@ -327,10 +327,19 @@ void EqualizerCurveWidget::paintEvent(QPaintEvent* event) {
 }
 
 
+#include <QSurfaceFormat>
+
 // ==========================================
 // WaveformVisualizer Implementation
 // ==========================================
-WaveformVisualizer::WaveformVisualizer(QWidget* parent) : QWidget(parent) {
+WaveformVisualizer::WaveformVisualizer(QWidget* parent) : QOpenGLWidget(parent) {
+    QSurfaceFormat fmt = QSurfaceFormat::defaultFormat();
+    fmt.setAlphaBufferSize(8);
+    setFormat(fmt);
+    setAttribute(Qt::WA_AlwaysStackOnTop, true);
+    setAttribute(Qt::WA_TranslucentBackground, true);
+
+    m_gpuUserSettingEnabled = AppSettings::instance().isGpuAccelerationEnabled();
     m_heights.fill(0.1f, 44);
     m_levels.fill(0.1f, 44);
     generateDefaultWaveform();
@@ -340,6 +349,37 @@ WaveformVisualizer::WaveformVisualizer(QWidget* parent) : QWidget(parent) {
     connect(&ThemeManager::instance(), &ThemeManager::themeChanged, this, [this](const ThemePalette&) {
         update();
     });
+}
+
+void WaveformVisualizer::setGpuAccelerationEnabled(bool enabled) {
+    m_gpuUserSettingEnabled = enabled;
+    update();
+}
+
+void WaveformVisualizer::initializeGL() {
+    m_gpuInitialized = true;
+    initializeOpenGLFunctions();
+    m_gpuAccelerated = (context() != nullptr && context()->isValid());
+    if (m_gpuAccelerated) {
+        glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
+        glEnable(GL_BLEND);
+        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    }
+}
+
+void WaveformVisualizer::resizeGL(int w, int h) {
+    if (m_gpuAccelerated && w > 0 && h > 0) {
+        glViewport(0, 0, w, h);
+    }
+}
+
+void WaveformVisualizer::paintGL() {
+    if (m_gpuAccelerated) {
+        glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
+        glClear(GL_COLOR_BUFFER_BIT);
+        QPainter painter(this);
+        renderWaveform(&painter);
+    }
 }
 
 void WaveformVisualizer::setPlaybackProgress(double progress) {
@@ -359,6 +399,7 @@ void WaveformVisualizer::setPlaying(bool playing) {
             m_timerId = -1;
         }
     }
+    update();
 }
 
 void WaveformVisualizer::updateBuffer(const QVector<float>& buffer) {
@@ -374,6 +415,9 @@ void WaveformVisualizer::updateBuffer(const QVector<float>& buffer) {
             float fract = srcIdx - idx1;
             m_heights[i] = buffer[idx1] * (1.0f - fract) + buffer[idx2] * fract;
         }
+    }
+    if (m_timerId == -1) {
+        m_levels = m_heights;
     }
     update();
 }
@@ -408,7 +452,7 @@ void WaveformVisualizer::timerEvent(QTimerEvent* event) {
         }
         update();
     } else {
-        QWidget::timerEvent(event);
+        QOpenGLWidget::timerEvent(event);
     }
 }
 
@@ -418,7 +462,7 @@ void WaveformVisualizer::hideEvent(QHideEvent* event) {
         m_timerId = -1;
         m_timerWasActive = true;
     }
-    QWidget::hideEvent(event);
+    QOpenGLWidget::hideEvent(event);
 }
 
 void WaveformVisualizer::showEvent(QShowEvent* event) {
@@ -427,7 +471,7 @@ void WaveformVisualizer::showEvent(QShowEvent* event) {
             killTimer(m_timerId);
             m_timerId = -1;
         }
-        QWidget::showEvent(event);
+        QOpenGLWidget::showEvent(event);
         return;
     }
     if (m_timerWasActive || m_isPlaying) {
@@ -436,7 +480,7 @@ void WaveformVisualizer::showEvent(QShowEvent* event) {
         }
         m_timerWasActive = false;
     }
-    QWidget::showEvent(event);
+    QOpenGLWidget::showEvent(event);
 }
 
 
@@ -450,14 +494,17 @@ void WaveformVisualizer::mousePressEvent(QMouseEvent* event) {
         }
         event->accept();
     } else {
-        QWidget::mousePressEvent(event);
+        QOpenGLWidget::mousePressEvent(event);
     }
 }
 
 void WaveformVisualizer::paintEvent(QPaintEvent* event) {
-    Q_UNUSED(event);
-    QPainter painter(this);
-    painter.setRenderHint(QPainter::Antialiasing);
+    QOpenGLWidget::paintEvent(event);
+}
+
+void WaveformVisualizer::renderWaveform(QPainter* painter) {
+    if (!painter) return;
+    painter->setRenderHint(QPainter::Antialiasing);
 
     const auto& p = ThemeManager::instance().currentTheme();
 
@@ -474,10 +521,10 @@ void WaveformVisualizer::paintEvent(QPaintEvent* event) {
     activeGradient.setColorAt(0.0, p.secondaryAccent);
     activeGradient.setColorAt(1.0, p.primaryAccent);
 
-    QColor inactiveColor = p.isLight ? QColor(0, 0, 0, 40) : QColor(255, 255, 255, 40);
+    QColor inactiveColor = p.isLight ? QColor(15, 23, 42, 100) : QColor(255, 255, 255, 95);
 
     for (int i = 0; i < numBars; ++i) {
-        double barHeight = m_levels[i] * h;
+        double barHeight = qMax(4.0, static_cast<double>(m_levels[i]) * h);
         double bx = 2.0 + i * step;
         double by = (h - barHeight) / 2.0;
 
@@ -486,12 +533,12 @@ void WaveformVisualizer::paintEvent(QPaintEvent* event) {
         double progressFraction = (double)i / numBars;
         if (progressFraction <= m_progress) {
             // Draw filled active bar
-            painter.setBrush(activeGradient);
+            painter->setBrush(activeGradient);
         } else {
             // Draw inactive bar
-            painter.setBrush(inactiveColor);
+            painter->setBrush(inactiveColor);
         }
-        painter.setPen(Qt::NoPen);
-        painter.drawRoundedRect(barRect, barWidth / 2.0, barWidth / 2.0);
+        painter->setPen(Qt::NoPen);
+        painter->drawRoundedRect(barRect, barWidth / 2.0, barWidth / 2.0);
     }
 }

@@ -583,6 +583,9 @@ pub extern "C" fn playtune_start_loudness_scan(
         };
 
         std::thread::spawn(move || {
+            let _ =
+                thread_priority::set_current_thread_priority(thread_priority::ThreadPriority::Min);
+
             let db = match GLOBAL_DB.get() {
                 Some(db) => db,
                 None => {
@@ -645,6 +648,7 @@ pub extern "C" fn playtune_start_loudness_scan(
                 }
 
                 bridge::loudness_scan_progress((i + 1) as i32, total, &track.title);
+                std::thread::sleep(std::time::Duration::from_millis(2));
             }
 
             bridge::loudness_scan_finished(true, "");

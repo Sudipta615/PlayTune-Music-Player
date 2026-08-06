@@ -447,9 +447,14 @@ void NowPlayingCard::setOptimizedMode(bool enabled) {
             m_timeTotal->setGraphicsEffect(nullptr);
         } else {
             auto* sh = new QGraphicsDropShadowEffect(m_timeTotal);
-            sh->setBlurRadius(8); sh->setColor(QColor(0, 0, 0, 180)); sh->setOffset(0, 2);
             m_timeTotal->setGraphicsEffect(sh);
         }
+    }
+}
+
+void NowPlayingCard::setGpuAccelerationEnabled(bool enabled) {
+    if (m_visualizer) {
+        m_visualizer->setGpuAccelerationEnabled(enabled);
     }
 }
 

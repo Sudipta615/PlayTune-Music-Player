@@ -10,9 +10,7 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 # Find Qt6 components
-# B-05: Widgets transitively requires Gui and Core, so listing all three
-# is redundant (harmless but noisy). Widgets alone is sufficient.
-find_package(Qt6 COMPONENTS Widgets REQUIRED)
+find_package(Qt6 COMPONENTS Widgets OpenGL OpenGLWidgets REQUIRED)
 
 # Define the source files for our modular UI library
 set(SOURCES
@@ -72,6 +70,8 @@ target_link_libraries(playtune_gui PUBLIC
     Qt6::Widgets
     Qt6::Core
     Qt6::Gui
+    Qt6::OpenGL
+    Qt6::OpenGLWidgets
 )
 
 # Set include directory permissions so compiling is straightforward
