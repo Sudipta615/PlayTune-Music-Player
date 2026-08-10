@@ -1,4 +1,5 @@
 #include "queuewidget.h"
+#include "coverloader.h"
 #include "custom_widgets.h"
 #include "gui_bridge_p.h"
 #include "appsettings.h"
@@ -207,13 +208,25 @@ void QueueWidget::setupUi() {
                 if (auto* w = m_queueTable->cellWidget(r, 1)) {
                     if (auto* thumbLabel = w->findChild<QLabel*>("QueueRowThumbLabel")) {
                         QString path = thumbLabel->property("coverPath").toString();
-                        if (path.isEmpty() || !QFile::exists(path)) {
+                        QPixmap cover;
+                        if (!path.isEmpty() && CoverLoader::instance().tryGet(path, 24, cover)) {
+                            thumbLabel->setPixmap(getRoundedPixmap(cover, 24, 6));
+                        } else {
                             thumbLabel->setPixmap(getRoundedPixmap(getDefaultAlbumArt(), 24, 6));
                         }
                     }
                 }
             }
             if (m_queueTable->viewport()) m_queueTable->viewport()->update();
+        }
+        if (m_miniCover) {
+            QString path = m_miniCover->property("coverPath").toString();
+            QPixmap cover;
+            if (!path.isEmpty() && cover.load(path)) {
+                m_miniCover->setPixmap(getRoundedPixmap(cover, 44, 8));
+            } else {
+                m_miniCover->setPixmap(getRoundedPixmap(getDefaultAlbumArt(), 44, 8));
+            }
         }
     };
     applyTheme(ThemeManager::instance().currentTheme());
@@ -489,7 +502,10 @@ void QueueWidget::setTrackInfo(const QString& title, const QString& artist, cons
     if (AppSettings::instance().isOptimizedMode()) {
         if (m_miniCover) m_miniCover->setVisible(false);
     } else {
-        if (m_miniCover) m_miniCover->setVisible(true);
+        if (m_miniCover) {
+            m_miniCover->setProperty("coverPath", coverPath);
+            m_miniCover->setVisible(true);
+        }
         QPixmap cover;
         if (!coverPath.isEmpty() && cover.load(coverPath)) {
             m_miniCover->setPixmap(getRoundedPixmap(cover, 44, 8));

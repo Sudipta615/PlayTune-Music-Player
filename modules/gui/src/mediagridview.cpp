@@ -58,9 +58,7 @@ MediaGridCard::MediaGridCard(QWidget* parent) : QFrame(parent) {
 
     connect(&ThemeManager::instance(), &ThemeManager::themeChanged, this, [this](const ThemePalette&) {
         setPlaying(m_playing);
-        if (m_coverPath.isEmpty() || !QFile::exists(m_coverPath) || AppSettings::instance().isOptimizedMode()) {
-            refreshCover();
-        }
+        refreshCover();
     });
 
     connect(&CoverLoader::instance(), &CoverLoader::coverReady,

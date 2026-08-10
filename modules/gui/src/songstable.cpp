@@ -43,7 +43,7 @@ namespace {
 /// Build a square 44×44 rounded thumbnail for the songs table. Goes
 /// through the shared CoverLoader cache so the same pixmap is reused
 /// by the queue widget and the grid cards.
-static QPixmap loadThumbnail(const QString& coverPath) {
+static QPixmap loadThumbnail(const QString& coverPath, bool requestAsync = false) {
     if (AppSettings::instance().isOptimizedMode()) {
         QPixmap def = getDefaultAlbumArt();
         QPixmap target(44, 44);
@@ -63,12 +63,10 @@ static QPixmap loadThumbnail(const QString& coverPath) {
         return rounded;
     }
 
-    // Cache miss: request an async load and return the default cover
-    // for now. The row will be repainted when the load completes via
-    // the CoverLoader::coverReady signal (wired in setupUi).
+    // Cache miss: return fallback. Only trigger async load if requestAsync is true (visible rows).
     QPixmap fallback;
     CoverLoader::instance().resolveOrFallback(coverPath, 44, fallback);
-    if (!coverPath.isEmpty()) {
+    if (requestAsync && !coverPath.isEmpty()) {
         CoverLoader::instance().requestAsync(coverPath, 44);
     }
     // Build a rounded fallback from the default cover so it looks the
@@ -249,9 +247,7 @@ void SongsTableWidget::setupUi() {
                 if (auto* titleWidget = m_table->cellWidget(r, 1)) {
                     if (auto* thumbLabel = titleWidget->findChild<QLabel*>("SongRowThumbLabel")) {
                         QString path = thumbLabel->property("coverPath").toString();
-                        if (path.isEmpty() || !QFile::exists(path)) {
-                            thumbLabel->setPixmap(loadThumbnail(path));
-                        }
+                        thumbLabel->setPixmap(loadThumbnail(path, false));
                     }
                 }
                 if (auto* actionBtn = qobject_cast<QPushButton*>(m_table->cellWidget(r, 6))) {
@@ -259,6 +255,7 @@ void SongsTableWidget::setupUi() {
                 }
             }
             m_table->viewport()->update();
+            loadVisibleThumbnails();
         }
     });
 
@@ -537,29 +534,7 @@ void SongsTableWidget::setupUi() {
     // covers that finished loading between scrolls would remain as the
     // default album art until the next full table rebuild.
     connect(m_table->verticalScrollBar(), &QScrollBar::valueChanged, this, [this]() {
-        QRect visible = m_table->viewport()->rect();
-        int top = m_table->rowAt(visible.top());
-        int bot = m_table->rowAt(visible.bottom());
-        if (top < 0) top = 0;
-        if (bot < 0) bot = m_table->rowCount() - 1;
-        for (int row = top; row <= bot; ++row) {
-            if (auto* firstItem = m_table->item(row, 0)) {
-                QString coverPath = firstItem->data(Qt::UserRole + 1).toString();
-                if (coverPath.isEmpty()) continue;
-                QPixmap rounded;
-                if (!CoverLoader::instance().tryGetRounded(coverPath, 44, 8, rounded))
-                    continue;
-                if (auto* titleCont = m_table->cellWidget(row, 1)) {
-                    auto labels = titleCont->findChildren<QLabel*>();
-                    for (QLabel* l : labels) {
-                        if (l->objectName() != "SongTitleLabel") {
-                            l->setPixmap(rounded);
-                            break;
-                        }
-                    }
-                }
-            }
-        }
+        loadVisibleThumbnails();
     });
 }
 
@@ -663,7 +638,7 @@ void SongsTableWidget::addSong(int index, int songId, bool isFavorite, const QSt
     thumbLabel->setFixedSize(44, 44);
     thumbLabel->setAlignment(Qt::AlignCenter);
     thumbLabel->setScaledContents(false);
-    thumbLabel->setPixmap(loadThumbnail(coverPath));
+    thumbLabel->setPixmap(loadThumbnail(coverPath, true));
 
     auto* titleLabel = new QLabel(title, titleContainer);
     titleLabel->setObjectName("SongTitleLabel");
@@ -827,7 +802,7 @@ void SongsTableWidget::setSongsBatch(QVector<SongRow> rows) {
             thumbLabel->setFixedSize(44, 44);
             thumbLabel->setAlignment(Qt::AlignCenter);
             thumbLabel->setScaledContents(false);
-            thumbLabel->setPixmap(loadThumbnail(r.coverPath));
+            thumbLabel->setPixmap(loadThumbnail(r.coverPath, false));
 
             auto* titleLabel = new QLabel(r.title, titleContainer);
             titleLabel->setObjectName("SongTitleLabel");
@@ -940,8 +915,9 @@ void SongsTableWidget::setSongsBatch(QVector<SongRow> rows) {
         populateGridFromTable();
     }
 
-    // Repaint the viewport to reflect the new content.
+    // Repaint the viewport to reflect the new content and load covers for visible rows.
     if (m_table->viewport()) m_table->viewport()->update();
+    QTimer::singleShot(0, this, &SongsTableWidget::loadVisibleThumbnails);
 }
 
 void SongsTableWidget::populateGridFromTable() {
@@ -1191,7 +1167,7 @@ void SongsTableWidget::updateTrackRow(int songId, const QString& title, const QS
                 const auto labels = titleCont->findChildren<QLabel*>();
                 for (QLabel* l : labels) {
                     if (l->objectName() != "SongTitleLabel") {
-                        l->setPixmap(loadThumbnail(coverPath));
+                        l->setPixmap(loadThumbnail(coverPath, true));
                         break;
                     }
                 }
@@ -1288,5 +1264,35 @@ void SongsTableWidget::showEvent(QShowEvent* event) {
     QWidget::showEvent(event);
     QTimer::singleShot(0, this, [this]() {
         if (m_gridWidget) m_gridWidget->updateGridResponsive();
+        loadVisibleThumbnails();
     });
+}
+
+void SongsTableWidget::loadVisibleThumbnails() {
+    if (!m_table || !m_table->viewport() || AppSettings::instance().isOptimizedMode()) return;
+    QRect visible = m_table->viewport()->rect();
+    int top = m_table->rowAt(visible.top());
+    int bot = m_table->rowAt(visible.bottom());
+    if (top < 0) top = 0;
+    if (bot < 0) bot = m_table->rowCount() - 1;
+    for (int row = top; row <= bot; ++row) {
+        if (auto* firstItem = m_table->item(row, 0)) {
+            QString coverPath = firstItem->data(Qt::UserRole + 1).toString();
+            if (coverPath.isEmpty()) continue;
+            QPixmap rounded;
+            if (CoverLoader::instance().tryGetRounded(coverPath, 44, 8, rounded)) {
+                if (auto* titleCont = m_table->cellWidget(row, 1)) {
+                    auto labels = titleCont->findChildren<QLabel*>();
+                    for (QLabel* l : labels) {
+                        if (l->objectName() != "SongTitleLabel") {
+                            l->setPixmap(rounded);
+                            break;
+                        }
+                    }
+                }
+            } else {
+                CoverLoader::instance().requestAsync(coverPath, 44);
+            }
+        }
+    }
 }

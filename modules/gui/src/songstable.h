@@ -140,6 +140,7 @@ private:
     QPixmap getThumbnail(const QString& title);
     void populateAddToPlaylistMenu(QMenu* menu, int songId);
     void refreshSingleRowStyle(int row);
+    void loadVisibleThumbnails();
 
     QTableWidget* m_table = nullptr;
     QStackedWidget* m_stackedWidget = nullptr;

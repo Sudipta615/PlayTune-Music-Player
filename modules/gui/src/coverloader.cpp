@@ -105,7 +105,8 @@ CoverLoader::CoverLoader() : QObject(nullptr) {
     // of tasks queued). Two threads keep visible rows loading without
     // blocking the CPU for other work.
     m_pool = new QThreadPool(this);
-    m_pool->setMaxThreadCount(2);
+    int threads = qBound(2, QThread::idealThreadCount() / 2, 4);
+    m_pool->setMaxThreadCount(threads);
 
     // 16 ms flush timer (targeting 60 fps). All coverReady signals are
     // emitted here in a single batch, which means at most one repaint per
