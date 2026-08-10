@@ -459,47 +459,38 @@ void NowPlayingCard::setGpuAccelerationEnabled(bool enabled) {
 }
 
 void NowPlayingCard::applyLabelStyles(const ThemePalette& p) {
+    Q_UNUSED(p);
     if (m_nowPlayingLabel) {
-        m_nowPlayingLabel->setStyleSheet(QString(
-            "color: %1; font-size: 11px; text-transform: uppercase; font-weight: bold;"
-        ).arg(p.mutedText.name()));
+        m_nowPlayingLabel->setStyleSheet(
+            "color: rgba(255, 255, 255, 0.75); font-size: 11px; text-transform: uppercase; font-weight: bold;"
+        );
     }
     if (m_titleLabel) {
-        m_titleLabel->setStyleSheet(QString(
-            "font-size: 22px; font-weight: bold; color: %1; background: transparent; border: none;"
-        ).arg(p.primaryText.name()));
+        m_titleLabel->setStyleSheet(
+            "font-size: 22px; font-weight: bold; color: #FFFFFF; background: transparent; border: none;"
+        );
     }
 
-    // Pill backgrounds behind the artist/album/time chips. Translucent so
-    // they read well over both the dark and the light Now-Playing gradient.
-    const QColor pillBg     = p.isLight ? QColor(15, 23, 42, 26) : QColor(10, 12, 20, 150);
-    const QColor pillBorder = p.isLight ? QColor(15, 23, 42, 46) : QColor(255, 255, 255, 55);
-
-    const QString chipStyle = QString(
-        "font-size: 12px; font-weight: 500; color: %1;"
-        "background-color: %2; border: 1px solid %3;"
-        "border-radius: 6px; padding: 3px 8px;"
-    ).arg(p.secondaryText.name())
-     .arg(pillBg.name(QColor::HexArgb))
-     .arg(pillBorder.name(QColor::HexArgb));
+    const QString chipStyle =
+        "font-size: 12px; font-weight: 500; color: #F0F2FF;"
+        "background-color: rgba(8, 10, 20, 0.50); border: 1px solid rgba(255, 255, 255, 0.18);"
+        "border-radius: 6px; padding: 3px 8px;";
     if (m_artistLabel) m_artistLabel->setStyleSheet(chipStyle);
     if (m_albumLabel)  m_albumLabel->setStyleSheet(chipStyle);
 
-    const QString timeStyle = QString(
-        "font-size: 11px; font-weight: 600; color: %1;"
-        "background-color: %2; border: 1px solid %3;"
-        "border-radius: 6px; padding: 3px 6px;"
-    ).arg(p.primaryText.name())
-     .arg(pillBg.name(QColor::HexArgb))
-     .arg(pillBorder.name(QColor::HexArgb));
+    const QString timeStyle =
+        "font-size: 11px; font-weight: 600; color: #FFFFFF;"
+        "background-color: rgba(8, 10, 20, 0.58); border: 1px solid rgba(255, 255, 255, 0.20);"
+        "border-radius: 6px; padding: 3px 6px;";
     if (m_timeElapsed) m_timeElapsed->setStyleSheet(timeStyle);
     if (m_timeTotal)   m_timeTotal->setStyleSheet(timeStyle);
 
     if (m_editTagsBtn) {
-        m_editTagsBtn->setStyleSheet(QString(
+        m_editTagsBtn->setIcon(ThemeManager::tintedIcon(":/resources/icons/more.png", QColor("#FFFFFF")));
+        m_editTagsBtn->setStyleSheet(
             "QPushButton { border: none; background: transparent; }"
-            "QPushButton:hover { background-color: %1; border-radius: 6px; }"
-        ).arg(p.itemHoverBg.name()));
+            "QPushButton:hover { background-color: rgba(255, 255, 255, 0.15); border-radius: 6px; }"
+        );
     }
 }
 

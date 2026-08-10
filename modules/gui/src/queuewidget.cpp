@@ -218,6 +218,15 @@ void QueueWidget::setupUi() {
                             thumbLabel->setPixmap(getRoundedPixmap(getDefaultAlbumArt(), 24, 6));
                         }
                     }
+                    if (auto* titleLabel = w->findChild<QLabel*>("QueueRowTitleLabel")) {
+                        titleLabel->setStyleSheet(QString("font-size: 12px; font-weight: 500; color: %1; background: transparent; margin: 0px; padding: 0px;").arg(p.primaryText.name()));
+                    }
+                    if (auto* artistLabel = w->findChild<QLabel*>("QueueRowArtistLabel")) {
+                        artistLabel->setStyleSheet(QString("font-size: 10px; color: %1; background: transparent; margin: 0px; padding: 0px;").arg(p.mutedText.name()));
+                    }
+                }
+                if (auto* itemIdx = m_queueTable->item(r, 0)) {
+                    itemIdx->setForeground(p.mutedText);
                 }
             }
             if (m_queueTable->viewport()) m_queueTable->viewport()->update();

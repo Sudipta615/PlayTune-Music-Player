@@ -43,43 +43,88 @@ namespace {
 static void applyMoodPillStyle(QLabel* badge, const QString& moodName) {
     if (!badge || moodName.trimmed().isEmpty()) return;
     QString lower = moodName.toLower().trimmed();
+    bool isLight = ThemeManager::instance().currentTheme().isLight;
 
-    QString bg = "rgba(168, 85, 247, 0.22)";
-    QString border = "rgba(192, 132, 252, 0.65)";
-    QString text = "#F3E8FF";
+    QString bg, border, text;
 
-    if (lower == "energetic") {
-        bg = "rgba(124, 58, 237, 0.25)";
-        border = "rgba(167, 139, 250, 0.70)";
-        text = "#E9D5FF";
-    } else if (lower == "romantic") {
-        bg = "rgba(236, 72, 153, 0.25)";
-        border = "rgba(244, 114, 182, 0.70)";
-        text = "#FBCFE8";
-    } else if (lower == "happy") {
-        bg = "rgba(234, 179, 8, 0.25)";
-        border = "rgba(250, 204, 21, 0.70)";
-        text = "#FEF08A";
-    } else if (lower == "calm") {
-        bg = "rgba(6, 182, 212, 0.25)";
-        border = "rgba(56, 189, 248, 0.70)";
-        text = "#BAE6FD";
-    } else if (lower == "party") {
-        bg = "rgba(168, 85, 247, 0.25)";
-        border = "rgba(192, 132, 252, 0.70)";
+    if (isLight) {
+        // High contrast dark-text pill styles for Light Theme
+        bg = "rgba(124, 58, 237, 0.16)";
+        border = "rgba(124, 58, 237, 0.40)";
+        text = "#6D28D9";
+
+        if (lower == "energetic") {
+            bg = "rgba(124, 58, 237, 0.16)";
+            border = "rgba(124, 58, 237, 0.40)";
+            text = "#6D28D9";
+        } else if (lower == "romantic") {
+            bg = "rgba(236, 72, 153, 0.16)";
+            border = "rgba(236, 72, 153, 0.40)";
+            text = "#BE185D";
+        } else if (lower == "happy") {
+            bg = "rgba(234, 179, 8, 0.22)";
+            border = "rgba(202, 138, 4, 0.55)";
+            text = "#854D0E";
+        } else if (lower == "calm") {
+            bg = "rgba(6, 182, 212, 0.16)";
+            border = "rgba(6, 182, 212, 0.40)";
+            text = "#0369A1";
+        } else if (lower == "party") {
+            bg = "rgba(168, 85, 247, 0.16)";
+            border = "rgba(168, 85, 247, 0.40)";
+            text = "#7E22CE";
+        } else if (lower == "nostalgic") {
+            bg = "rgba(217, 119, 6, 0.16)";
+            border = "rgba(217, 119, 6, 0.40)";
+            text = "#C2410C";
+        } else if (lower == "sad") {
+            bg = "rgba(99, 102, 241, 0.16)";
+            border = "rgba(99, 102, 241, 0.40)";
+            text = "#4338CA";
+        } else if (lower == "sleep" || lower == "lofi") {
+            bg = "rgba(139, 92, 246, 0.16)";
+            border = "rgba(139, 92, 246, 0.40)";
+            text = "#6D28D9";
+        }
+    } else {
+        // High contrast light-text pill styles for Dark Themes
+        bg = "rgba(168, 85, 247, 0.22)";
+        border = "rgba(192, 132, 252, 0.65)";
         text = "#F3E8FF";
-    } else if (lower == "nostalgic") {
-        bg = "rgba(217, 119, 6, 0.25)";
-        border = "rgba(251, 146, 60, 0.70)";
-        text = "#FFEDD5";
-    } else if (lower == "sad") {
-        bg = "rgba(99, 102, 241, 0.25)";
-        border = "rgba(129, 140, 248, 0.70)";
-        text = "#E0E7FF";
-    } else if (lower == "sleep" || lower == "lofi") {
-        bg = "rgba(139, 92, 246, 0.25)";
-        border = "rgba(167, 139, 250, 0.70)";
-        text = "#EDE9FE";
+
+        if (lower == "energetic") {
+            bg = "rgba(124, 58, 237, 0.25)";
+            border = "rgba(167, 139, 250, 0.70)";
+            text = "#E9D5FF";
+        } else if (lower == "romantic") {
+            bg = "rgba(236, 72, 153, 0.25)";
+            border = "rgba(244, 114, 182, 0.70)";
+            text = "#FBCFE8";
+        } else if (lower == "happy") {
+            bg = "rgba(234, 179, 8, 0.25)";
+            border = "rgba(250, 204, 21, 0.70)";
+            text = "#FEF08A";
+        } else if (lower == "calm") {
+            bg = "rgba(6, 182, 212, 0.25)";
+            border = "rgba(56, 189, 248, 0.70)";
+            text = "#BAE6FD";
+        } else if (lower == "party") {
+            bg = "rgba(168, 85, 247, 0.25)";
+            border = "rgba(192, 132, 252, 0.70)";
+            text = "#F3E8FF";
+        } else if (lower == "nostalgic") {
+            bg = "rgba(217, 119, 6, 0.25)";
+            border = "rgba(251, 146, 60, 0.70)";
+            text = "#FFEDD5";
+        } else if (lower == "sad") {
+            bg = "rgba(99, 102, 241, 0.25)";
+            border = "rgba(129, 140, 248, 0.70)";
+            text = "#E0E7FF";
+        } else if (lower == "sleep" || lower == "lofi") {
+            bg = "rgba(139, 92, 246, 0.25)";
+            border = "rgba(167, 139, 250, 0.70)";
+            text = "#EDE9FE";
+        }
     }
 
     badge->setText(moodName.toUpper().trimmed());
@@ -306,11 +351,23 @@ void SongsTableWidget::setupUi() {
                         thumbLabel->setPixmap(loadThumbnail(path, false));
                     }
                 }
+                if (auto* moodWidget = m_table->cellWidget(r, 2)) {
+                    if (auto* moodBadge = moodWidget->findChild<QLabel*>("SongMoodBadge")) {
+                        QString mood = moodBadge->property("moodName").toString();
+                        applyMoodPillStyle(moodBadge, mood);
+                    }
+                }
                 if (auto* actionWidget = m_table->cellWidget(r, 7)) {
                     if (auto* actionBtn = actionWidget->findChild<QPushButton*>()) {
                         actionBtn->setIcon(ThemeManager::tintedIcon(":/resources/icons/more.png", p.iconColor));
                     }
                 }
+            }
+            if (auto* h = m_table->horizontalHeaderItem(5)) {
+                h->setIcon(ThemeManager::tintedIcon(":/resources/icons/recently_played.png", p.iconColor));
+            }
+            if (auto* h = m_table->horizontalHeaderItem(6)) {
+                h->setIcon(ThemeManager::tintedIcon(":/resources/icons/favorite.png", p.iconColor));
             }
             m_table->viewport()->update();
             loadVisibleThumbnails();
@@ -458,11 +515,14 @@ void SongsTableWidget::setupUi() {
             h->setTextAlignment(Qt::AlignCenter);
         }
     }
+    const auto& currentTheme = ThemeManager::instance().currentTheme();
     if (auto* h = m_table->horizontalHeaderItem(5)) {
-        h->setIcon(QIcon(":/resources/icons/recently_played.png"));
+        h->setIcon(ThemeManager::tintedIcon(":/resources/icons/recently_played.png", currentTheme.iconColor));
+        h->setTextAlignment(Qt::AlignCenter);
     }
     if (auto* h = m_table->horizontalHeaderItem(6)) {
-        h->setIcon(QIcon(":/resources/icons/favorite.png"));
+        h->setIcon(ThemeManager::tintedIcon(":/resources/icons/favorite.png", currentTheme.iconColor));
+        h->setTextAlignment(Qt::AlignCenter);
     }
 
     // Set Column Widths
@@ -775,6 +835,7 @@ void SongsTableWidget::addSong(int index, int songId, bool isFavorite, const QSt
     if (!moodStr.isEmpty()) {
         auto* moodBadge = new QLabel(moodContainer);
         moodBadge->setObjectName("SongMoodBadge");
+        moodBadge->setProperty("moodName", moodStr);
         applyMoodPillStyle(moodBadge, moodStr);
         moodLayout->addWidget(moodBadge);
     }
@@ -794,7 +855,7 @@ void SongsTableWidget::addSong(int index, int songId, bool isFavorite, const QSt
 
     // 5. Duration Column
     auto* itemDuration = new QTableWidgetItem(duration);
-    itemDuration->setTextAlignment(Qt::AlignLeft | Qt::AlignVCenter);
+    itemDuration->setTextAlignment(Qt::AlignCenter);
     itemDuration->setFlags(itemDuration->flags() ^ Qt::ItemIsEditable);
     m_table->setItem(rowIdx, 5, itemDuration);
 
@@ -976,6 +1037,7 @@ void SongsTableWidget::setSongsBatch(QVector<SongRow> rows) {
             if (!r.mood.isEmpty()) {
                 auto* moodBadge = new QLabel(moodContainer);
                 moodBadge->setObjectName("SongMoodBadge");
+                moodBadge->setProperty("moodName", r.mood);
                 applyMoodPillStyle(moodBadge, r.mood);
                 moodLayout->addWidget(moodBadge);
             }
@@ -995,7 +1057,7 @@ void SongsTableWidget::setSongsBatch(QVector<SongRow> rows) {
 
             // 5. Duration Column
             auto* itemDuration = new QTableWidgetItem(r.duration);
-            itemDuration->setTextAlignment(Qt::AlignLeft | Qt::AlignVCenter);
+            itemDuration->setTextAlignment(Qt::AlignCenter);
             itemDuration->setFlags(itemDuration->flags() ^ Qt::ItemIsEditable);
             m_table->setItem(i, 5, itemDuration);
 
