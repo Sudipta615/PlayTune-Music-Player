@@ -20,7 +20,14 @@ set(SOURCES
     src/gui_bridge.h
     src/mainwindow.cpp
     src/mainwindow.h
+    src/mainwindow_bridge.cpp
+    src/mainwindow_events.cpp
+    src/mainwindow_actions.cpp
+    src/tooltip_controller.cpp
+    src/tooltip_controller.h
     src/equalizerwindow.cpp
+    src/equalizerpresets.cpp
+    src/equalizerbands.cpp
     src/equalizerwindow.h
     src/custom_widgets.cpp
     src/custom_widgets.h
@@ -32,11 +39,17 @@ set(SOURCES
     src/sidebar.h
     src/nowplayingcard.cpp
     src/nowplayingcard.h
+    src/playing_equalizer_icon.cpp
+    src/playing_equalizer_icon.h
     src/songstable.cpp
     src/songstable.h
+    src/songstable_rendering.cpp
+    src/songstable_actions.cpp
     src/queuewidget.cpp
     src/queuewidget.h
     src/settingspage.cpp
+    src/settingspage_audio.cpp
+    src/settingspage_library.cpp
     src/settingspage.h
     src/foldersview.cpp
     src/foldersview.h

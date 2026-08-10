@@ -1,11 +1,14 @@
 pub mod analysis;
 pub mod buffer;
+pub mod commands;
 pub mod decode;
 pub mod dsp;
+pub mod dsp_utils;
 #[cfg(feature = "audio-output")]
 pub mod engine;
 #[cfg(feature = "audio-output")]
 pub mod output;
+pub mod playback_info;
 
 // prelude, so `engine::AudioEngine` works directly (not just via prelude).
 #[cfg(feature = "audio-output")]

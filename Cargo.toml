@@ -11,7 +11,7 @@ resolver = "2"
 
 [package]
 name = "playtune"
-version = "1.6.2"
+version = "2.0.0"
 edition = "2021"
 rust-version = "1.75"
 
@@ -38,7 +38,7 @@ pkg-config = "0.3"
 cc = "1.0"
 
 [workspace.package]
-version = "1.6.2"
+version = "2.0.0"
 
 edition = "2021"
 rust-version = "1.75"

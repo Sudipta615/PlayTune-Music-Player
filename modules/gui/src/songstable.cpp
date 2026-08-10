@@ -1,10 +1,11 @@
 #include "songstable.h"
 #include "gui_bridge_p.h"
-#include "custom_widgets.h"
 #include "coverloader.h"
 #include "appsettings.h"
 #include "tageditordialog.h"
 #include "loudnessscannerdialog.h"
+#include "apptheme.h"
+#include "custom_widgets.h"
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QLabel>
@@ -12,31 +13,14 @@
 #include <QPushButton>
 #include <QIcon>
 #include <QPainter>
-#include <QStyle>
 #include <QTableWidgetItem>
-#include <cstdlib>
-#include <random>
-#include <QTimerEvent>
 #include <QButtonGroup>
-#include <QApplication>
-#include <QCursor>
-#include <QPainterPath>
-#include <QStyledItemDelegate>
 #include <QMenu>
 #include <QAction>
-#include <QDebug>
-#include <QSettings>
-#include <QSet>
 #include <QTimer>
-#include <QShowEvent>
+#include <QDebug>
+#include <QPainterPath>
 #include <QScrollBar>
-#include <QFile>
-#include <QPixmapCache>
-#include <QMutex>
-
-// ===========================================================================
-// Local helpers
-// ===========================================================================
 
 namespace {
 
@@ -48,7 +32,6 @@ static void applyMoodPillStyle(QLabel* badge, const QString& moodName) {
     QString bg, border, text;
 
     if (isLight) {
-        // High contrast dark-text pill styles for Light Theme
         bg = "rgba(124, 58, 237, 0.16)";
         border = "rgba(124, 58, 237, 0.40)";
         text = "#6D28D9";
@@ -87,7 +70,6 @@ static void applyMoodPillStyle(QLabel* badge, const QString& moodName) {
             text = "#6D28D9";
         }
     } else {
-        // High contrast light-text pill styles for Dark Themes
         bg = "rgba(168, 85, 247, 0.22)";
         border = "rgba(192, 132, 252, 0.65)";
         text = "#F3E8FF";
@@ -141,9 +123,6 @@ static void applyMoodPillStyle(QLabel* badge, const QString& moodName) {
     ).arg(bg, text, border));
 }
 
-/// Build a square 44×44 rounded thumbnail for the songs table. Goes
-/// through the shared CoverLoader cache so the same pixmap is reused
-/// by the queue widget and the grid cards.
 static QPixmap loadThumbnail(const QString& coverPath, bool requestAsync = false) {
     if (AppSettings::instance().isOptimizedMode()) {
         QPixmap def = getDefaultAlbumArt();
@@ -164,14 +143,11 @@ static QPixmap loadThumbnail(const QString& coverPath, bool requestAsync = false
         return rounded;
     }
 
-    // Cache miss: return fallback. Only trigger async load if requestAsync is true (visible rows).
     QPixmap fallback;
     CoverLoader::instance().resolveOrFallback(coverPath, 44, fallback);
     if (requestAsync && !coverPath.isEmpty()) {
         CoverLoader::instance().requestAsync(coverPath, 44);
     }
-    // Build a rounded fallback from the default cover so it looks the
-    // same shape as a real cover.
     QPixmap target(44, 44);
     target.fill(Qt::transparent);
     QPainter painter(&target);
@@ -187,137 +163,6 @@ static QPixmap loadThumbnail(const QString& coverPath, bool requestAsync = false
 
 } // namespace
 
-// ==========================================
-// PlayingEqualizerIcon Implementation
-// ==========================================
-PlayingEqualizerIcon::PlayingEqualizerIcon(QWidget* parent) : QWidget(parent) {
-    m_timerId = -1;
-}
-
-void PlayingEqualizerIcon::setPlaying(bool playing) {
-    m_isPlaying = playing;
-    if (m_isPlaying) {
-        if (m_timerId == -1) m_timerId = startTimer(70);
-    } else {
-        if (m_timerId != -1) {
-            killTimer(m_timerId);
-            m_timerId = -1;
-        }
-        m_heights = {0.2f, 0.2f, 0.2f};
-        update();
-    }
-}
-
-void PlayingEqualizerIcon::timerEvent(QTimerEvent* event) {
-    if (event->timerId() == m_timerId) {
-        for (int i = 0; i < 3; ++i) {
-            // Generate subtle random bounce targets between 0.15 and 0.85
-            if (qAbs(m_heights[i] - m_targetHeights[i]) < 0.05f) {
-                m_targetHeights[i] = 0.15f + static_cast<float>(std::rand() % 70) / 100.0f;
-            }
-            // Linear interpolate
-            m_heights[i] = m_heights[i] * 0.6f + m_targetHeights[i] * 0.4f;
-        }
-        update();
-    } else {
-        QWidget::timerEvent(event);
-    }
-}
-
-void PlayingEqualizerIcon::paintEvent(QPaintEvent* event) {
-    Q_UNUSED(event);
-    QPainter painter(this);
-    painter.setRenderHint(QPainter::Antialiasing);
-
-    double w = width();
-    double h = height();
-    double barW = 3.0;
-    double spacing = 2.0;
-    double startX = (w - (3 * barW + 2 * spacing)) / 2.0;
-
-    const auto& p = ThemeManager::instance().currentTheme();
-    painter.setBrush(p.secondaryAccent);
-    painter.setPen(Qt::NoPen);
-
-    for (int i = 0; i < 3; ++i) {
-        double barH = qMax(2.0, static_cast<double>(m_heights[i]) * h);
-        double x = startX + i * (barW + spacing);
-        double y = h - barH;
-        painter.drawRoundedRect(QRectF(x, y, barW, barH), 1.5, 1.5);
-    }
-}
-
-
-// ==========================================
-// SongTableRowDelegate Implementation
-// ==========================================
-class SongTableRowDelegate : public QStyledItemDelegate {
-public:
-    explicit SongTableRowDelegate(SongsTableWidget* owner, QObject* parent = nullptr)
-        : QStyledItemDelegate(parent), m_owner(owner) {}
-
-    void paint(QPainter* painter, const QStyleOptionViewItem& option, const QModelIndex& index) const override {
-        painter->save();
-        int row = index.row();
-        bool isPlaying = (row == m_owner->playingTrackIdx());
-        bool isHovered = (row == m_owner->hoveredRow());
-        bool isSelected = false;
-        if (auto* firstItem = m_owner->tableWidget()->item(row, 0)) {
-            isSelected = firstItem->isSelected();
-        }
-
-        const auto& p = ThemeManager::instance().currentTheme();
-
-        QColor bgColor = Qt::transparent;
-        if (isPlaying) {
-            bgColor = p.itemSelectedBg;
-        } else if (isHovered) {
-            bgColor = p.itemHoverBg;
-        } else if (isSelected) {
-            bgColor = p.itemSelectedBg;
-        }
-
-        if (bgColor.isValid() && bgColor != Qt::transparent) {
-            painter->save();
-            painter->setRenderHint(QPainter::Antialiasing, true);
-            painter->setPen(Qt::NoPen);
-            painter->setBrush(bgColor);
-
-            int totalWidth = m_owner->tableWidget()->viewport()->width();
-            QRectF fullRowRect(4, option.rect.top() + 2, totalWidth - 8, option.rect.height() - 4);
-
-            painter->setClipRect(option.rect);
-            painter->drawRoundedRect(fullRowRect, 10, 10);
-            painter->restore();
-        }
-
-        QStyleOptionViewItem opt = option;
-        // Clear default Qt selection & focus flags so no white/blue system box is ever drawn
-        opt.state &= ~QStyle::State_Selected;
-        opt.state &= ~QStyle::State_HasFocus;
-
-        QColor textColor;
-        if (isPlaying) {
-            textColor = p.secondaryAccent;
-        } else {
-            textColor = p.secondaryText;
-        }
-
-        opt.palette.setColor(QPalette::Text, textColor);
-        opt.palette.setColor(QPalette::WindowText, textColor);
-        opt.palette.setColor(QPalette::HighlightedText, textColor);
-
-        QStyledItemDelegate::paint(painter, opt, index);
-        painter->restore();
-    }
-
-private:
-    SongsTableWidget* m_owner = nullptr;
-};
-
-// ==========================================
-// SongsTableWidget Implementation
-// ==========================================
 SongsTableWidget::SongsTableWidget(QWidget* parent) : QWidget(parent) {
     setupUi();
 }
@@ -378,7 +223,6 @@ void SongsTableWidget::setupUi() {
     cardLayout->setContentsMargins(16, 16, 16, 16);
     cardLayout->setSpacing(12);
 
-    // 1. Header Row
     auto* headerLayout = new QHBoxLayout();
     headerLayout->setContentsMargins(0, 0, 0, 5);
 
@@ -386,7 +230,7 @@ void SongsTableWidget::setupUi() {
     m_backBtn->setCursor(Qt::PointingHandCursor);
     m_backBtn->setVisible(false);
     connect(m_backBtn, &QPushButton::clicked, this, &SongsTableWidget::backButtonClicked);
-    // Back button color from theme
+
     auto updateBackBtnStyle = [this](const ThemePalette& p) {
         if (m_backBtn) m_backBtn->setStyleSheet(QString(
             "QPushButton { background: transparent; border: none; color: %1; font-size: 15px; font-weight: 600; padding: 0px 8px 0px 0px; margin-right: 4px; }"
@@ -410,7 +254,6 @@ void SongsTableWidget::setupUi() {
     headerLayout->addWidget(songCountLabel);
     headerLayout->addStretch();
 
-    // Sort Dropdown
     auto* sortCombo = new QComboBox(this);
     ThemeManager::setupComboBox(sortCombo);
     sortCombo->addItem("Sort by: Title");
@@ -420,22 +263,22 @@ void SongsTableWidget::setupUi() {
     sortCombo->setToolTip("Sort Library Songs by Title, Artist, Mood, or Date Added");
     connect(sortCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), this, [this](int idx) {
         if (m_rows.isEmpty()) return;
-        if (idx == 0) { // Title
+        if (idx == 0) {
             std::sort(m_rows.begin(), m_rows.end(), [](const SongRow& a, const SongRow& b) {
                 return a.title.localeAwareCompare(b.title) < 0;
             });
-        } else if (idx == 1) { // Artist
+        } else if (idx == 1) {
             std::sort(m_rows.begin(), m_rows.end(), [](const SongRow& a, const SongRow& b) {
                 return a.artist.localeAwareCompare(b.artist) < 0;
             });
-        } else if (idx == 2) { // Mood
+        } else if (idx == 2) {
             std::sort(m_rows.begin(), m_rows.end(), [](const SongRow& a, const SongRow& b) {
                 if (a.mood.isEmpty() != b.mood.isEmpty()) {
-                    return !a.mood.isEmpty(); // non-empty moods first
+                    return !a.mood.isEmpty();
                 }
                 return a.mood.localeAwareCompare(b.mood) < 0;
             });
-        } else if (idx == 3) { // Date / Song ID
+        } else if (idx == 3) {
             std::sort(m_rows.begin(), m_rows.end(), [](const SongRow& a, const SongRow& b) {
                 return a.songId < b.songId;
             });
@@ -447,7 +290,6 @@ void SongsTableWidget::setupUi() {
     });
     headerLayout->addWidget(sortCombo);
 
-    // View List / Grid buttons
     auto* listBtn = new QPushButton(this);
     listBtn->setObjectName("IconButton");
     listBtn->setCheckable(true);
@@ -473,7 +315,6 @@ void SongsTableWidget::setupUi() {
         gridBtn->setIcon(ThemeManager::tintedIcon(":/resources/icons/grid.png", p.iconColor));
     });
 
-    // Auto-exclusive button group for list/grid toggle buttons
     auto* viewGroup = new QButtonGroup(this);
     viewGroup->setExclusive(true);
     viewGroup->addButton(listBtn);
@@ -483,10 +324,8 @@ void SongsTableWidget::setupUi() {
     headerLayout->addWidget(gridBtn);
     cardLayout->addLayout(headerLayout);
 
-    // 2. Stacked Widget to hold both views
     m_stackedWidget = new QStackedWidget(this);
 
-    // Table view creation: 8 columns (Col 2 is dedicated Mood column)
     m_table = new QTableWidget(this);
     m_table->setColumnCount(8);
     m_table->setShowGrid(false);
@@ -501,14 +340,13 @@ void SongsTableWidget::setupUi() {
         "QTableWidget::item { border-bottom: 1px solid rgba(255,255,255,0.04); }"
     );
 
-    // Set horizontal headers
     QStringList headers = {"#", "Title", "Mood", "Artist", "Album", "", "", ""};
     m_table->setHorizontalHeaderLabels(headers);
     m_table->horizontalHeader()->setDefaultAlignment(Qt::AlignCenter);
     m_table->horizontalHeader()->setHighlightSections(false);
     m_table->horizontalHeader()->setFixedHeight(38);
     m_table->verticalHeader()->setVisible(false);
-    m_table->verticalHeader()->setDefaultSectionSize(54); // Spacious 54px row height
+    m_table->verticalHeader()->setDefaultSectionSize(54);
 
     for (int i = 0; i < m_table->columnCount(); ++i) {
         if (auto* h = m_table->horizontalHeaderItem(i)) {
@@ -525,7 +363,6 @@ void SongsTableWidget::setupUi() {
         h->setTextAlignment(Qt::AlignCenter);
     }
 
-    // Set Column Widths
     m_table->horizontalHeader()->setSectionResizeMode(0, QHeaderView::Fixed);
     m_table->setColumnWidth(0, 54);
 
@@ -551,23 +388,14 @@ void SongsTableWidget::setupUi() {
 
     m_table->setColumnHidden(2, !AppSettings::instance().isMoodColumnEnabled());
 
-    m_table->setItemDelegate(new SongTableRowDelegate(this, m_table));
-
     m_stackedWidget->addWidget(m_table);
 
-    // Grid View setup — uses the shared MediaGridWidget so the look &
-    // behaviour is identical to the Albums and Artists tabs.
     m_gridWidget = new MediaGridWidget(this);
     m_stackedWidget->addWidget(m_gridWidget);
 
     cardLayout->addWidget(m_stackedWidget, 1);
     mainLayout->addWidget(cardFrame, 1);
 
-    // View toggling logic. The grid is populated lazily on first switch
-    // to grid view — this is critical for memory: a 10 000-track library
-    // would otherwise hold 10 000 SongGridCard widgets + 10 000 scaled
-    // cover pixmaps (~676 MB) even when the user never left the table
-    // view.
     connect(listBtn, &QPushButton::clicked, this, [this]() {
         m_stackedWidget->setCurrentIndex(0);
     });
@@ -579,7 +407,6 @@ void SongsTableWidget::setupUi() {
         QTimer::singleShot(0, this, &SongsTableWidget::updateGridResponsive);
     });
 
-    // Mouse tracking for unified row hover highlight
     m_table->setMouseTracking(true);
     m_table->viewport()->setMouseTracking(true);
     m_table->viewport()->installEventFilter(this);
@@ -587,7 +414,6 @@ void SongsTableWidget::setupUi() {
     connect(m_table, &QTableWidget::cellEntered, this, &SongsTableWidget::onCellEntered);
     connect(m_table, &QTableWidget::itemSelectionChanged, this, &SongsTableWidget::updateRowStyles);
 
-    // Connect selection triggers for table view.
     connect(m_table, &QTableWidget::cellClicked, this, [this](int row, int col) {
         Q_UNUSED(col);
         if (auto* item = m_table->item(row, 0)) {
@@ -656,23 +482,15 @@ void SongsTableWidget::setupUi() {
         }
     });
 
-    // Same for grid view
     connect(m_gridWidget, &MediaGridWidget::cardActivated, this, [this](int songId) {
-        // Map songId → row index so the existing songSelected(row) contract
-        // is preserved.
         int row = m_songIdToRow.value(songId, -1);
         if (row >= 0) emit songSelected(row);
     });
 
-    // When CoverLoader finishes an async cover load, repaint any visible
-    // rows whose cover_path matches. This is what makes covers "pop in"
-    // as the user scrolls, without ever blocking the GUI thread on I/O.
     connect(&CoverLoader::instance(), &CoverLoader::coverReady,
             this, [this](const QString& path, int size, const QPixmap&) {
         Q_UNUSED(size);
         if (path.isEmpty() || m_stackedWidget->currentIndex() != 0) return;
-        // Only the visible viewport rows need repainting; QRect
-        // intersection with viewport()->rect() filters the rest.
         QRect visible = m_table->viewport()->rect();
         int top = m_table->rowAt(visible.top());
         int bot = m_table->rowAt(visible.bottom());
@@ -682,7 +500,6 @@ void SongsTableWidget::setupUi() {
             if (auto* firstItem = m_table->item(row, 0)) {
                 QString rowPath = firstItem->data(Qt::UserRole + 1).toString();
                 if (rowPath == path) {
-                    // Refresh the thumbnail in the title column.
                     if (auto* titleCont = m_table->cellWidget(row, 1)) {
                         auto labels = titleCont->findChildren<QLabel*>();
                         for (QLabel* l : labels) {
@@ -697,10 +514,6 @@ void SongsTableWidget::setupUi() {
         }
     }, Qt::QueuedConnection);
 
-    // When the user scrolls the table, refresh thumbnails for rows whose
-    // async cover loads completed while they were off-screen. Without this,
-    // covers that finished loading between scrolls would remain as the
-    // default album art until the next full table rebuild.
     connect(m_table->verticalScrollBar(), &QScrollBar::valueChanged, this, [this]() {
         loadVisibleThumbnails();
     });
@@ -720,11 +533,6 @@ void SongsTableWidget::clearSongs() {
     if (m_songCountLabel) {
         m_songCountLabel->setText("0 songs");
     }
-}
-
-QPixmap SongsTableWidget::getThumbnail(const QString& title) {
-    Q_UNUSED(title);
-    return getDefaultAlbumArt();
 }
 
 void SongsTableWidget::setOptimizedMode(bool enabled) {
@@ -751,16 +559,12 @@ void SongsTableWidget::setOptimizedMode(bool enabled) {
         }
     }
 
-    // In Optimized Mode flush the pixmap cache for table covers; the
-    // Now Playing card manages its own cover outside of CoverLoader so
-    // it is unaffected.
     if (enabled) {
         CoverLoader::instance().clearCache();
         CoverLoader::instance().setCacheLimitKb(2048);
     } else {
         CoverLoader::instance().setCacheLimitKb(15 * 1024);
     }
-    // Also apply to the grid view cards if it was already populated.
     if (m_gridPopulated) {
         m_gridWidget->setOptimizedMode(enabled);
     }
@@ -784,7 +588,6 @@ void SongsTableWidget::addSong(int index, int songId, bool isFavorite, const QSt
 
     m_songIdToRow.insert(songId, rowIdx);
 
-    // 0. Index Column
     QString indexText = index > 0 ? QString::number(index) : QString("-");
     auto* itemIndex = new QTableWidgetItem(indexText);
     itemIndex->setData(Qt::UserRole, songId);
@@ -793,7 +596,6 @@ void SongsTableWidget::addSong(int index, int songId, bool isFavorite, const QSt
     itemIndex->setFlags(itemIndex->flags() ^ Qt::ItemIsEditable);
     m_table->setItem(rowIdx, 0, itemIndex);
 
-    // 1. Title Column (Custom Container Widget)
     auto* titleContainer = new QWidget(this);
     auto* titleLayout = new QHBoxLayout(titleContainer);
     titleLayout->setContentsMargins(5, 0, 5, 0);
@@ -825,7 +627,6 @@ void SongsTableWidget::addSong(int index, int songId, bool isFavorite, const QSt
     m_table->setCellWidget(rowIdx, 1, titleContainer);
     titleContainer->setAttribute(Qt::WA_TransparentForMouseEvents);
 
-    // 2. Dedicated Mood Column
     QString moodStr = (!m_rows.isEmpty()) ? m_rows.last().mood : "";
     auto* moodContainer = new QWidget(this);
     moodContainer->setAttribute(Qt::WA_TransparentForMouseEvents);
@@ -841,25 +642,21 @@ void SongsTableWidget::addSong(int index, int songId, bool isFavorite, const QSt
     }
     m_table->setCellWidget(rowIdx, 2, moodContainer);
 
-    // 3. Artist Column
     auto* itemArtist = new QTableWidgetItem(artist);
     itemArtist->setTextAlignment(Qt::AlignLeft | Qt::AlignVCenter);
     itemArtist->setFlags(itemArtist->flags() ^ Qt::ItemIsEditable);
     m_table->setItem(rowIdx, 3, itemArtist);
 
-    // 4. Album Column
     auto* itemAlbum = new QTableWidgetItem(album);
     itemAlbum->setTextAlignment(Qt::AlignLeft | Qt::AlignVCenter);
     itemAlbum->setFlags(itemAlbum->flags() ^ Qt::ItemIsEditable);
     m_table->setItem(rowIdx, 4, itemAlbum);
 
-    // 5. Duration Column
     auto* itemDuration = new QTableWidgetItem(duration);
     itemDuration->setTextAlignment(Qt::AlignCenter);
     itemDuration->setFlags(itemDuration->flags() ^ Qt::ItemIsEditable);
     m_table->setItem(rowIdx, 5, itemDuration);
 
-    // 6. Favorite Heart Button
     auto* favBtn = new QPushButton(isFavorite ? "♥" : "♡", this);
     favBtn->setObjectName("FavBtn");
     favBtn->setCursor(Qt::PointingHandCursor);
@@ -891,7 +688,6 @@ void SongsTableWidget::addSong(int index, int songId, bool isFavorite, const QSt
     favLayout->addWidget(favBtn);
     m_table->setCellWidget(rowIdx, 6, favContainer);
 
-    // 7. Three-dot Action Menu
     auto* actionBtn = new QPushButton(this);
     actionBtn->setObjectName("IconButton");
     actionBtn->setIcon(ThemeManager::tintedIcon(":/resources/icons/more.png", ThemeManager::instance().currentTheme().iconColor));
@@ -941,10 +737,8 @@ void SongsTableWidget::addSong(int index, int songId, bool isFavorite, const QSt
     actionLayout->addWidget(actionBtn);
     m_table->setCellWidget(rowIdx, 7, actionContainer);
 
-    // Enable hover transparency on titleContainer
     titleContainer->setAttribute(Qt::WA_TransparentForMouseEvents);
 
-    // If this row matches the currently-playing song, mark it as such.
     if (songId == m_playingSongId && m_playingSongId != -1) {
         m_playingTrackIdx = rowIdx;
         eqIcon->setVisible(true);
@@ -956,25 +750,16 @@ void SongsTableWidget::addSong(int index, int songId, bool isFavorite, const QSt
         QTimer::singleShot(100, this, &SongsTableWidget::flushSongCount);
     }
 
-    // If the grid was already populated (user is currently viewing it),
-    // append to the grid as well.
     if (m_gridPopulated) {
         m_gridWidget->addCard(songId, title, artist, coverPath);
     }
 }
 
 void SongsTableWidget::setSongsBatch(QVector<SongRow> rows) {
-    // Transactional rebuild: clear, then bulk-insert. Signalling and
-    // repainting are suppressed for the duration; this is the single
-    // most important optimisation for large libraries — it converts
-    // O(n) widget-create + cover-load calls (each costing ~0.5 ms on
-    // the GUI thread) into a single ~50 ms transaction for 1 000 rows.
     m_table->setUpdatesEnabled(false);
     if (m_table->viewport()) m_table->viewport()->setUpdatesEnabled(false);
     m_table->blockSignals(true);
 
-    // Remember whether the grid view was active so we can repopulate it
-    // after the rebuild. clearSongs() resets m_gridPopulated to false.
     const bool wasGridPopulated = m_gridPopulated;
 
     clearSongs();
@@ -987,7 +772,6 @@ void SongsTableWidget::setSongsBatch(QVector<SongRow> rows) {
             m_table->setRowHeight(i, 54);
             m_songIdToRow.insert(r.songId, i);
 
-            // 0. Index Column
             QString indexText = r.displayIndex > 0 ? QString::number(r.displayIndex) : QString("-");
             auto* itemIndex = new QTableWidgetItem(indexText);
             itemIndex->setData(Qt::UserRole, r.songId);
@@ -996,7 +780,6 @@ void SongsTableWidget::setSongsBatch(QVector<SongRow> rows) {
             itemIndex->setFlags(itemIndex->flags() ^ Qt::ItemIsEditable);
             m_table->setItem(i, 0, itemIndex);
 
-            // 1. Title Column (Custom Container Widget)
             auto* titleContainer = new QWidget(this);
             auto* titleLayout = new QHBoxLayout(titleContainer);
             titleLayout->setContentsMargins(5, 0, 5, 0);
@@ -1028,7 +811,6 @@ void SongsTableWidget::setSongsBatch(QVector<SongRow> rows) {
             m_table->setCellWidget(i, 1, titleContainer);
             titleContainer->setAttribute(Qt::WA_TransparentForMouseEvents);
 
-            // 2. Dedicated Mood Column
             auto* moodContainer = new QWidget(this);
             moodContainer->setAttribute(Qt::WA_TransparentForMouseEvents);
             auto* moodLayout = new QHBoxLayout(moodContainer);
@@ -1043,25 +825,21 @@ void SongsTableWidget::setSongsBatch(QVector<SongRow> rows) {
             }
             m_table->setCellWidget(i, 2, moodContainer);
 
-            // 3. Artist Column
             auto* itemArtist = new QTableWidgetItem(r.artist);
             itemArtist->setTextAlignment(Qt::AlignLeft | Qt::AlignVCenter);
             itemArtist->setFlags(itemArtist->flags() ^ Qt::ItemIsEditable);
             m_table->setItem(i, 3, itemArtist);
 
-            // 4. Album Column
             auto* itemAlbum = new QTableWidgetItem(r.album);
             itemAlbum->setTextAlignment(Qt::AlignLeft | Qt::AlignVCenter);
             itemAlbum->setFlags(itemAlbum->flags() ^ Qt::ItemIsEditable);
             m_table->setItem(i, 4, itemAlbum);
 
-            // 5. Duration Column
             auto* itemDuration = new QTableWidgetItem(r.duration);
             itemDuration->setTextAlignment(Qt::AlignCenter);
             itemDuration->setFlags(itemDuration->flags() ^ Qt::ItemIsEditable);
             m_table->setItem(i, 5, itemDuration);
 
-            // 6. Favorite Heart Button
             auto* favBtn = new QPushButton(r.isFavorite ? "♥" : "♡", this);
             favBtn->setObjectName("FavBtn");
             favBtn->setCursor(Qt::PointingHandCursor);
@@ -1093,7 +871,6 @@ void SongsTableWidget::setSongsBatch(QVector<SongRow> rows) {
             favLayout->addWidget(favBtn);
             m_table->setCellWidget(i, 6, favContainer);
 
-            // 7. Three-dot Action Menu
             auto* actionBtn = new QPushButton(this);
             actionBtn->setObjectName("IconButton");
             actionBtn->setIcon(ThemeManager::tintedIcon(":/resources/icons/more.png", ThemeManager::instance().currentTheme().iconColor));
@@ -1143,7 +920,6 @@ void SongsTableWidget::setSongsBatch(QVector<SongRow> rows) {
             actionLayout->addWidget(actionBtn);
             m_table->setCellWidget(i, 7, actionContainer);
 
-            // Restore playing-track highlight if this row matches.
             if (r.songId == m_playingSongId && m_playingSongId != -1) {
                 m_playingTrackIdx = i;
                 eqIcon->setVisible(true);
@@ -1167,418 +943,17 @@ void SongsTableWidget::setSongsBatch(QVector<SongRow> rows) {
     }
     m_songCountDirty = false;
 
-    // If the grid view was previously populated (user was looking at it,
-    // or had switched to it at least once), repopulate it now so it
-    // reflects the new data. populateGridFromTable() clears the grid
-    // internally, so we don't need to call clearGrid() here.
     if (wasGridPopulated) {
         populateGridFromTable();
     }
 
-    // Repaint the viewport to reflect the new content and load covers for visible rows.
     if (m_table->viewport()) m_table->viewport()->update();
     QTimer::singleShot(0, this, &SongsTableWidget::loadVisibleThumbnails);
-}
-
-void SongsTableWidget::populateGridFromTable() {
-    m_gridWidget->beginBatchAppend();
-    m_gridWidget->clearGrid();
-    for (const SongRow& r : m_rows) {
-        m_gridWidget->addCard(r.songId, r.title, r.artist, r.coverPath, true);
-    }
-    m_gridPopulated = true;
-    if (m_playingSongId > 0) {
-        int idx = m_songIdToRow.value(m_playingSongId, -1);
-        if (idx >= 0) m_gridWidget->setPlayingIndex(idx);
-    }
-    m_gridWidget->endBatchAppend();
 }
 
 void SongsTableWidget::flushSongCount() {
     if (m_songCountLabel && m_songCountDirty) {
         m_songCountDirty = false;
         m_songCountLabel->setText(QString::number(m_table->rowCount()) + " songs");
-    }
-}
-
-void SongsTableWidget::setPlayingSongId(int songId, bool playing) {
-    m_playingSongId = songId;
-    m_isPlaying = playing;
-
-    int newPlayingRow = m_songIdToRow.value(songId, -1);
-
-    int oldRow = m_playingTrackIdx;
-    m_playingTrackIdx = newPlayingRow;
-
-    if (oldRow >= 0 && oldRow < m_table->rowCount()) {
-        if (oldRow < m_eqIcons.size()) {
-            m_eqIcons[oldRow]->setVisible(false);
-            m_eqIcons[oldRow]->setPlaying(false);
-        }
-        if (auto* titleCont = m_table->cellWidget(oldRow, 1)) {
-            if (auto* titleLabel = titleCont->findChild<QLabel*>("SongTitleLabel")) {
-                titleLabel->setStyleSheet("font-weight: 500; font-size: 13px;");
-            }
-        }
-        refreshSingleRowStyle(oldRow);
-    }
-
-    if (m_playingTrackIdx >= 0 && m_playingTrackIdx < m_table->rowCount()) {
-        if (m_playingTrackIdx < m_eqIcons.size()) {
-            m_eqIcons[m_playingTrackIdx]->setVisible(true);
-            m_eqIcons[m_playingTrackIdx]->setPlaying(m_isPlaying);
-        }
-        if (auto* titleCont = m_table->cellWidget(m_playingTrackIdx, 1)) {
-            if (auto* titleLabel = titleCont->findChild<QLabel*>("SongTitleLabel")) {
-                const auto& p = ThemeManager::instance().currentTheme();
-                titleLabel->setStyleSheet(QString("font-weight: bold; font-size: 13px; color: %1;").arg(p.secondaryAccent.name()));
-            }
-        }
-        refreshSingleRowStyle(m_playingTrackIdx);
-    }
-
-    // Mirror the highlight to the grid (only if populated).
-    if (m_gridPopulated) {
-        m_gridWidget->setPlayingIndex(m_playingTrackIdx);
-    }
-
-    if (m_playingTrackIdx >= 0 && m_playingTrackIdx < m_table->rowCount()) {
-        QSettings s;
-        bool cursorFollows = s.value("cursor_follows_playback", false).toBool();
-        if (cursorFollows) {
-            if (QTableWidgetItem* it = m_table->item(m_playingTrackIdx, 0)) {
-                m_table->scrollToItem(it, QAbstractItemView::EnsureVisible);
-            }
-        }
-    }
-}
-
-void SongsTableWidget::setPlayingTrack(int trackIdx, bool playing) {
-    if (trackIdx == -2) {
-        setPlayingSongId(m_playingSongId, playing);
-        return;
-    }
-    if (trackIdx >= 0 && trackIdx < m_table->rowCount()) {
-        if (QTableWidgetItem* first = m_table->item(trackIdx, 0)) {
-            int songId = first->data(Qt::UserRole).toInt();
-            setPlayingSongId(songId, playing);
-            return;
-        }
-    }
-    setPlayingSongId(-1, playing);
-}
-
-void SongsTableWidget::onCellEntered(int row, int col) {
-    Q_UNUSED(col);
-    if (m_hoveredRow != row) {
-        m_previousHoveredRow = m_hoveredRow;
-        m_hoveredRow = row;
-        // O(1): only the previously-hovered and newly-hovered rows
-        // need their style refreshed. The delegate already handles the
-        // actual painting; this just triggers a repaint of those two
-        // rows.
-        if (m_previousHoveredRow >= 0) {
-            refreshSingleRowStyle(m_previousHoveredRow);
-        }
-        if (m_hoveredRow >= 0) {
-            refreshSingleRowStyle(m_hoveredRow);
-        }
-    }
-}
-
-void SongsTableWidget::refreshSingleRowStyle(int row) {
-    if (row < 0 || row >= m_table->rowCount()) return;
-    // Trigger a repaint of just this row's viewport region. The delegate
-    // will re-evaluate the hovered/playing state and paint accordingly.
-    QRect r = m_table->visualRect(m_table->model()->index(row, 0));
-    int totalWidth = m_table->viewport()->width();
-    r.setX(0);
-    r.setWidth(totalWidth);
-    m_table->viewport()->update(r);
-}
-
-void SongsTableWidget::updateRowStyles() {
-    // Selection changed — refresh only the visible rows. The delegate
-    // already does the right thing; we just need to trigger repaints.
-    QRect visible = m_table->viewport()->rect();
-    int top = m_table->rowAt(visible.top());
-    int bot = m_table->rowAt(visible.bottom());
-    if (top < 0) top = 0;
-    if (bot < 0) bot = m_table->rowCount() - 1;
-    for (int row = top; row <= bot; ++row) {
-        refreshSingleRowStyle(row);
-    }
-}
-
-bool SongsTableWidget::eventFilter(QObject* watched, QEvent* event) {
-    if (watched == m_table->viewport()) {
-        if (event->type() == QEvent::Leave) {
-            // Check if cursor is actually outside the table bounds
-            QPoint localPos = m_table->mapFromGlobal(QCursor::pos());
-            if (!m_table->rect().contains(localPos)) {
-                int prev = m_hoveredRow;
-                m_hoveredRow = -1;
-                if (prev >= 0) refreshSingleRowStyle(prev);
-            }
-        }
-    } else if (watched) {
-        QVariant rowProp = watched->property("rowIdx");
-        if (rowProp.isValid()) {
-            int r = rowProp.toInt();
-            int c = watched->property("colIdx").toInt();
-            if (event->type() == QEvent::Enter) {
-                m_table->clearSelection();
-                onCellEntered(r, c);
-            } else if (event->type() == QEvent::MouseButtonPress || event->type() == QEvent::MouseButtonRelease) {
-                m_table->clearSelection();
-            }
-        }
-    }
-    return QWidget::eventFilter(watched, event);
-}
-
-void SongsTableWidget::setMoodColumnVisible(bool visible) {
-    if (m_table) {
-        m_table->setColumnHidden(2, !visible);
-    }
-}
-
-void SongsTableWidget::setResponsiveWidth(int width) {
-    if (m_table) {
-        if (width < 500) {
-            // Smaller mobile width: hide Album, Duration, and 3-dots action menu
-            m_table->setColumnHidden(4, true);  // Album
-            m_table->setColumnHidden(5, true);  // Duration
-            m_table->setColumnHidden(7, true);  // 3 dots
-        } else if (width < 680) {
-            // Tablet width: hide Album, keep Duration and 3-dots visible
-            m_table->setColumnHidden(4, true);  // Album
-            m_table->setColumnHidden(5, false); // Duration
-            m_table->setColumnHidden(7, false); // 3 dots
-        } else {
-            // Standard & Fullscreen desktop: show all columns including 3-dots
-            m_table->setColumnHidden(4, false); // Album
-            m_table->setColumnHidden(5, false); // Duration
-            m_table->setColumnHidden(7, false); // 3 dots
-        }
-    }
-}
-
-void SongsTableWidget::openTagEditorDialog(int row) {
-    if (row < 0 || row >= m_table->rowCount()) return;
-    QTableWidgetItem* firstItem = m_table->item(row, 0);
-    if (!firstItem) return;
-
-    int songId = firstItem->data(Qt::UserRole).toInt();
-    QString coverPath = firstItem->data(Qt::UserRole + 1).toString();
-
-    QString title;
-    if (QWidget* titleCont = m_table->cellWidget(row, 1)) {
-        if (auto* lbl = titleCont->findChild<QLabel*>("SongTitleLabel")) {
-            title = lbl->text();
-        }
-    }
-    if (title.isEmpty() && m_table->item(row, 1)) {
-        title = m_table->item(row, 1)->text();
-    }
-
-    QString artist = m_table->item(row, 3) ? m_table->item(row, 3)->text() : "";
-    QString album = m_table->item(row, 4) ? m_table->item(row, 4)->text() : "";
-
-    char titleBuf[512] = {0};
-    char artistBuf[512] = {0};
-    char albumBuf[512] = {0};
-    char albumArtistBuf[512] = {0};
-    char genreBuf[512] = {0};
-    char coverBuf[1024] = {0};
-    unsigned int year = 0, trackNum = 0, discNum = 0;
-
-    int res = playtune_get_track_tags(
-        songId,
-        titleBuf, sizeof(titleBuf),
-        artistBuf, sizeof(artistBuf),
-        albumBuf, sizeof(albumBuf),
-        albumArtistBuf, sizeof(albumArtistBuf),
-        genreBuf, sizeof(genreBuf),
-        &year, &trackNum, &discNum,
-        coverBuf, sizeof(coverBuf)
-    );
-
-    TagEditorTrackData data;
-    data.track_id = songId;
-    if (res == 1) {
-        data.title = titleBuf[0] ? QString::fromUtf8(titleBuf) : title;
-        data.artist = artistBuf[0] ? QString::fromUtf8(artistBuf) : artist;
-        data.album = albumBuf[0] ? QString::fromUtf8(albumBuf) : album;
-        data.album_artist = QString::fromUtf8(albumArtistBuf);
-        data.genre = QString::fromUtf8(genreBuf);
-        data.year = year;
-        data.track_number = trackNum;
-        data.disc_number = discNum;
-        data.cover_path = coverBuf[0] ? QString::fromUtf8(coverBuf) : coverPath;
-    } else {
-        data.title = title;
-        data.artist = artist;
-        data.album = album;
-        data.album_artist = "";
-        data.genre = "";
-        data.year = 0;
-        data.track_number = 0;
-        data.disc_number = 0;
-        data.cover_path = coverPath;
-    }
-
-    TagEditorDialog dlg(data, this);
-    dlg.exec();
-}
-
-void SongsTableWidget::openLoudnessScannerDialog(const QVector<int>& trackIds) {
-    LoudnessScannerDialog dlg(trackIds, this);
-    dlg.exec();
-}
-
-void SongsTableWidget::updateTrackRow(int songId, const QString& title, const QString& artist, const QString& album, const QString& duration, const QString& coverPath) {
-    for (int row = 0; row < m_table->rowCount(); ++row) {
-        QTableWidgetItem* firstItem = m_table->item(row, 0);
-        if (firstItem && firstItem->data(Qt::UserRole).toInt() == songId) {
-            firstItem->setData(Qt::UserRole + 1, coverPath);
-
-            if (QWidget* titleCont = m_table->cellWidget(row, 1)) {
-                if (auto* lbl = titleCont->findChild<QLabel*>("SongTitleLabel")) {
-                    lbl->setText(title);
-                }
-                const auto labels = titleCont->findChildren<QLabel*>();
-                for (QLabel* l : labels) {
-                    if (l->objectName() != "SongTitleLabel") {
-                        l->setPixmap(loadThumbnail(coverPath, true));
-                        break;
-                    }
-                }
-            }
-
-            if (QTableWidgetItem* artItem = m_table->item(row, 3)) artItem->setText(artist);
-            if (QTableWidgetItem* albItem = m_table->item(row, 4)) albItem->setText(album);
-            if (!duration.isEmpty()) {
-                if (QTableWidgetItem* durItem = m_table->item(row, 5)) durItem->setText(duration);
-            }
-            break;
-        }
-    }
-
-    // Update the cached row data + the grid card if populated.
-    for (int i = 0; i < m_rows.size(); ++i) {
-        if (m_rows[i].songId == songId) {
-            m_rows[i].title = title;
-            m_rows[i].artist = artist;
-            m_rows[i].album = album;
-            m_rows[i].duration = duration;
-            m_rows[i].coverPath = coverPath;
-            break;
-        }
-    }
-
-    if (m_gridPopulated) {
-        // Rebuild the affected card by removing + re-inserting it.
-        // (MediaGridWidget doesn't expose a per-item update API yet.)
-        // For simplicity we just clear + repopulate the grid; this is
-        // O(n) but tag edits are rare.
-        m_gridWidget->clearGrid();
-        populateGridFromTable();
-    }
-}
-
-void SongsTableWidget::populateAddToPlaylistMenu(QMenu* menu, int songId) {
-    const auto& playlists = GuiBridgeManager::instance().playlists();
-    if (playlists.isEmpty()) {
-        auto* noPlaylistsAction = menu->addAction(tr("(No playlists yet)"));
-        noPlaylistsAction->setEnabled(false);
-        return;
-    }
-    for (const auto& pl : playlists) {
-        QString label = pl.name;
-        if (pl.track_count > 0) {
-            label += QString("  (%1)").arg(pl.track_count);
-        }
-        auto* act = menu->addAction(label);
-        connect(act, &QAction::triggered, this, [songId, pl]() {
-            const auto& cb = GuiBridgeManager::instance().callbacks();
-            if (cb.on_add_track_to_playlist) {
-                cb.on_add_track_to_playlist(pl.id, songId);
-            }
-        });
-    }
-}
-
-void SongsTableWidget::setRatingForRow(int songId, int rating) {
-    Q_UNUSED(songId);
-    Q_UNUSED(rating);
-}
-
-void SongsTableWidget::scrollToActive() {
-    if (m_playingTrackIdx >= 0 && m_playingTrackIdx < m_table->rowCount()) {
-        if (QTableWidgetItem* it = m_table->item(m_playingTrackIdx, 0)) {
-            m_table->scrollToItem(it, QAbstractItemView::EnsureVisible);
-        }
-    }
-}
-
-void SongsTableWidget::setBackButtonVisible(bool visible, const QString& text) {
-    if (m_backBtn) {
-        if (!text.isEmpty()) {
-            m_backBtn->setText(text);
-        }
-        m_backBtn->setVisible(visible);
-    }
-}
-
-void SongsTableWidget::updateGridResponsive() {
-    if (m_gridWidget) m_gridWidget->updateGridResponsive();
-}
-
-void SongsTableWidget::resizeEvent(QResizeEvent* event) {
-    QWidget::resizeEvent(event);
-    // Defer to next event-loop tick so we don't block the resize loop.
-    QTimer::singleShot(0, this, [this]() {
-        if (m_gridWidget) m_gridWidget->updateGridResponsive();
-    });
-}
-
-void SongsTableWidget::showEvent(QShowEvent* event) {
-    QWidget::showEvent(event);
-    QTimer::singleShot(0, this, [this]() {
-        if (m_gridWidget) m_gridWidget->updateGridResponsive();
-        loadVisibleThumbnails();
-        if (m_playingSongId != -1) {
-            setPlayingSongId(m_playingSongId, m_isPlaying);
-        }
-    });
-}
-
-void SongsTableWidget::loadVisibleThumbnails() {
-    if (!m_table || !m_table->viewport() || AppSettings::instance().isOptimizedMode()) return;
-    QRect visible = m_table->viewport()->rect();
-    int top = m_table->rowAt(visible.top());
-    int bot = m_table->rowAt(visible.bottom());
-    if (top < 0) top = 0;
-    if (bot < 0) bot = m_table->rowCount() - 1;
-    for (int row = top; row <= bot; ++row) {
-        if (auto* firstItem = m_table->item(row, 0)) {
-            QString coverPath = firstItem->data(Qt::UserRole + 1).toString();
-            if (coverPath.isEmpty()) continue;
-            QPixmap rounded;
-            if (CoverLoader::instance().tryGetRounded(coverPath, 44, 8, rounded)) {
-                if (auto* titleCont = m_table->cellWidget(row, 1)) {
-                    auto labels = titleCont->findChildren<QLabel*>();
-                    for (QLabel* l : labels) {
-                        if (l->objectName() != "SongTitleLabel") {
-                            l->setPixmap(rounded);
-                            break;
-                        }
-                    }
-                }
-            } else {
-                CoverLoader::instance().requestAsync(coverPath, 44);
-            }
-        }
     }
 }

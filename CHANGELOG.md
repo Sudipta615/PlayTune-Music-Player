@@ -42,6 +42,35 @@ All developers and contributors **MUST** follow the standard 3-way (`x.y.z`) Sem
 
 ## 🗓️ Version History
 
+### [2.0.0] — 2026-08-11 — Architectural Codebase Modularization & God Files Refactoring
+
+#### Summary
+Major architectural milestone refactoring all monolithic "god files" across the Rust backend, audio engine, and Qt C++ GUI into single-responsibility, highly maintainable modules. Reduces overall file complexity, improves compile times, and provides a scalable foundation for future feature expansion without breaking any functionality, public APIs, or build contracts.
+
+#### Changed — Architecture & Codebase Refactoring
+- **Database Crate Modularization (`modules/db/src/database.rs` -> 9 Focused Sub-modules)**:
+  - Split 2,041-line monolithic `database.rs` into single-concern files: `schema.rs` (migrations), `tracks.rs` (track CRUD), `playlists.rs` (custom playlist CRUD), `folders.rs` (folder tracking), `settings.rs` (key-value accessors), `ratings.rs` (dislike toggles), `albums_artists.rs` (view aggregators), `audio_features.rs` (mood scores), and `cover_art.rs`.
+- **Config Crate Modularization (`modules/config/src/lib.rs` -> 4 Focused Sub-modules)**:
+  - Split 593-line `lib.rs` into `enums.rs`, `dsp.rs`, `file.rs`, and `library.rs`.
+- **FFI Bridge Modularization (`src/bridge.rs` -> `src/bridge/` Directory)**:
+  - Converted 732-line FFI bridge into `src/bridge/` directory containing `types.rs`, `ffi.rs`, `commands.rs`, and `mod.rs`.
+- **Qt Main Window Refactoring (`modules/gui/src/mainwindow.cpp` -> 5 Focused Files)**:
+  - Extracted 1,570-line `mainwindow.cpp` into single-concern files: `tooltip_controller.h`/`.cpp` (tooltip event filter), `mainwindow_bridge.cpp` (Rust IPC wiring), `mainwindow_events.cpp` (shortcuts, window & toast events), and `mainwindow_actions.cpp` (system tray, playlist dialogs, M3U I/O), reducing `mainwindow.cpp` to ~250 coordinator lines.
+- **Qt Songs Table Refactoring (`modules/gui/src/songstable.cpp` -> 4 Focused Files)**:
+  - Extracted 1,584-line `songstable.cpp` into `playing_equalizer_icon.h`/`.cpp` (3-bar visualizer), `songstable_rendering.cpp` (row delegate & lazy thumbnail loader), and `songstable_actions.cpp` (context menus & dialog launchers).
+- **Equalizer Window Refactoring (`modules/gui/src/equalizerwindow.cpp` -> 3 Focused Files)**:
+  - Extracted 1,322-line `equalizerwindow.cpp` into `equalizerpresets.cpp` (preset gain curves & selection logic) and `equalizerbands.cpp` (parametric sliders & band controls update).
+- **Library IPC Handlers Modularization (`src/handlers/library.rs` -> `src/handlers/library/` Directory)**:
+  - Split 1,241-line single file into `mod.rs` (re-exports & linker table), `folders.rs` (folder IPC), `import.rs` (multi-file importer), `search.rs` (async worker with generation counter), `tags.rs` (ID3/lyrics IPC), `loudness.rs` (EBU R128 IPC), `playlists.rs` (playlists & M3U I/O), and `browsing.rs` (favorites, queue, ratings, settings IPC).
+- **Audio Engine Buffer Refactoring (`modules/engine/src/buffer.rs` -> 4 Focused Files)**:
+  - Split 1,067-line `buffer.rs` into `commands.rs` (`EngineCommand`), `playback_info.rs` (`PlaybackInfo` & `PlaybackState`), `dsp_utils.rs` (branchless FTZ/DAZ denormal flushing), and `buffer.rs` (ring buffer & SPSC channels).
+- **Settings Page Refactoring (`modules/gui/src/settingspage.cpp` -> 3 Focused Files)**:
+  - Split 891-line `settingspage.cpp` into `settingspage_audio.cpp` (device & backend list management) and `settingspage_library.cpp` (folders list & playlist action buttons).
+- **CPAL Audio Output Refactoring (`modules/engine/src/output/cpal_output.rs` -> 3 Focused Files)**:
+  - Split 832-line `cpal_output.rs` into `cpal_devices.rs` (enumeration & thread priority escalation) and `cpal_callbacks.rs` (zero-allocation `f32`/`i16`/`u16` audio output callbacks).
+
+---
+
 ### [1.6.2] — 2026-08-10 — Tab Navigation Active Track Highlight Restoration
 
 #### Summary

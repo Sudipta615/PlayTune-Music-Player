@@ -69,35 +69,7 @@ pub struct CpalOutput {
 impl CpalOutput {
     /// Enumerate available output device names for a given audio backend
     pub fn enumerate_devices(backend: AudioBackend) -> Vec<String> {
-        let host = match backend {
-            #[cfg(target_os = "linux")]
-            AudioBackend::ExclusiveAlsa => {
-                cpal::host_from_id(cpal::HostId::Alsa).unwrap_or_else(|_| cpal::default_host())
-            }
-            #[cfg(target_os = "windows")]
-            AudioBackend::ExclusiveWasapi => {
-                cpal::host_from_id(cpal::HostId::Wasapi).unwrap_or_else(|_| cpal::default_host())
-            }
-            #[cfg(all(target_os = "windows", feature = "asio"))]
-            AudioBackend::ExclusiveAsio => {
-                cpal::host_from_id(cpal::HostId::Asio).unwrap_or_else(|_| cpal::default_host())
-            }
-            #[cfg(target_os = "macos")]
-            AudioBackend::ExclusiveCoreAudioHog => cpal::default_host(),
-            _ => cpal::default_host(),
-        };
-
-        let mut device_names = Vec::new();
-        if let Ok(devices) = host.output_devices() {
-            for d in devices {
-                if let Ok(name) = d.name() {
-                    if !device_names.contains(&name) {
-                        device_names.push(name);
-                    }
-                }
-            }
-        }
-        device_names
+        super::cpal_devices::enumerate_devices(backend)
     }
 
     /// Create a new cpal output with automatic fallback
@@ -380,8 +352,10 @@ impl CpalOutput {
                     .build_output_stream(
                         &self.stream_config,
                         move |data: &mut [f32], _: &cpal::OutputCallbackInfo| {
-                            escalate_callback_thread_priority(&callback_initialized);
-                            Self::audio_callback(
+                            super::cpal_devices::escalate_callback_thread_priority(
+                                &callback_initialized,
+                            );
+                            super::cpal_callbacks::audio_callback_f32(
                                 data,
                                 &buffer,
                                 &paused,
@@ -404,8 +378,10 @@ impl CpalOutput {
                     .build_output_stream(
                         &self.stream_config,
                         move |data: &mut [i16], _: &cpal::OutputCallbackInfo| {
-                            escalate_callback_thread_priority(&callback_initialized);
-                            Self::audio_callback_i16(
+                            super::cpal_devices::escalate_callback_thread_priority(
+                                &callback_initialized,
+                            );
+                            super::cpal_callbacks::audio_callback_i16(
                                 data,
                                 &buffer,
                                 &paused,
@@ -428,8 +404,10 @@ impl CpalOutput {
                     .build_output_stream(
                         &self.stream_config,
                         move |data: &mut [u16], _: &cpal::OutputCallbackInfo| {
-                            escalate_callback_thread_priority(&callback_initialized);
-                            Self::audio_callback_u16(
+                            super::cpal_devices::escalate_callback_thread_priority(
+                                &callback_initialized,
+                            );
+                            super::cpal_callbacks::audio_callback_u16(
                                 data,
                                 &buffer,
                                 &paused,
@@ -454,233 +432,6 @@ impl CpalOutput {
 
         log::info!("Audio output stream started successfully");
         Ok(())
-    }
-
-    /// Audio callback for F32 output - ZERO ALLOCATION, ZERO BLOCKING
-    #[inline]
-    fn audio_callback(
-        data: &mut [f32],
-        buffer: &FixedFrameBuffer,
-        paused: &AtomicBool,
-        in_callback: &AtomicBool,
-        underruns: &AtomicU32,
-        channels: usize,
-        visualizer_tap: &Option<Arc<crate::analysis::FftVisualizerTap>>,
-    ) {
-        let _guard = CallbackGuard::new(in_callback);
-        if paused.load(Ordering::Acquire) {
-            data.fill(0.0);
-            return;
-        }
-        if channels == 0 {
-            data.fill(0.0);
-            return;
-        }
-
-        // Fast path: stereo output matches the stereo PCM ring 1:1.
-        // The decode loop always pushes interleaved L,R pairs, so we can
-        // pop the entire callback buffer in one shot.
-        if channels == 2 {
-            let got = buffer.pop_block_interleaved(data);
-            if got < data.len() {
-                // Underrun: fill the remainder with zeros and bump the
-                // counter. This still counts as a single underrun event
-                // even if multiple frames were missing.
-                data[got..].fill(0.0);
-                underruns.fetch_add(1, Ordering::Relaxed);
-            }
-        } else {
-            // Non-stereo output (mono or >2 channels). Fall back to the
-            // per-frame path. This is rare — most output devices are
-            // stereo — so the perf cost is acceptable here.
-            let mut underrun_flag = false;
-            for frame in data.chunks_mut(channels) {
-                match buffer.pop() {
-                    Some(audio_frame) => {
-                        for (ch, sample) in frame.iter_mut().enumerate() {
-                            *sample = if ch < audio_frame.num_channels as usize {
-                                audio_frame.channels[ch]
-                            } else {
-                                0.0
-                            };
-                        }
-                    }
-                    None => {
-                        frame.fill(0.0);
-                        underrun_flag = true;
-                    }
-                }
-            }
-            if underrun_flag {
-                underruns.fetch_add(1, Ordering::Relaxed);
-            }
-        }
-        for sample in data.iter_mut() {
-            *sample = if sample.is_finite() { sample.clamp(-1.0, 1.0) } else { 0.0 };
-        }
-
-        if let Some(ref tap) = visualizer_tap {
-            tap.process_samples(data, channels);
-        }
-    }
-
-    /// Audio callback for I16 output
-    ///
-    /// Same hot-path optimization as `audio_callback`: bulk-pop the entire
-    /// callback buffer in one shot (for stereo), then convert in place.
-    /// The previous per-frame `buffer.pop()` loop was the #1 CPU hotspot
-    /// on the audio thread.
-    #[inline]
-    fn audio_callback_i16(
-        data: &mut [i16],
-        buffer: &FixedFrameBuffer,
-        paused: &AtomicBool,
-        in_callback: &AtomicBool,
-        underruns: &AtomicU32,
-        channels: usize,
-        visualizer_tap: &Option<Arc<crate::analysis::FftVisualizerTap>>,
-    ) {
-        let _guard = CallbackGuard::new(in_callback);
-        if paused.load(Ordering::Acquire) {
-            data.fill(0);
-            return;
-        }
-        if channels == 0 {
-            data.fill(0);
-            return;
-        }
-
-        // Reusable scratch buffer for the F32→I16 conversion. Allocated on
-        // the stack for the typical callback size; falls back to a Vec only
-        // for pathological 8192+ sample callbacks (which don't happen in
-        // practice — CPAL's buffer_size is fixed at 2048 in new_raw()).
-        const SCRATCH_CAP: usize = 4096;
-        let mut stack_scratch = [0.0f32; SCRATCH_CAP];
-
-        let mut underrun_flag = false;
-        if channels == 2 {
-            // Bulk pop stereo interleaved f32 into the scratch buffer, then
-            // convert to i16 in place.
-            let total_samples = data.len();
-            let scratch: &mut [f32] = if total_samples <= SCRATCH_CAP {
-                &mut stack_scratch[..total_samples]
-            } else {
-                // Extremely rare: callback asked for more than 4096 samples.
-                // Fall back to a Vec allocation. This is acceptable because
-                // it only happens once per callback, not per sample.
-                &mut vec![0.0f32; total_samples]
-            };
-            let got = buffer.pop_block_interleaved(scratch);
-            if got < total_samples {
-                scratch[got..].fill(0.0);
-                underrun_flag = true;
-            }
-            if let Some(ref tap) = visualizer_tap {
-                tap.process_samples(scratch, channels);
-            }
-            // Convert f32 → i16 with clamping. The compiler auto-vectorizes
-            // this loop with SSE2 on x86-64 (4 f32s per iteration).
-            for (dst, &src) in data.iter_mut().zip(scratch.iter()) {
-                let scaled = (src.clamp(-1.0, 1.0) * 32768.0).clamp(-32768.0, 32767.0);
-                *dst = scaled as i16;
-            }
-        } else {
-            for frame in data.chunks_mut(channels) {
-                match buffer.pop() {
-                    Some(audio_frame) => {
-                        for (ch, sample) in frame.iter_mut().enumerate() {
-                            let val = if ch < audio_frame.num_channels as usize {
-                                audio_frame.channels[ch]
-                            } else {
-                                0.0
-                            };
-                            let scaled = (val.clamp(-1.0, 1.0) * 32768.0).clamp(-32768.0, 32767.0);
-                            *sample = scaled as i16;
-                        }
-                    }
-                    None => {
-                        frame.fill(0);
-                        underrun_flag = true;
-                    }
-                }
-            }
-        }
-        if underrun_flag {
-            underruns.fetch_add(1, Ordering::Relaxed);
-        }
-    }
-
-    /// Audio callback for U16 output
-    ///
-    /// Same hot-path optimization as the F32 and I16 callbacks.
-    #[inline]
-    fn audio_callback_u16(
-        data: &mut [u16],
-        buffer: &FixedFrameBuffer,
-        paused: &AtomicBool,
-        in_callback: &AtomicBool,
-        underruns: &AtomicU32,
-        channels: usize,
-        visualizer_tap: &Option<Arc<crate::analysis::FftVisualizerTap>>,
-    ) {
-        let _guard = CallbackGuard::new(in_callback);
-        if paused.load(Ordering::Acquire) {
-            data.fill(32768);
-            return;
-        }
-        if channels == 0 {
-            data.fill(32768);
-            return;
-        }
-
-        const SCRATCH_CAP: usize = 4096;
-        let mut stack_scratch = [0.0f32; SCRATCH_CAP];
-
-        let mut underrun_flag = false;
-        if channels == 2 {
-            let total_samples = data.len();
-            let scratch: &mut [f32] = if total_samples <= SCRATCH_CAP {
-                &mut stack_scratch[..total_samples]
-            } else {
-                &mut vec![0.0f32; total_samples]
-            };
-            let got = buffer.pop_block_interleaved(scratch);
-            if got < total_samples {
-                scratch[got..].fill(0.0);
-                underrun_flag = true;
-            }
-            if let Some(ref tap) = visualizer_tap {
-                tap.process_samples(scratch, channels);
-            }
-            for (dst, &src) in data.iter_mut().zip(scratch.iter()) {
-                let clamped = src.clamp(-1.0, 1.0);
-                *dst = (((clamped + 1.0) * 0.5 * 65535.0).round() as i64).clamp(0, 65535) as u16;
-            }
-        } else {
-            for frame in data.chunks_mut(channels) {
-                match buffer.pop() {
-                    Some(audio_frame) => {
-                        for (ch, sample) in frame.iter_mut().enumerate() {
-                            let val = if ch < audio_frame.num_channels as usize {
-                                audio_frame.channels[ch]
-                            } else {
-                                0.0
-                            };
-                            let clamped = val.clamp(-1.0, 1.0);
-                            *sample = (((clamped + 1.0) * 0.5 * 65535.0).round() as i64)
-                                .clamp(0, 65535) as u16;
-                        }
-                    }
-                    None => {
-                        frame.fill(32768);
-                        underrun_flag = true;
-                    }
-                }
-            }
-        }
-        if underrun_flag {
-            underruns.fetch_add(1, Ordering::Relaxed);
-        }
     }
 
     /// Pause the output
@@ -781,52 +532,5 @@ impl CpalOutput {
     /// Get the current device name for diagnostic purposes.
     pub fn device_name(&self) -> String {
         self.device.name().unwrap_or_else(|_| "unknown".to_string())
-    }
-}
-
-/// Escalate the current thread (the CPAL audio callback thread) to real-time
-/// priority. Runs only once; subsequent calls return immediately.
-///
-/// On Linux this requires rtkit permissions, `ulimit -r`, or CAP_SYS_NICE.
-/// Failure is logged once and playback continues with default scheduling.
-fn escalate_callback_thread_priority(initialized: &AtomicBool) {
-    if initialized.swap(true, Ordering::Relaxed) {
-        return;
-    }
-    // Enable FTZ + DAZ on the audio callback thread.
-    let _ = crate::buffer::enable_flush_zero_denormals_on_current_thread();
-
-    #[cfg(feature = "thread-priority")]
-    {
-        match thread_priority::set_current_thread_priority(thread_priority::ThreadPriority::Max) {
-            Ok(()) => {
-                log::info!("Audio callback thread escalated to real-time priority");
-            }
-            Err(e) => {
-                log::warn!(
-                    "Failed to set real-time priority for audio callback thread: {}. \
-                     Audio will continue with default scheduling. \
-                     On Linux, ensure rtkit permissions or ulimit -r is configured.",
-                    e
-                );
-            }
-        }
-    }
-}
-
-struct CallbackGuard<'a> {
-    flag: &'a AtomicBool,
-}
-
-impl<'a> CallbackGuard<'a> {
-    fn new(flag: &'a AtomicBool) -> Self {
-        flag.store(true, Ordering::Release);
-        Self { flag }
-    }
-}
-
-impl<'a> Drop for CallbackGuard<'a> {
-    fn drop(&mut self) {
-        self.flag.store(false, Ordering::Release);
     }
 }

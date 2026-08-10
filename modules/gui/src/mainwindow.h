@@ -18,9 +18,7 @@
 #include "albumsview.h"
 #include "artistsview.h"
 
-#include <QFileInfo>
-
-class ToolTipController;
+#include "tooltip_controller.h"
 
 class MainWindow : public QMainWindow {
     Q_OBJECT
