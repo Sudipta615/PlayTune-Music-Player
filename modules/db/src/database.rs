@@ -402,7 +402,8 @@ impl PlayTuneDb {
             "crest_factor",
             "mode_major_ratio",
         ] {
-            let sql = format!("ALTER TABLE track_audio_features ADD COLUMN {} REAL DEFAULT 0.0", col);
+            let sql =
+                format!("ALTER TABLE track_audio_features ADD COLUMN {} REAL DEFAULT 0.0", col);
             match conn.execute(&sql, []) {
                 Ok(_) => {}
                 Err(rusqlite::Error::SqliteFailure(err, msg))
@@ -1699,8 +1700,7 @@ impl PlayTuneDb {
                 map.insert(s.track_id, mood_name);
             }
         }
-        let fallback_moods =
-            ["Energetic", "Happy", "Calm", "Romantic", "Party", "Lofi", "Sad"];
+        let fallback_moods = ["Energetic", "Happy", "Calm", "Romantic", "Party", "Lofi", "Sad"];
         let conn = self.conn.lock();
         if let Ok(mut stmt) = conn.prepare_cached("SELECT id FROM tracks") {
             if let Ok(rows) = stmt.query_map([], |row| row.get::<_, i64>(0)) {

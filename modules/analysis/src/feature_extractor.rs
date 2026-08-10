@@ -21,12 +21,7 @@ pub struct AudioFeatureExtractor {
 
 impl Default for AudioFeatureExtractor {
     fn default() -> Self {
-        Self {
-            sample_rate: 22050,
-            fft_size: 1024,
-            hop_size: 512,
-            analysis_secs: 30,
-        }
+        Self { sample_rate: 22050, fft_size: 1024, hop_size: 512, analysis_secs: 30 }
     }
 }
 
@@ -36,10 +31,7 @@ impl AudioFeatureExtractor {
     }
 
     pub fn with_window_secs(secs: u32) -> Self {
-        Self {
-            analysis_secs: secs,
-            ..Self::default()
-        }
+        Self { analysis_secs: secs, ..Self::default() }
     }
 
     /// Extract feature vector from an audio file path.
@@ -94,10 +86,7 @@ impl AudioFeatureExtractor {
                 for ts in [p20, p50, p80] {
                     let _ = format.seek(
                         symphonia::core::formats::SeekMode::Accurate,
-                        symphonia::core::formats::SeekTo::TimeStamp {
-                            ts,
-                            track_id: track_id_spec,
-                        },
+                        symphonia::core::formats::SeekTo::TimeStamp { ts, track_id: track_id_spec },
                     );
                     let mut seg_count = 0;
                     let mut sample_buf = None;
@@ -116,13 +105,14 @@ impl AudioFeatureExtractor {
                         };
                         if sample_buf.is_none() {
                             let spec = *decoded.spec();
-                            sample_buf = Some(SampleBuffer::<f32>::new(decoded.capacity() as u64, spec));
+                            sample_buf =
+                                Some(SampleBuffer::<f32>::new(decoded.capacity() as u64, spec));
                         }
                         if let Some(buf) = &mut sample_buf {
                             buf.copy_interleaved_ref(decoded);
                             let samples = buf.samples();
-                            let step =
-                                (original_sample_rate as f32 / self.sample_rate as f32).max(1.0) as usize;
+                            let step = (original_sample_rate as f32 / self.sample_rate as f32)
+                                .max(1.0) as usize;
                             let mut idx = 0;
                             while idx + channels <= samples.len() {
                                 let mut sum = 0.0f32;
@@ -342,10 +332,12 @@ impl AudioFeatureExtractor {
                 for &(b_start, b_end) in &subband_bounds {
                     if b_start < b_end && b_end <= num_bins {
                         let mut band_mags: Vec<f32> = mag[b_start..b_end].to_vec();
-                        band_mags.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
+                        band_mags
+                            .sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
                         let k = (band_mags.len() / 5).max(1);
                         let valley_avg: f32 = band_mags[..k].iter().sum::<f32>() / k as f32;
-                        let peak_avg: f32 = band_mags[band_mags.len() - k..].iter().sum::<f32>() / k as f32;
+                        let peak_avg: f32 =
+                            band_mags[band_mags.len() - k..].iter().sum::<f32>() / k as f32;
                         let contrast = ((peak_avg + 1e-6) / (valley_avg + 1e-6)).ln();
                         contrast_sum += contrast;
                     }
@@ -402,7 +394,8 @@ impl AudioFeatureExtractor {
                     // Harmonic: median along time axis
                     let t_start = t.saturating_sub(2);
                     let t_end = (t + 3).min(n_f);
-                    let mut time_vals: Vec<f32> = (t_start..t_end).map(|i| mag_frames[i][b]).collect();
+                    let mut time_vals: Vec<f32> =
+                        (t_start..t_end).map(|i| mag_frames[i][b]).collect();
                     time_vals.sort_by(|x, y| x.partial_cmp(y).unwrap_or(std::cmp::Ordering::Equal));
                     let h_val = time_vals[time_vals.len() / 2];
 

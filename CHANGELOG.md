@@ -42,6 +42,32 @@ All developers and contributors **MUST** follow the standard 3-way (`x.y.z`) Sem
 
 ## 🗓️ Version History
 
+### [1.6.1] — 2026-08-10 — Light Theme Legibility & Viewport Cover Loading Optimization
+
+#### Summary
+Comprehensive legibility and performance update addressing Light theme text contrast on Now Playing card elements, mood pills, queue rows, and table headers, as well as optimizing thumbnail loading to render viewport-visible rows first.
+
+#### Added / Improved
+- **Viewport-Visible Only Cover Loading (`songstable.cpp` & `coverloader.cpp`)**:
+  - Implemented `loadVisibleThumbnails()` in `SongsTableWidget` to request async artwork loads strictly for rows visible inside `m_table->viewport()`, preventing off-screen rows from clogging the image loader queue on startup.
+  - Dynamic worker thread pool count adjustment in `CoverLoader` based on available CPU core count (`idealThreadCount()`).
+
+#### Fixed
+- **Now Playing Hero Card Light Mode Text Contrast (`nowplayingcard.cpp`)**:
+  - Enforced crisp white and high-contrast light text colors (`#FFFFFF`, `#F0F2FF`, `rgba(255, 255, 255, 0.75)`) on `NowPlayingCard` track titles, artist/album badges, time labels, header text, and media control buttons, resolving unreadable dark text on dark card backdrops in Light mode.
+- **Light Mode Mood Badges Contrast (`songstable.cpp`)**:
+  - Refactored `applyMoodPillStyle` to use rich dark contrast text colors for Light theme (e.g. `#6D28D9` for Energetic, `#BE185D` for Romantic, `#854D0E` for Happy, `#0369A1` for Calm) and light pastel colors for Dark themes.
+  - Connected `SongMoodBadge` updates to `ThemeManager::themeChanged` for live theme switching.
+- **Queue Table Row Labels in Light Mode (`queuewidget.cpp`)**:
+  - Updated `QueueWidget::applyTheme` to update Queue row title/artist text colors to primary/muted text palette tokens on theme switch, eliminating white-on-white text in the Up Next queue panel.
+- **Clock Header Icon Tinting & Duration Column Alignment (`songstable.cpp`)**:
+  - Tinted the Duration clock icon (`recently_played.png`) and Favorite heart icon (`favorite.png`) using `theme.iconColor` so they tint to dark navy in Light mode.
+  - Center-aligned both the Duration header item and row cells (`Qt::AlignCenter`).
+- **Placeholder Theme Refresh Bug**:
+  - Removed path existence checks in `themeChanged` listeners across Songs table, Queue widget, and Media grid cards so default artwork placeholders update unconditionally when switching themes.
+
+---
+
 ### [1.6.0] — 2026-08-10 — 7 Target Mood Realignment, Symphonia Decode Fix & Table Selection Alignment
 
 #### Summary

@@ -13,8 +13,7 @@ pub fn export_training_data(db: &PlayTuneDb, output_csv_path: &str) -> Result<()
     log::info!("Starting training data export to {}", output_csv_path);
     let playlists = db.get_all_playlists().map_err(|e| e.to_string())?;
 
-    let target_moods =
-        ["happy", "sad", "calm", "energetic", "romantic", "party", "lofi"];
+    let target_moods = ["happy", "sad", "calm", "energetic", "romantic", "party", "lofi"];
 
     // Find playlists starting with "Mood - " (case insensitive)
     let mut mood_playlists: HashMap<String, i64> = HashMap::new();
@@ -126,10 +125,7 @@ pub fn export_training_data(db: &PlayTuneDb, output_csv_path: &str) -> Result<()
             let artist_clean = artist.replace(',', "_");
             let album_clean = album.replace(',', "_");
 
-            let mut line = format!(
-                "{},{},{},{}",
-                track_id, title_clean, artist_clean, album_clean
-            );
+            let mut line = format!("{},{},{},{}", track_id, title_clean, artist_clean, album_clean);
             for val in &flattened {
                 line.push_str(&format!(",{}", val));
             }
