@@ -907,6 +907,19 @@ void MainWindow::connectBridge() {
         }
     });
 
+    // Re-apply active song highlight whenever tab / stack page changes
+    connect(m_contentStack, &QStackedWidget::currentChanged, this, [this](int idx) {
+        updateLayoutForCurrentTab(idx);
+        int songId = m_songsTable ? m_songsTable->playingSongId() : -1;
+        bool playing = m_nowPlayingCard ? m_nowPlayingCard->isPlaying() : false;
+        if (songId > 0) {
+            if (m_songsTable) m_songsTable->setPlayingSongId(songId, playing);
+            if (m_foldersView) m_foldersView->setPlayingSongId(songId, playing);
+            if (m_albumsView) m_albumsView->setPlayingSongId(songId, playing);
+            if (m_artistsView) m_artistsView->setPlayingSongId(songId, playing);
+        }
+    });
+
     // Initialize the system tray now that the bridge is wired.
     setupSystemTray();
 

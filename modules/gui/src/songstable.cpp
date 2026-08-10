@@ -1148,8 +1148,14 @@ void SongsTableWidget::setSongsBatch(QVector<SongRow> rows) {
                 m_playingTrackIdx = i;
                 eqIcon->setVisible(true);
                 eqIcon->setPlaying(m_isPlaying);
+                const auto& p = ThemeManager::instance().currentTheme();
+                titleLabel->setStyleSheet(QString("font-weight: bold; font-size: 13px; color: %1;").arg(p.secondaryAccent.name()));
             }
         }
+    }
+
+    if (m_playingTrackIdx >= 0) {
+        refreshSingleRowStyle(m_playingTrackIdx);
     }
 
     m_table->blockSignals(false);
@@ -1201,28 +1207,33 @@ void SongsTableWidget::setPlayingSongId(int songId, bool playing) {
 
     int newPlayingRow = m_songIdToRow.value(songId, -1);
 
-    if (m_playingTrackIdx >= 0 && m_playingTrackIdx != newPlayingRow) {
-        if (m_playingTrackIdx < m_eqIcons.size()) {
-            m_eqIcons[m_playingTrackIdx]->setVisible(false);
-            m_eqIcons[m_playingTrackIdx]->setPlaying(false);
-        }
-    }
-
     int oldRow = m_playingTrackIdx;
     m_playingTrackIdx = newPlayingRow;
+
+    if (oldRow >= 0 && oldRow < m_table->rowCount()) {
+        if (oldRow < m_eqIcons.size()) {
+            m_eqIcons[oldRow]->setVisible(false);
+            m_eqIcons[oldRow]->setPlaying(false);
+        }
+        if (auto* titleCont = m_table->cellWidget(oldRow, 1)) {
+            if (auto* titleLabel = titleCont->findChild<QLabel*>("SongTitleLabel")) {
+                titleLabel->setStyleSheet("font-weight: 500; font-size: 13px;");
+            }
+        }
+        refreshSingleRowStyle(oldRow);
+    }
 
     if (m_playingTrackIdx >= 0 && m_playingTrackIdx < m_table->rowCount()) {
         if (m_playingTrackIdx < m_eqIcons.size()) {
             m_eqIcons[m_playingTrackIdx]->setVisible(true);
             m_eqIcons[m_playingTrackIdx]->setPlaying(m_isPlaying);
         }
-    }
-
-    // O(1) style refresh: only the previously-playing and newly-playing
-    // rows changed. The old implementation iterated every row, which on
-    // a 10 000-track table added ~5 ms of jitter on every track change.
-    if (oldRow >= 0) refreshSingleRowStyle(oldRow);
-    if (m_playingTrackIdx >= 0 && m_playingTrackIdx != oldRow) {
+        if (auto* titleCont = m_table->cellWidget(m_playingTrackIdx, 1)) {
+            if (auto* titleLabel = titleCont->findChild<QLabel*>("SongTitleLabel")) {
+                const auto& p = ThemeManager::instance().currentTheme();
+                titleLabel->setStyleSheet(QString("font-weight: bold; font-size: 13px; color: %1;").arg(p.secondaryAccent.name()));
+            }
+        }
         refreshSingleRowStyle(m_playingTrackIdx);
     }
 
@@ -1537,6 +1548,9 @@ void SongsTableWidget::showEvent(QShowEvent* event) {
     QTimer::singleShot(0, this, [this]() {
         if (m_gridWidget) m_gridWidget->updateGridResponsive();
         loadVisibleThumbnails();
+        if (m_playingSongId != -1) {
+            setPlayingSongId(m_playingSongId, m_isPlaying);
+        }
     });
 }
 

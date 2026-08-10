@@ -42,6 +42,20 @@ All developers and contributors **MUST** follow the standard 3-way (`x.y.z`) Sem
 
 ## 🗓️ Version History
 
+### [1.6.2] — 2026-08-10 — Tab Navigation Active Track Highlight Restoration
+
+#### Summary
+Resolved an issue where switching tabs (e.g., exploring Albums, Artists, Folders, or Settings) and returning to the Home/Songs view lost the active playing track highlight, title text color, and equalizer icon animation.
+
+#### Fixed
+- **Active Track Highlight Preservation Across Tab Navigation (`songstable.cpp` & `mainwindow.cpp`)**:
+  - Updated `SongsTableWidget::setPlayingSongId` to unconditionally repaint `m_playingTrackIdx` and apply bold `p.secondaryAccent` accent text styling to `SongTitleLabel`.
+  - Added active playing track highlight restoration (`setPlayingSongId`) in `SongsTableWidget::showEvent` and `MainWindow`'s `m_contentStack::currentChanged` signal, restoring the row background highlight, title text color, and equalizer animation whenever returning to the tab.
+- **Rust Nav Sync Fix (`ui_sync.rs`)**:
+  - Fixed `refresh_ui_gen`'s `already_loaded` early return branch to resolve active track database ID (`active_song_id`) instead of raw list index, and unconditionally notify Qt via `bridge::set_active_index(active_song_id)` on navigation.
+
+---
+
 ### [1.6.1] — 2026-08-10 — Light Theme Legibility & Viewport Cover Loading Optimization
 
 #### Summary

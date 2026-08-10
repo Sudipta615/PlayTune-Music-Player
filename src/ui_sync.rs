@@ -136,10 +136,19 @@ pub fn refresh_ui_gen(filter_type: &str, filter_id: Option<i64>, expected_gen: u
     if already_loaded {
         // Same view is already materialized. Just re-emit the active
         // highlight so the table does not lose the "playing" indicator.
-        let active = *CURRENT_INDEX.lock() as i32;
-        let prev = LAST_PUSHED_ACTIVE_INDEX.swap(active, std::sync::atomic::Ordering::Relaxed);
-        if prev != active {
-            bridge::set_active_index(active);
+        let active_song_id = if let Some(list_lock) = CURRENT_TRACK_LIST.get() {
+            if let Some(list) = list_lock.try_lock() {
+                let idx = *CURRENT_INDEX.lock();
+                list.get(idx).map(|t| t.id as i32).unwrap_or(0)
+            } else {
+                0
+            }
+        } else {
+            0
+        };
+        if active_song_id > 0 {
+            LAST_PUSHED_ACTIVE_INDEX.store(active_song_id, std::sync::atomic::Ordering::Relaxed);
+            bridge::set_active_index(active_song_id);
         }
         return;
     }
