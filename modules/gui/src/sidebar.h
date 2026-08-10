@@ -29,6 +29,7 @@ public:
 
     void setCollapsed(bool collapsed);
     bool isCollapsed() const { return m_isCollapsed; }
+    void setSidebarWidths(int expandedWidth, int collapsedWidth);
 
     /// Clear and rebuild the dynamic playlist list.
     void clearPlaylists();
@@ -68,6 +69,8 @@ private:
     QList<QPushButton*> m_allNavButtons;
     QStringList m_allNavTexts;
     bool m_isCollapsed = false;
+    int m_expandedWidth = 200;
+    int m_collapsedWidth = 64;
     QListWidget* m_playlistList = nullptr;
 };
 

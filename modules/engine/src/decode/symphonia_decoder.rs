@@ -161,19 +161,22 @@ impl SymphoniaDecoder {
             let packet = match self.format_reader.next_packet() {
                 Ok(p) => p,
                 Err(SymphoniaError::IoError(ref e))
-                    if e.kind() == std::io::ErrorKind::UnexpectedEof =>
+                    if e.kind() == std::io::ErrorKind::UnexpectedEof
+                        || e.kind() == std::io::ErrorKind::UnexpectedEof =>
                 {
                     break;
                 }
                 Err(SymphoniaError::ResetRequired) => {
                     consecutive_skips += 1;
                     if consecutive_skips > MAX_CONSECUTIVE_SKIPS {
-                        return Err(DecodeError::Decode(format!(
-                            "Too many consecutive ResetRequired skips ({})",
-                            consecutive_skips
-                        )));
+                        log::debug!("Max consecutive ResetRequired skips reached near stream end");
+                        break;
                     }
                     continue;
+                }
+                Err(SymphoniaError::IoError(_)) => {
+                    // Generic IO error at stream end should break to trigger EndOfStream
+                    break;
                 }
                 Err(e) => return Err(DecodeError::Decode(format!("Packet read error: {}", e))),
             };
@@ -233,10 +236,10 @@ impl SymphoniaDecoder {
 
         if self.sample_buffer.is_empty() {
             if consecutive_skips > 0 {
-                return Err(DecodeError::Decode(format!(
+                log::debug!(
                     "End of stream reached after {} consecutive decode skips",
                     consecutive_skips
-                )));
+                );
             }
             return Err(DecodeError::EndOfStream);
         }

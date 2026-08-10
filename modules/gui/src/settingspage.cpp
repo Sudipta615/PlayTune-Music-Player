@@ -147,8 +147,23 @@ void SettingsPageWidget::setupUi() {
         m_tooltipToggle->setToolTip("Enable or Disable Descriptive Tooltips Across the Application");
         cl->addLayout(createSettingRow(card, "UI Tooltips & Hints", "Display descriptive popups when hovering controls.", m_tooltipToggle));
 
+        auto* divMood = new QFrame(card);
+        divMood->setFrameShape(QFrame::HLine);
+        m_cardSeparators.append(divMood);
+        cl->addWidget(divMood);
+
+        m_moodColumnToggle = new ToggleSwitch(card);
+        m_moodColumnToggle->setToolTip("Show or Hide the Dedicated Mood Column in Songs Tables");
+        cl->addLayout(createSettingRow(card, "Show Mood Column", "Display AI acoustic mood pill badges in library tables.", m_moodColumnToggle));
+
         connect(m_tooltipToggle, &ToggleSwitch::toggled, this, [this](bool on) {
             m_tooltipsEnabled = on; saveSettings(); emit tooltipsToggled(on);
+        });
+        connect(m_moodColumnToggle, &ToggleSwitch::toggled, this, [this](bool on) {
+            m_moodColumnEnabled = on;
+            AppSettings::instance().setMoodColumnEnabled(on);
+            saveSettings();
+            emit moodColumnToggled(on);
         });
         connect(m_themeCombo, &QComboBox::activated, this, [this](int idx) {
             m_currentTheme = m_themeCombo->itemText(idx);
@@ -246,11 +261,12 @@ void SettingsPageWidget::setupUi() {
         auto* card = new QFrame(scrollContent);
         card->setObjectName("SettingsCard");
         card->setFrameShape(QFrame::NoFrame);
+        card->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
         m_settingsCards.append(card);
 
         auto* cl = new QVBoxLayout(card);
         cl->setContentsMargins(22, 18, 22, 22);
-        cl->setSpacing(10);
+        cl->setSpacing(14);
 
         auto* hdr = new QLabel("LIBRARY FOLDERS", card);
         m_sectionHeaders.append(hdr);
@@ -266,12 +282,15 @@ void SettingsPageWidget::setupUi() {
         cl->addWidget(desc);
 
         m_foldersListWidget = new QListWidget(card);
-        m_foldersListWidget->setMinimumHeight(140);
+        m_foldersListWidget->setFixedHeight(130);
         m_foldersListWidget->setFrameShape(QFrame::NoFrame);
         m_foldersListWidget->setAlternatingRowColors(true);
-        cl->addWidget(m_foldersListWidget, 1);
+        m_foldersListWidget->setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
+        m_foldersListWidget->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+        cl->addWidget(m_foldersListWidget);
 
-        leftCol->addWidget(card, 1);
+        leftCol->addWidget(card);
+        leftCol->addStretch();
     }
 
     // ─── RIGHT COLUMN ─────────────────────────────────────────────────────
@@ -608,6 +627,8 @@ void SettingsPageWidget::addAudioDeviceToList(const QString& name, bool isCurren
 void SettingsPageWidget::loadSettings() {
     QSettings settings("PlayTune", "Settings");
     m_tooltipsEnabled  = settings.value("tooltips", true).toBool();
+    m_moodColumnEnabled= settings.value("show_mood_column", true).toBool();
+    AppSettings::instance().setMoodColumnEnabled(m_moodColumnEnabled);
     m_optimizedMode    = settings.value("optimized_mode", false).toBool();
     AppSettings::instance().setOptimizedMode(m_optimizedMode);
     m_gpuRendering     = settings.value("gpu_acceleration", false).toBool();
@@ -629,6 +650,7 @@ void SettingsPageWidget::loadSettings() {
         m_tooltipToggle->setEnabled(!m_optimizedMode);
         if (m_optimizedMode) m_tooltipToggle->setToolTip("Tooltips hints are disabled in Optimized Mode");
     }
+    if (m_moodColumnToggle)    m_moodColumnToggle->setChecked(m_moodColumnEnabled);
     if (m_optimizedModeToggle) m_optimizedModeToggle->setChecked(m_optimizedMode);
     if (m_gpuRenderingToggle)   m_gpuRenderingToggle->setChecked(m_gpuRendering);
     if (m_loudnessScanBtn) {
@@ -660,6 +682,7 @@ void SettingsPageWidget::loadSettings() {
 void SettingsPageWidget::saveSettings() {
     QSettings settings("PlayTune", "Settings");
     settings.setValue("tooltips",               m_tooltipsEnabled);
+    settings.setValue("show_mood_column",       m_moodColumnEnabled);
     settings.setValue("optimized_mode",         m_optimizedMode);
     settings.setValue("gpu_acceleration",       m_gpuRendering);
     settings.setValue("crossfade",              m_crossfadeEnabled);
@@ -678,6 +701,7 @@ void SettingsPageWidget::saveSettings() {
 void SettingsPageWidget::showEvent(QShowEvent* event) {
     QWidget::showEvent(event);
     if (m_tooltipToggle   && m_tooltipToggle->isChecked()   != m_tooltipsEnabled)  { QSignalBlocker b(m_tooltipToggle);   m_tooltipToggle->setChecked(m_tooltipsEnabled); }
+    if (m_moodColumnToggle && m_moodColumnToggle->isChecked() != m_moodColumnEnabled) { QSignalBlocker b(m_moodColumnToggle); m_moodColumnToggle->setChecked(m_moodColumnEnabled); }
     if (m_gpuRenderingToggle && m_gpuRenderingToggle->isChecked() != m_gpuRendering) { QSignalBlocker b(m_gpuRenderingToggle); m_gpuRenderingToggle->setChecked(m_gpuRendering); }
     if (m_crossfadeToggle && m_crossfadeToggle->isChecked() != m_crossfadeEnabled) { QSignalBlocker b(m_crossfadeToggle); m_crossfadeToggle->setChecked(m_crossfadeEnabled); }
     if (m_normalizeToggle && m_normalizeToggle->isChecked() != m_normalizeEnabled) { QSignalBlocker b(m_normalizeToggle); m_normalizeToggle->setChecked(m_normalizeEnabled); }

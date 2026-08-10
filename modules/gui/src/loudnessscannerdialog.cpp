@@ -137,6 +137,12 @@ void LoudnessScannerDialog::setupUi() {
     // 3. Results Table
     m_resultsTable = new QTableWidget(0, 5, this);
     m_resultsTable->setHorizontalHeaderLabels({"Song Title", "LUFS (Int.)", "Peak", "ReplayGain (dB)", "EBU R128 (dB)"});
+    m_resultsTable->horizontalHeader()->setDefaultAlignment(Qt::AlignCenter);
+    for (int i = 0; i < m_resultsTable->columnCount(); ++i) {
+        if (auto* h = m_resultsTable->horizontalHeaderItem(i)) {
+            h->setTextAlignment(Qt::AlignCenter);
+        }
+    }
     m_resultsTable->horizontalHeader()->setSectionResizeMode(0, QHeaderView::Stretch);
     m_resultsTable->horizontalHeader()->setSectionResizeMode(1, QHeaderView::ResizeToContents);
     m_resultsTable->horizontalHeader()->setSectionResizeMode(2, QHeaderView::ResizeToContents);

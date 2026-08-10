@@ -30,9 +30,11 @@ struct SongRowFfi {
     const char* album;
     const char* duration;
     const char* cover_path;
+    const char* mood;
 };
-static_assert(sizeof(SongRowFfi) == 5 * sizeof(void*) + 4 * sizeof(int),
+static_assert(sizeof(SongRowFfi) == 6 * sizeof(void*) + 4 * sizeof(int),
               "SongRowFfi layout mismatch — check Rust side");
+
 
 #if defined(_WIN32) || defined(WIN32)
 #include <windows.h>
@@ -276,6 +278,7 @@ void set_songs_batch(const void* rows, int count) {
         row.album   = QString::fromUtf8(r.album   ? r.album   : "");
         row.duration= QString::fromUtf8(r.duration? r.duration: "");
         row.coverPath = QString::fromUtf8(r.cover_path ? r.cover_path : "");
+        row.mood      = QString::fromUtf8(r.mood       ? r.mood       : "");
         out.append(std::move(row));
     }
     emit GuiBridgeManager::instance().songsBatchReplaced(std::move(out));

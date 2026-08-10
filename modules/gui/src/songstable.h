@@ -48,6 +48,7 @@ struct SongRow {
     QString album;
     QString duration;
     QString coverPath;
+    QString mood;
 };
 
 // Required so QVector<SongRow> can cross the Qt::QueuedConnection
@@ -101,6 +102,9 @@ public:
 
     /// Apply or remove Optimized Mode live (hides/shows thumbnails, gates cover loads).
     void setOptimizedMode(bool enabled);
+
+    /// Show or hide the dedicated Mood column live.
+    void setMoodColumnVisible(bool visible);
 
     /// Show or hide the header back button (e.g. for drill-down views in Folders, Albums, Artists)
     void setBackButtonVisible(bool visible, const QString& text = "‹  Back");

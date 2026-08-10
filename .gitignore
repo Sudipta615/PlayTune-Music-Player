@@ -34,3 +34,5 @@ Makefile
 # Operating System files
 .DS_Store
 Thumbs.db
+
+walkthrough.md

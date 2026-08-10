@@ -4,6 +4,7 @@ version.workspace = true
 edition.workspace = true
 
 [dependencies]
+analysis = { path = "../analysis" }
 config = { path = "../config" }
 db = { path = "../db" }
 engine = { path = "../engine" }

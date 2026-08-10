@@ -40,6 +40,62 @@
 
 namespace {
 
+static void applyMoodPillStyle(QLabel* badge, const QString& moodName) {
+    if (!badge || moodName.trimmed().isEmpty()) return;
+    QString lower = moodName.toLower().trimmed();
+
+    QString bg = "rgba(168, 85, 247, 0.22)";
+    QString border = "rgba(192, 132, 252, 0.65)";
+    QString text = "#F3E8FF";
+
+    if (lower == "energetic") {
+        bg = "rgba(124, 58, 237, 0.25)";
+        border = "rgba(167, 139, 250, 0.70)";
+        text = "#E9D5FF";
+    } else if (lower == "romantic") {
+        bg = "rgba(236, 72, 153, 0.25)";
+        border = "rgba(244, 114, 182, 0.70)";
+        text = "#FBCFE8";
+    } else if (lower == "happy") {
+        bg = "rgba(234, 179, 8, 0.25)";
+        border = "rgba(250, 204, 21, 0.70)";
+        text = "#FEF08A";
+    } else if (lower == "calm") {
+        bg = "rgba(6, 182, 212, 0.25)";
+        border = "rgba(56, 189, 248, 0.70)";
+        text = "#BAE6FD";
+    } else if (lower == "party") {
+        bg = "rgba(168, 85, 247, 0.25)";
+        border = "rgba(192, 132, 252, 0.70)";
+        text = "#F3E8FF";
+    } else if (lower == "nostalgic") {
+        bg = "rgba(217, 119, 6, 0.25)";
+        border = "rgba(251, 146, 60, 0.70)";
+        text = "#FFEDD5";
+    } else if (lower == "sad") {
+        bg = "rgba(99, 102, 241, 0.25)";
+        border = "rgba(129, 140, 248, 0.70)";
+        text = "#E0E7FF";
+    } else if (lower == "sleep" || lower == "lofi") {
+        bg = "rgba(139, 92, 246, 0.25)";
+        border = "rgba(167, 139, 250, 0.70)";
+        text = "#EDE9FE";
+    }
+
+    badge->setText(moodName.toUpper().trimmed());
+    badge->setStyleSheet(QString(
+        "QLabel {"
+        "   background-color: %1;"
+        "   color: %2;"
+        "   border: 1px solid %3;"
+        "   border-radius: 6px;"
+        "   padding: 3px 8px;"
+        "   font-size: 10px;"
+        "   font-weight: 700;"
+        "}"
+    ).arg(bg, text, border));
+}
+
 /// Build a square 44×44 rounded thumbnail for the songs table. Goes
 /// through the shared CoverLoader cache so the same pixmap is reused
 /// by the queue widget and the grid cards.
@@ -254,8 +310,10 @@ void SongsTableWidget::setupUi() {
                         }
                     }
                 }
-                if (auto* actionBtn = qobject_cast<QPushButton*>(m_table->cellWidget(r, 6))) {
-                    actionBtn->setIcon(ThemeManager::tintedIcon(":/resources/icons/more.png", p.iconColor));
+                if (auto* actionWidget = m_table->cellWidget(r, 7)) {
+                    if (auto* actionBtn = actionWidget->findChild<QPushButton*>()) {
+                        actionBtn->setIcon(ThemeManager::tintedIcon(":/resources/icons/more.png", p.iconColor));
+                    }
                 }
             }
             m_table->viewport()->update();
@@ -303,8 +361,36 @@ void SongsTableWidget::setupUi() {
     ThemeManager::setupComboBox(sortCombo);
     sortCombo->addItem("Sort by: Title");
     sortCombo->addItem("Sort by: Artist");
+    sortCombo->addItem("Sort by: Mood");
     sortCombo->addItem("Sort by: Date");
-    sortCombo->setToolTip("Sort Library Songs by Title, Artist, or Date Added");
+    sortCombo->setToolTip("Sort Library Songs by Title, Artist, Mood, or Date Added");
+    connect(sortCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), this, [this](int idx) {
+        if (m_rows.isEmpty()) return;
+        if (idx == 0) { // Title
+            std::sort(m_rows.begin(), m_rows.end(), [](const SongRow& a, const SongRow& b) {
+                return a.title.localeAwareCompare(b.title) < 0;
+            });
+        } else if (idx == 1) { // Artist
+            std::sort(m_rows.begin(), m_rows.end(), [](const SongRow& a, const SongRow& b) {
+                return a.artist.localeAwareCompare(b.artist) < 0;
+            });
+        } else if (idx == 2) { // Mood
+            std::sort(m_rows.begin(), m_rows.end(), [](const SongRow& a, const SongRow& b) {
+                if (a.mood.isEmpty() != b.mood.isEmpty()) {
+                    return !a.mood.isEmpty(); // non-empty moods first
+                }
+                return a.mood.localeAwareCompare(b.mood) < 0;
+            });
+        } else if (idx == 3) { // Date / Song ID
+            std::sort(m_rows.begin(), m_rows.end(), [](const SongRow& a, const SongRow& b) {
+                return a.songId < b.songId;
+            });
+        }
+        for (int i = 0; i < m_rows.size(); ++i) {
+            m_rows[i].displayIndex = i + 1;
+        }
+        setSongsBatch(m_rows);
+    });
     headerLayout->addWidget(sortCombo);
 
     // View List / Grid buttons
@@ -346,9 +432,9 @@ void SongsTableWidget::setupUi() {
     // 2. Stacked Widget to hold both views
     m_stackedWidget = new QStackedWidget(this);
 
-    // Table view creation
+    // Table view creation: 8 columns (Col 2 is dedicated Mood column)
     m_table = new QTableWidget(this);
-    m_table->setColumnCount(7);
+    m_table->setColumnCount(8);
     m_table->setShowGrid(false);
     m_table->setAlternatingRowColors(false);
     m_table->setSelectionBehavior(QAbstractItemView::SelectRows);
@@ -362,45 +448,51 @@ void SongsTableWidget::setupUi() {
     );
 
     // Set horizontal headers
-    QStringList headers = {"#", "Title", "Artist", "Album", "", "", ""};
+    QStringList headers = {"#", "Title", "Mood", "Artist", "Album", "", "", ""};
     m_table->setHorizontalHeaderLabels(headers);
-    m_table->horizontalHeader()->setDefaultAlignment(Qt::AlignLeft | Qt::AlignVCenter);
+    m_table->horizontalHeader()->setDefaultAlignment(Qt::AlignCenter);
     m_table->horizontalHeader()->setHighlightSections(false);
     m_table->horizontalHeader()->setFixedHeight(38);
     m_table->verticalHeader()->setVisible(false);
+    m_table->verticalHeader()->setDefaultSectionSize(54); // Spacious 54px row height
 
-    if (auto* h = m_table->horizontalHeaderItem(4)) {
-        h->setIcon(QIcon(":/resources/icons/recently_played.png"));
-        h->setTextAlignment(Qt::AlignCenter);
+    for (int i = 0; i < m_table->columnCount(); ++i) {
+        if (auto* h = m_table->horizontalHeaderItem(i)) {
+            h->setTextAlignment(Qt::AlignCenter);
+        }
     }
     if (auto* h = m_table->horizontalHeaderItem(5)) {
-        h->setIcon(QIcon(":/resources/icons/favorite.png"));
-        h->setTextAlignment(Qt::AlignCenter);
+        h->setIcon(QIcon(":/resources/icons/recently_played.png"));
     }
     if (auto* h = m_table->horizontalHeaderItem(6)) {
-        h->setTextAlignment(Qt::AlignCenter);
+        h->setIcon(QIcon(":/resources/icons/favorite.png"));
     }
 
-    // Set Column Widths (54px for # column prevents text elision like "...")
+    // Set Column Widths
     m_table->horizontalHeader()->setSectionResizeMode(0, QHeaderView::Fixed);
     m_table->setColumnWidth(0, 54);
 
     m_table->horizontalHeader()->setSectionResizeMode(1, QHeaderView::Stretch);
 
     m_table->horizontalHeader()->setSectionResizeMode(2, QHeaderView::Interactive);
-    m_table->setColumnWidth(2, 120);
+    m_table->setColumnWidth(2, 110);
 
     m_table->horizontalHeader()->setSectionResizeMode(3, QHeaderView::Interactive);
-    m_table->setColumnWidth(3, 120);
+    m_table->setColumnWidth(3, 130);
 
-    m_table->horizontalHeader()->setSectionResizeMode(4, QHeaderView::Fixed);
-    m_table->setColumnWidth(4, 55);
+    m_table->horizontalHeader()->setSectionResizeMode(4, QHeaderView::Interactive);
+    m_table->setColumnWidth(4, 130);
 
     m_table->horizontalHeader()->setSectionResizeMode(5, QHeaderView::Fixed);
-    m_table->setColumnWidth(5, 40);
+    m_table->setColumnWidth(5, 55);
 
     m_table->horizontalHeader()->setSectionResizeMode(6, QHeaderView::Fixed);
-    m_table->setColumnWidth(6, 48);
+    m_table->setColumnWidth(6, 40);
+
+    m_table->horizontalHeader()->setSectionResizeMode(7, QHeaderView::Fixed);
+    m_table->setColumnWidth(7, 48);
+
+    m_table->setColumnHidden(2, !AppSettings::instance().isMoodColumnEnabled());
 
     m_table->setItemDelegate(new SongTableRowDelegate(this, m_table));
 
@@ -441,10 +533,26 @@ void SongsTableWidget::setupUi() {
     // Connect selection triggers for table view.
     connect(m_table, &QTableWidget::cellClicked, this, [this](int row, int col) {
         Q_UNUSED(col);
+        if (auto* item = m_table->item(row, 0)) {
+            bool ok = false;
+            int songId = item->data(Qt::UserRole).toInt(&ok);
+            if (ok) {
+                emit songSelected(songId);
+                return;
+            }
+        }
         emit songSelected(row);
     });
     connect(m_table, &QTableWidget::cellDoubleClicked, this, [this](int row, int col) {
         Q_UNUSED(col);
+        if (auto* item = m_table->item(row, 0)) {
+            bool ok = false;
+            int songId = item->data(Qt::UserRole).toInt(&ok);
+            if (ok) {
+                emit songSelected(songId);
+                return;
+            }
+        }
         emit songSelected(row);
     });
 
@@ -680,32 +788,53 @@ void SongsTableWidget::addSong(int index, int songId, bool isFavorite, const QSt
     titleLayout->addStretch();
 
     m_table->setCellWidget(rowIdx, 1, titleContainer);
+    titleContainer->setAttribute(Qt::WA_TransparentForMouseEvents);
 
-    // 2. Artist Column
+    // 2. Dedicated Mood Column
+    QString moodStr = (!m_rows.isEmpty()) ? m_rows.last().mood : "";
+    auto* moodContainer = new QWidget(this);
+    moodContainer->setAttribute(Qt::WA_TransparentForMouseEvents);
+    auto* moodLayout = new QHBoxLayout(moodContainer);
+    moodLayout->setContentsMargins(0, 0, 0, 0);
+    moodLayout->setAlignment(Qt::AlignCenter);
+    if (!moodStr.isEmpty()) {
+        auto* moodBadge = new QLabel(moodContainer);
+        moodBadge->setObjectName("SongMoodBadge");
+        applyMoodPillStyle(moodBadge, moodStr);
+        moodLayout->addWidget(moodBadge);
+    }
+    m_table->setCellWidget(rowIdx, 2, moodContainer);
+
+    // 3. Artist Column
     auto* itemArtist = new QTableWidgetItem(artist);
     itemArtist->setTextAlignment(Qt::AlignLeft | Qt::AlignVCenter);
     itemArtist->setFlags(itemArtist->flags() ^ Qt::ItemIsEditable);
-    m_table->setItem(rowIdx, 2, itemArtist);
+    m_table->setItem(rowIdx, 3, itemArtist);
 
-    // 3. Album Column
+    // 4. Album Column
     auto* itemAlbum = new QTableWidgetItem(album);
     itemAlbum->setTextAlignment(Qt::AlignLeft | Qt::AlignVCenter);
     itemAlbum->setFlags(itemAlbum->flags() ^ Qt::ItemIsEditable);
-    m_table->setItem(rowIdx, 3, itemAlbum);
+    m_table->setItem(rowIdx, 4, itemAlbum);
 
-    // 4. Duration Column
+    // 5. Duration Column
     auto* itemDuration = new QTableWidgetItem(duration);
     itemDuration->setTextAlignment(Qt::AlignLeft | Qt::AlignVCenter);
     itemDuration->setFlags(itemDuration->flags() ^ Qt::ItemIsEditable);
-    m_table->setItem(rowIdx, 4, itemDuration);
+    m_table->setItem(rowIdx, 5, itemDuration);
 
-    // 5. Favorite Heart Button
+    // 6. Favorite Heart Button
     auto* favBtn = new QPushButton(isFavorite ? "♥" : "♡", this);
     favBtn->setObjectName("FavBtn");
     favBtn->setCursor(Qt::PointingHandCursor);
+    favBtn->setFocusPolicy(Qt::NoFocus);
+    favBtn->setProperty("rowIdx", rowIdx);
+    favBtn->setProperty("colIdx", 6);
+    favBtn->installEventFilter(this);
     favBtn->setStyleSheet(isFavorite ? "QPushButton { border: none; background: transparent; color: #FF2A7A; font-size: 16px; }" : "QPushButton { border: none; background: transparent; color: #7E8494; font-size: 16px; }");
     favBtn->setToolTip(isFavorite ? "Remove from Favorites" : "Add to Favorites");
-    connect(favBtn, &QPushButton::clicked, this, [songId, favBtn]() {
+    connect(favBtn, &QPushButton::clicked, this, [this, songId, favBtn, rowIdx]() {
+        m_table->clearSelection();
         bool currentlyFav = (favBtn->text() == "♥");
         bool newFav = !currentlyFav;
         favBtn->setText(newFav ? "♥" : "♡");
@@ -713,22 +842,33 @@ void SongsTableWidget::addSong(int index, int songId, bool isFavorite, const QSt
         favBtn->setToolTip(newFav ? "Remove from Favorites" : "Add to Favorites");
         const auto& cb = GuiBridgeManager::instance().callbacks();
         if (cb.on_toggle_favorite) cb.on_toggle_favorite(songId);
+        refreshSingleRowStyle(rowIdx);
     });
     auto* favContainer = new QWidget(this);
+    favContainer->setFocusPolicy(Qt::NoFocus);
+    favContainer->setProperty("rowIdx", rowIdx);
+    favContainer->setProperty("colIdx", 6);
+    favContainer->installEventFilter(this);
     auto* favLayout = new QHBoxLayout(favContainer);
     favLayout->setContentsMargins(0, 0, 0, 0);
     favLayout->setAlignment(Qt::AlignCenter);
     favLayout->addWidget(favBtn);
-    m_table->setCellWidget(rowIdx, 5, favContainer);
+    m_table->setCellWidget(rowIdx, 6, favContainer);
 
-    // 6. Three-dot Action Menu
+    // 7. Three-dot Action Menu
     auto* actionBtn = new QPushButton(this);
     actionBtn->setObjectName("IconButton");
     actionBtn->setIcon(ThemeManager::tintedIcon(":/resources/icons/more.png", ThemeManager::instance().currentTheme().iconColor));
     actionBtn->setIconSize(QSize(14, 14));
     actionBtn->setFixedSize(26, 26);
+    actionBtn->setFocusPolicy(Qt::NoFocus);
+    actionBtn->setProperty("rowIdx", rowIdx);
+    actionBtn->setProperty("colIdx", 7);
+    actionBtn->installEventFilter(this);
     actionBtn->setToolTip("Track Options & Actions");
     connect(actionBtn, &QPushButton::clicked, this, [this, songId, rowIdx]() {
+        m_table->clearSelection();
+        onCellEntered(rowIdx, 7);
         QMenu menu;
         QAction* addToQueueAct = menu.addAction(tr("Add to Queue"));
         QMenu* addToPlaylistMenu = menu.addMenu(tr("Add to Playlist"));
@@ -739,6 +879,8 @@ void SongsTableWidget::addSong(int index, int songId, bool isFavorite, const QSt
         menu.addSeparator();
         QAction* removeFromLibAct = menu.addAction(tr("Remove from Library"));
         QAction* chosen = menu.exec(QCursor::pos());
+        m_table->clearSelection();
+        refreshSingleRowStyle(rowIdx);
         if (chosen == editTagsAct) {
             openTagEditorDialog(rowIdx);
         } else if (chosen == scanLoudnessAct) {
@@ -753,11 +895,15 @@ void SongsTableWidget::addSong(int index, int songId, bool isFavorite, const QSt
         }
     });
     auto* actionContainer = new QWidget(this);
+    actionContainer->setFocusPolicy(Qt::NoFocus);
+    actionContainer->setProperty("rowIdx", rowIdx);
+    actionContainer->setProperty("colIdx", 7);
+    actionContainer->installEventFilter(this);
     auto* actionLayout = new QHBoxLayout(actionContainer);
     actionLayout->setContentsMargins(0, 0, 0, 0);
     actionLayout->setAlignment(Qt::AlignCenter);
     actionLayout->addWidget(actionBtn);
-    m_table->setCellWidget(rowIdx, 6, actionContainer);
+    m_table->setCellWidget(rowIdx, 7, actionContainer);
 
     // Enable hover transparency on titleContainer
     titleContainer->setAttribute(Qt::WA_TransparentForMouseEvents);
@@ -846,31 +992,50 @@ void SongsTableWidget::setSongsBatch(QVector<SongRow> rows) {
             m_table->setCellWidget(i, 1, titleContainer);
             titleContainer->setAttribute(Qt::WA_TransparentForMouseEvents);
 
-            // 2. Artist Column
+            // 2. Dedicated Mood Column
+            auto* moodContainer = new QWidget(this);
+            moodContainer->setAttribute(Qt::WA_TransparentForMouseEvents);
+            auto* moodLayout = new QHBoxLayout(moodContainer);
+            moodLayout->setContentsMargins(0, 0, 0, 0);
+            moodLayout->setAlignment(Qt::AlignCenter);
+            if (!r.mood.isEmpty()) {
+                auto* moodBadge = new QLabel(moodContainer);
+                moodBadge->setObjectName("SongMoodBadge");
+                applyMoodPillStyle(moodBadge, r.mood);
+                moodLayout->addWidget(moodBadge);
+            }
+            m_table->setCellWidget(i, 2, moodContainer);
+
+            // 3. Artist Column
             auto* itemArtist = new QTableWidgetItem(r.artist);
             itemArtist->setTextAlignment(Qt::AlignLeft | Qt::AlignVCenter);
             itemArtist->setFlags(itemArtist->flags() ^ Qt::ItemIsEditable);
-            m_table->setItem(i, 2, itemArtist);
+            m_table->setItem(i, 3, itemArtist);
 
-            // 3. Album Column
+            // 4. Album Column
             auto* itemAlbum = new QTableWidgetItem(r.album);
             itemAlbum->setTextAlignment(Qt::AlignLeft | Qt::AlignVCenter);
             itemAlbum->setFlags(itemAlbum->flags() ^ Qt::ItemIsEditable);
-            m_table->setItem(i, 3, itemAlbum);
+            m_table->setItem(i, 4, itemAlbum);
 
-            // 4. Duration Column
+            // 5. Duration Column
             auto* itemDuration = new QTableWidgetItem(r.duration);
             itemDuration->setTextAlignment(Qt::AlignLeft | Qt::AlignVCenter);
             itemDuration->setFlags(itemDuration->flags() ^ Qt::ItemIsEditable);
-            m_table->setItem(i, 4, itemDuration);
+            m_table->setItem(i, 5, itemDuration);
 
-            // 5. Favorite Heart Button
+            // 6. Favorite Heart Button
             auto* favBtn = new QPushButton(r.isFavorite ? "♥" : "♡", this);
             favBtn->setObjectName("FavBtn");
             favBtn->setCursor(Qt::PointingHandCursor);
+            favBtn->setFocusPolicy(Qt::NoFocus);
+            favBtn->setProperty("rowIdx", i);
+            favBtn->setProperty("colIdx", 6);
+            favBtn->installEventFilter(this);
             favBtn->setStyleSheet(r.isFavorite ? "QPushButton { border: none; background: transparent; color: #FF2A7A; font-size: 16px; }" : "QPushButton { border: none; background: transparent; color: #7E8494; font-size: 16px; }");
             favBtn->setToolTip(r.isFavorite ? "Remove from Favorites" : "Add to Favorites");
-            connect(favBtn, &QPushButton::clicked, this, [songId = r.songId, favBtn]() {
+            connect(favBtn, &QPushButton::clicked, this, [this, songId = r.songId, favBtn, rowIdx = i]() {
+                m_table->clearSelection();
                 bool currentlyFav = (favBtn->text() == "♥");
                 bool newFav = !currentlyFav;
                 favBtn->setText(newFav ? "♥" : "♡");
@@ -878,17 +1043,33 @@ void SongsTableWidget::setSongsBatch(QVector<SongRow> rows) {
                 favBtn->setToolTip(newFav ? "Remove from Favorites" : "Add to Favorites");
                 const auto& cb = GuiBridgeManager::instance().callbacks();
                 if (cb.on_toggle_favorite) cb.on_toggle_favorite(songId);
+                refreshSingleRowStyle(rowIdx);
             });
-            m_table->setCellWidget(i, 5, favBtn);
+            auto* favContainer = new QWidget(this);
+            favContainer->setFocusPolicy(Qt::NoFocus);
+            favContainer->setProperty("rowIdx", i);
+            favContainer->setProperty("colIdx", 6);
+            favContainer->installEventFilter(this);
+            auto* favLayout = new QHBoxLayout(favContainer);
+            favLayout->setContentsMargins(0, 0, 0, 0);
+            favLayout->setAlignment(Qt::AlignCenter);
+            favLayout->addWidget(favBtn);
+            m_table->setCellWidget(i, 6, favContainer);
 
-            // 6. Three-dot Action Menu
+            // 7. Three-dot Action Menu
             auto* actionBtn = new QPushButton(this);
             actionBtn->setObjectName("IconButton");
             actionBtn->setIcon(ThemeManager::tintedIcon(":/resources/icons/more.png", ThemeManager::instance().currentTheme().iconColor));
             actionBtn->setIconSize(QSize(14, 14));
             actionBtn->setFixedSize(26, 26);
+            actionBtn->setFocusPolicy(Qt::NoFocus);
+            actionBtn->setProperty("rowIdx", i);
+            actionBtn->setProperty("colIdx", 7);
+            actionBtn->installEventFilter(this);
             actionBtn->setToolTip("Track Options & Actions");
             connect(actionBtn, &QPushButton::clicked, this, [this, songId = r.songId, rowIdx = i]() {
+                m_table->clearSelection();
+                onCellEntered(rowIdx, 7);
                 QMenu menu;
                 QAction* addToQueueAct = menu.addAction(tr("Add to Queue"));
                 QMenu* addToPlaylistMenu = menu.addMenu(tr("Add to Playlist"));
@@ -899,6 +1080,8 @@ void SongsTableWidget::setSongsBatch(QVector<SongRow> rows) {
                 menu.addSeparator();
                 QAction* removeFromLibAct = menu.addAction(tr("Remove from Library"));
                 QAction* chosen = menu.exec(QCursor::pos());
+                m_table->clearSelection();
+                refreshSingleRowStyle(rowIdx);
                 if (chosen == editTagsAct) {
                     openTagEditorDialog(rowIdx);
                 } else if (chosen == scanLoudnessAct) {
@@ -912,7 +1095,16 @@ void SongsTableWidget::setSongsBatch(QVector<SongRow> rows) {
                     if (cb1.on_remove_from_library) cb1.on_remove_from_library(songId);
                 }
             });
-            m_table->setCellWidget(i, 6, actionBtn);
+            auto* actionContainer = new QWidget(this);
+            actionContainer->setFocusPolicy(Qt::NoFocus);
+            actionContainer->setProperty("rowIdx", i);
+            actionContainer->setProperty("colIdx", 7);
+            actionContainer->installEventFilter(this);
+            auto* actionLayout = new QHBoxLayout(actionContainer);
+            actionLayout->setContentsMargins(0, 0, 0, 0);
+            actionLayout->setAlignment(Qt::AlignCenter);
+            actionLayout->addWidget(actionBtn);
+            m_table->setCellWidget(i, 7, actionContainer);
 
             // Restore playing-track highlight if this row matches.
             if (r.songId == m_playingSongId && m_playingSongId != -1) {
@@ -1080,27 +1272,45 @@ bool SongsTableWidget::eventFilter(QObject* watched, QEvent* event) {
                 if (prev >= 0) refreshSingleRowStyle(prev);
             }
         }
+    } else if (watched) {
+        QVariant rowProp = watched->property("rowIdx");
+        if (rowProp.isValid()) {
+            int r = rowProp.toInt();
+            int c = watched->property("colIdx").toInt();
+            if (event->type() == QEvent::Enter) {
+                m_table->clearSelection();
+                onCellEntered(r, c);
+            } else if (event->type() == QEvent::MouseButtonPress || event->type() == QEvent::MouseButtonRelease) {
+                m_table->clearSelection();
+            }
+        }
     }
     return QWidget::eventFilter(watched, event);
+}
+
+void SongsTableWidget::setMoodColumnVisible(bool visible) {
+    if (m_table) {
+        m_table->setColumnHidden(2, !visible);
+    }
 }
 
 void SongsTableWidget::setResponsiveWidth(int width) {
     if (m_table) {
         if (width < 500) {
             // Smaller mobile width: hide Album, Duration, and 3-dots action menu
-            m_table->setColumnHidden(3, true);  // Album
-            m_table->setColumnHidden(4, true);  // Duration
-            m_table->setColumnHidden(6, true);  // 3 dots
+            m_table->setColumnHidden(4, true);  // Album
+            m_table->setColumnHidden(5, true);  // Duration
+            m_table->setColumnHidden(7, true);  // 3 dots
         } else if (width < 680) {
             // Tablet width: hide Album, keep Duration and 3-dots visible
-            m_table->setColumnHidden(3, true);  // Album
-            m_table->setColumnHidden(4, false); // Duration
-            m_table->setColumnHidden(6, false); // 3 dots
+            m_table->setColumnHidden(4, true);  // Album
+            m_table->setColumnHidden(5, false); // Duration
+            m_table->setColumnHidden(7, false); // 3 dots
         } else {
             // Standard & Fullscreen desktop: show all columns including 3-dots
-            m_table->setColumnHidden(3, false); // Album
-            m_table->setColumnHidden(4, false); // Duration
-            m_table->setColumnHidden(6, false); // 3 dots
+            m_table->setColumnHidden(4, false); // Album
+            m_table->setColumnHidden(5, false); // Duration
+            m_table->setColumnHidden(7, false); // 3 dots
         }
     }
 }
@@ -1123,8 +1333,8 @@ void SongsTableWidget::openTagEditorDialog(int row) {
         title = m_table->item(row, 1)->text();
     }
 
-    QString artist = m_table->item(row, 2) ? m_table->item(row, 2)->text() : "";
-    QString album = m_table->item(row, 3) ? m_table->item(row, 3)->text() : "";
+    QString artist = m_table->item(row, 3) ? m_table->item(row, 3)->text() : "";
+    QString album = m_table->item(row, 4) ? m_table->item(row, 4)->text() : "";
 
     char titleBuf[512] = {0};
     char artistBuf[512] = {0};
@@ -1197,10 +1407,10 @@ void SongsTableWidget::updateTrackRow(int songId, const QString& title, const QS
                 }
             }
 
-            if (QTableWidgetItem* artItem = m_table->item(row, 2)) artItem->setText(artist);
-            if (QTableWidgetItem* albItem = m_table->item(row, 3)) albItem->setText(album);
+            if (QTableWidgetItem* artItem = m_table->item(row, 3)) artItem->setText(artist);
+            if (QTableWidgetItem* albItem = m_table->item(row, 4)) albItem->setText(album);
             if (!duration.isEmpty()) {
-                if (QTableWidgetItem* durItem = m_table->item(row, 4)) durItem->setText(duration);
+                if (QTableWidgetItem* durItem = m_table->item(row, 5)) durItem->setText(duration);
             }
             break;
         }

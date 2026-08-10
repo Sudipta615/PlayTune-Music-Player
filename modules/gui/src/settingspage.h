@@ -17,6 +17,7 @@ public:
     ~SettingsPageWidget() override = default;
 
     bool isTooltipsEnabled() const;
+    bool isMoodColumnEnabled() const { return m_moodColumnEnabled; }
     bool isOptimizedMode() const { return m_optimizedMode; }
     bool isGpuRenderingEnabled() const { return m_gpuRendering; }
     bool isCrossfadeEnabled() const { return m_crossfadeEnabled; }
@@ -30,6 +31,7 @@ public:
 signals:
     void themeChanged(const QString& themeName);
     void tooltipsToggled(bool enabled);
+    void moodColumnToggled(bool enabled);
     void crossfadeToggled(bool enabled);
     void normalizeToggled(bool enabled);
     void gaplessToggled(bool enabled);
@@ -68,6 +70,7 @@ private:
     QComboBox*    m_backendCombo         = nullptr;
     QComboBox*    m_deviceCombo          = nullptr;
     ToggleSwitch* m_tooltipToggle        = nullptr;
+    ToggleSwitch* m_moodColumnToggle     = nullptr;
     ToggleSwitch* m_crossfadeToggle      = nullptr;
     ToggleSwitch* m_normalizeToggle      = nullptr;
     ToggleSwitch* m_gaplessToggle        = nullptr;
@@ -105,6 +108,7 @@ private:
 
     // ── Settings state ────────────────────────────────────────────────────
     bool    m_tooltipsEnabled   = true;
+    bool    m_moodColumnEnabled = true;
     bool    m_crossfadeEnabled  = false;
     bool    m_normalizeEnabled  = false;
     bool    m_gaplessEnabled    = true;

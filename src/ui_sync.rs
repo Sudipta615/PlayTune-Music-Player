@@ -235,6 +235,12 @@ pub fn refresh_ui_gen(filter_type: &str, filter_id: Option<i64>, expected_gen: u
         // requesting an async load via CoverLoader::requestAsync, so the
         // only visible effect is that the first paint shows the default art
         // for ~1 frame before the async load delivers the real cover.
+        let mood_map = if let Some(db) = GLOBAL_DB.get() {
+            db.get_top_moods_batch(0.50).unwrap_or_default()
+        } else {
+            std::collections::HashMap::new()
+        };
+
         let ffi_rows: Vec<bridge::SongRowArg> = tracks
             .iter()
             .enumerate()
@@ -251,6 +257,7 @@ pub fn refresh_ui_gen(filter_type: &str, filter_id: Option<i64>, expected_gen: u
                 album: track.album.clone(),
                 duration: track.duration_str.clone(),
                 cover_path: cached_cover_path(&track.path).unwrap_or_default(),
+                mood: mood_map.get(&track.id).cloned().unwrap_or_default(),
             })
             .collect();
 

@@ -363,10 +363,21 @@ pub extern "C" fn rust_select_song(song_idx: i32) {
 
 pub fn rust_select_song_inner(song_idx: i32) {
     QUEUE_CLEARED_BY_USER.store(false, Ordering::SeqCst);
-    let idx = song_idx as usize;
+    let target_id = song_idx as i64;
     let (track_opt, list_len) = if let Some(list_lock) = CURRENT_TRACK_LIST.get() {
         if let Some(list) = list_lock.try_lock() {
-            (list.get(idx).cloned(), list.len())
+            if !list.is_empty() {
+                // First try matching by track ID (e.g. when table is sorted/filtered)
+                if let Some(pos) = list.iter().position(|t| t.id == target_id) {
+                    (Some(list[pos].clone()), list.len())
+                } else {
+                    // Fallback to 0-based list index if within bounds
+                    let idx = (song_idx as usize) % list.len();
+                    (list.get(idx).cloned(), list.len())
+                }
+            } else {
+                (None, 0)
+            }
         } else {
             (None, 0)
         }
@@ -375,8 +386,15 @@ pub fn rust_select_song_inner(song_idx: i32) {
     };
 
     if let Some(track) = track_opt {
-        // Issue 6: do NOT record play immediately on selection — wait for 10s threshold in the ticker
-        let selected_idx = if list_len > 0 { idx % list_len } else { 0 };
+        let selected_idx = if let Some(list_lock) = CURRENT_TRACK_LIST.get() {
+            if let Some(list) = list_lock.try_lock() {
+                list.iter().position(|t| t.id == track.id).unwrap_or(0)
+            } else {
+                0
+            }
+        } else {
+            0
+        };
         if let Some(mut curr_idx) = CURRENT_INDEX.try_lock() {
             *curr_idx = selected_idx;
         }

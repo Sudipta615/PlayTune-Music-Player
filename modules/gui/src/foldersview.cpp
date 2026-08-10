@@ -46,7 +46,12 @@ void FoldersViewWidget::setupUi() {
 
     QStringList headers = {"FOLDER NAME", "TRACKS"};
     m_table->setHorizontalHeaderLabels(headers);
-    m_table->horizontalHeader()->setDefaultAlignment(Qt::AlignLeft | Qt::AlignVCenter);
+    m_table->horizontalHeader()->setDefaultAlignment(Qt::AlignCenter);
+    for (int i = 0; i < m_table->columnCount(); ++i) {
+        if (auto* h = m_table->horizontalHeaderItem(i)) {
+            h->setTextAlignment(Qt::AlignCenter);
+        }
+    }
     m_table->horizontalHeader()->setStretchLastSection(false);
     m_table->horizontalHeader()->setSectionResizeMode(0, QHeaderView::Stretch);
     m_table->horizontalHeader()->setSectionResizeMode(1, QHeaderView::Fixed);

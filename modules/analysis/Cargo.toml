@@ -6,3 +6,10 @@ edition.workspace = true
 [dependencies]
 realfft.workspace = true
 num-complex.workspace = true
+symphonia = { workspace = true, features = ["all"] }
+db = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+log = { workspace = true }
+rayon = { workspace = true }
+

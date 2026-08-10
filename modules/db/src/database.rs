@@ -223,17 +223,45 @@ impl PlayTuneDb {
                 position INTEGER NOT NULL,
                 added_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 PRIMARY KEY (playlist_id, track_id)
+            );
+            CREATE TABLE IF NOT EXISTS track_audio_features (
+                track_id INTEGER PRIMARY KEY REFERENCES tracks(id) ON DELETE CASCADE,
+                tempo REAL NOT NULL,
+                rms_mean REAL NOT NULL,
+                rms_std REAL NOT NULL,
+                zcr_mean REAL NOT NULL,
+                zcr_std REAL NOT NULL,
+                spectral_centroid_mean REAL NOT NULL,
+                spectral_centroid_std REAL NOT NULL,
+                spectral_rolloff_mean REAL NOT NULL,
+                spectral_rolloff_std REAL NOT NULL,
+                spectral_flatness_mean REAL NOT NULL,
+                spectral_flatness_std REAL NOT NULL,
+                spectral_flux_mean REAL NOT NULL,
+                spectral_flux_std REAL NOT NULL,
+                hpr REAL NOT NULL DEFAULT 0.0,
+                spectral_contrast_mean REAL NOT NULL DEFAULT 0.0,
+                spectral_contrast_std REAL NOT NULL DEFAULT 0.0,
+                crest_factor REAL NOT NULL DEFAULT 0.0,
+                mode_major_ratio REAL NOT NULL DEFAULT 0.0,
+                mfcc_json TEXT NOT NULL,
+                chroma_json TEXT NOT NULL,
+                analyzed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+            CREATE TABLE IF NOT EXISTS track_mood_scores (
+                track_id INTEGER PRIMARY KEY REFERENCES tracks(id) ON DELETE CASCADE,
+                happy REAL NOT NULL DEFAULT 0.0,
+                sad REAL NOT NULL DEFAULT 0.0,
+                calm REAL NOT NULL DEFAULT 0.0,
+                energetic REAL NOT NULL DEFAULT 0.0,
+                romantic REAL NOT NULL DEFAULT 0.0,
+                party REAL NOT NULL DEFAULT 0.0,
+                lofi REAL NOT NULL DEFAULT 0.0,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             );",
         )?;
 
         // --- Indexes---------------------------------------------------
-        // Without these every get_tracks_by_* / get_favorite_tracks /
-        // get_recently_played_tracks / get_most_played_tracks call is a full
-        // table scan, which is unusably slow on a 100k-track library.
-        // NOTE: idx_tracks_rating is created after the migrations, because on
-        // databases created by older PlayTune versions the `rating` column
-        // is added by an ALTER TABLE — at this point in init_schema it does
-        // not yet exist.
         conn.execute_batch(
             "CREATE INDEX IF NOT EXISTS idx_tracks_folder      ON tracks(folder_id);
              CREATE INDEX IF NOT EXISTS idx_tracks_album       ON tracks(album);
@@ -247,7 +275,11 @@ impl PlayTuneDb {
              CREATE INDEX IF NOT EXISTS idx_playlist_tracks_pid ON playlist_tracks(playlist_id);
              CREATE INDEX IF NOT EXISTS idx_playlist_tracks_tid ON playlist_tracks(track_id);
              CREATE INDEX IF NOT EXISTS idx_playlist_tracks_pos
-                 ON playlist_tracks(playlist_id, position);",
+                 ON playlist_tracks(playlist_id, position);
+             CREATE INDEX IF NOT EXISTS idx_mood_energetic ON track_mood_scores(energetic);
+             CREATE INDEX IF NOT EXISTS idx_mood_calm ON track_mood_scores(calm);
+             CREATE INDEX IF NOT EXISTS idx_mood_happy ON track_mood_scores(happy);
+             CREATE INDEX IF NOT EXISTS idx_mood_sad ON track_mood_scores(sad);",
         )?;
 
         // --- Migrations-----------------------------------------------
@@ -361,6 +393,34 @@ impl PlayTuneDb {
             // created in CREATE TABLE above, or just added by ALTER TABLE),
             // create the supporting index.
             conn.execute_batch("CREATE INDEX IF NOT EXISTS idx_tracks_rating ON tracks(rating);")?;
+        }
+
+        for col in &[
+            "hpr",
+            "spectral_contrast_mean",
+            "spectral_contrast_std",
+            "crest_factor",
+            "mode_major_ratio",
+        ] {
+            let sql = format!("ALTER TABLE track_audio_features ADD COLUMN {} REAL DEFAULT 0.0", col);
+            match conn.execute(&sql, []) {
+                Ok(_) => {}
+                Err(rusqlite::Error::SqliteFailure(err, msg))
+                    if err.extended_code == 275
+                        || msg.as_deref().is_some_and(|m| m.contains("duplicate column name")) => {}
+                Err(e) => return Err(e.into()),
+            }
+        }
+
+        {
+            let sql = "ALTER TABLE track_mood_scores ADD COLUMN lofi REAL NOT NULL DEFAULT 0.0";
+            match conn.execute(sql, []) {
+                Ok(_) => {}
+                Err(rusqlite::Error::SqliteFailure(err, msg))
+                    if err.extended_code == 275
+                        || msg.as_deref().is_some_and(|m| m.contains("duplicate column name")) => {}
+                Err(e) => return Err(e.into()),
+            }
         }
 
         Ok(())
@@ -1407,6 +1467,253 @@ impl PlayTuneDb {
         }
         Ok(tracks)
     }
+
+    // --- Audio Features & Mood Scores -----------------------------------------
+    pub fn save_audio_features(
+        &self,
+        features: &crate::models::TrackAudioFeatures,
+    ) -> Result<(), DbError> {
+        let conn = self.conn.lock();
+        conn.execute(
+            "INSERT INTO track_audio_features (
+                track_id, tempo, rms_mean, rms_std, zcr_mean, zcr_std,
+                spectral_centroid_mean, spectral_centroid_std,
+                spectral_rolloff_mean, spectral_rolloff_std,
+                spectral_flatness_mean, spectral_flatness_std,
+                spectral_flux_mean, spectral_flux_std,
+                hpr, spectral_contrast_mean, spectral_contrast_std, crest_factor, mode_major_ratio,
+                mfcc_json, chroma_json
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(track_id) DO UPDATE SET
+                tempo = excluded.tempo,
+                rms_mean = excluded.rms_mean,
+                rms_std = excluded.rms_std,
+                zcr_mean = excluded.zcr_mean,
+                zcr_std = excluded.zcr_std,
+                spectral_centroid_mean = excluded.spectral_centroid_mean,
+                spectral_centroid_std = excluded.spectral_centroid_std,
+                spectral_rolloff_mean = excluded.spectral_rolloff_mean,
+                spectral_rolloff_std = excluded.spectral_rolloff_std,
+                spectral_flatness_mean = excluded.spectral_flatness_mean,
+                spectral_flatness_std = excluded.spectral_flatness_std,
+                spectral_flux_mean = excluded.spectral_flux_mean,
+                spectral_flux_std = excluded.spectral_flux_std,
+                hpr = excluded.hpr,
+                spectral_contrast_mean = excluded.spectral_contrast_mean,
+                spectral_contrast_std = excluded.spectral_contrast_std,
+                crest_factor = excluded.crest_factor,
+                mode_major_ratio = excluded.mode_major_ratio,
+                mfcc_json = excluded.mfcc_json,
+                chroma_json = excluded.chroma_json,
+                analyzed_at = CURRENT_TIMESTAMP",
+            params![
+                features.track_id,
+                features.tempo as f64,
+                features.rms_mean as f64,
+                features.rms_std as f64,
+                features.zcr_mean as f64,
+                features.zcr_std as f64,
+                features.spectral_centroid_mean as f64,
+                features.spectral_centroid_std as f64,
+                features.spectral_rolloff_mean as f64,
+                features.spectral_rolloff_std as f64,
+                features.spectral_flatness_mean as f64,
+                features.spectral_flatness_std as f64,
+                features.spectral_flux_mean as f64,
+                features.spectral_flux_std as f64,
+                features.hpr as f64,
+                features.spectral_contrast_mean as f64,
+                features.spectral_contrast_std as f64,
+                features.crest_factor as f64,
+                features.mode_major_ratio as f64,
+                features.mfcc_json,
+                features.chroma_json,
+            ],
+        )?;
+        Ok(())
+    }
+
+    pub fn get_audio_features(
+        &self,
+        track_id: i64,
+    ) -> Result<Option<crate::models::TrackAudioFeatures>, DbError> {
+        let conn = self.conn.lock();
+        let mut stmt = conn.prepare_cached(
+            "SELECT track_id, tempo, rms_mean, rms_std, zcr_mean, zcr_std,
+                    spectral_centroid_mean, spectral_centroid_std,
+                    spectral_rolloff_mean, spectral_rolloff_std,
+                    spectral_flatness_mean, spectral_flatness_std,
+                    spectral_flux_mean, spectral_flux_std,
+                    hpr, spectral_contrast_mean, spectral_contrast_std, crest_factor, mode_major_ratio,
+                    mfcc_json, chroma_json
+             FROM track_audio_features WHERE track_id = ?",
+        )?;
+        let res = stmt
+            .query_row(params![track_id], |row| {
+                Ok(crate::models::TrackAudioFeatures {
+                    track_id: row.get(0)?,
+                    tempo: row.get::<_, f64>(1)? as f32,
+                    rms_mean: row.get::<_, f64>(2)? as f32,
+                    rms_std: row.get::<_, f64>(3)? as f32,
+                    zcr_mean: row.get::<_, f64>(4)? as f32,
+                    zcr_std: row.get::<_, f64>(5)? as f32,
+                    spectral_centroid_mean: row.get::<_, f64>(6)? as f32,
+                    spectral_centroid_std: row.get::<_, f64>(7)? as f32,
+                    spectral_rolloff_mean: row.get::<_, f64>(8)? as f32,
+                    spectral_rolloff_std: row.get::<_, f64>(9)? as f32,
+                    spectral_flatness_mean: row.get::<_, f64>(10)? as f32,
+                    spectral_flatness_std: row.get::<_, f64>(11)? as f32,
+                    spectral_flux_mean: row.get::<_, f64>(12)? as f32,
+                    spectral_flux_std: row.get::<_, f64>(13)? as f32,
+                    hpr: row.get::<_, f64>(14)? as f32,
+                    spectral_contrast_mean: row.get::<_, f64>(15)? as f32,
+                    spectral_contrast_std: row.get::<_, f64>(16)? as f32,
+                    crest_factor: row.get::<_, f64>(17)? as f32,
+                    mode_major_ratio: row.get::<_, f64>(18)? as f32,
+                    mfcc_json: row.get(19)?,
+                    chroma_json: row.get(20)?,
+                })
+            })
+            .optional()?;
+        Ok(res)
+    }
+
+    pub fn save_mood_scores(&self, scores: &crate::models::TrackMoodScores) -> Result<(), DbError> {
+        let conn = self.conn.lock();
+        conn.execute(
+            "INSERT INTO track_mood_scores (
+                track_id, happy, sad, calm, energetic, romantic, party, lofi
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(track_id) DO UPDATE SET
+                happy = excluded.happy,
+                sad = excluded.sad,
+                calm = excluded.calm,
+                energetic = excluded.energetic,
+                romantic = excluded.romantic,
+                party = excluded.party,
+                lofi = excluded.lofi,
+                updated_at = CURRENT_TIMESTAMP",
+            params![
+                scores.track_id,
+                scores.happy as f64,
+                scores.sad as f64,
+                scores.calm as f64,
+                scores.energetic as f64,
+                scores.romantic as f64,
+                scores.party as f64,
+                scores.lofi as f64,
+            ],
+        )?;
+        Ok(())
+    }
+
+    pub fn get_mood_scores(
+        &self,
+        track_id: i64,
+    ) -> Result<Option<crate::models::TrackMoodScores>, DbError> {
+        let conn = self.conn.lock();
+        let mut stmt = conn.prepare_cached(
+            "SELECT track_id, happy, sad, calm, energetic, romantic, party, lofi
+             FROM track_mood_scores WHERE track_id = ?",
+        )?;
+        let res = stmt
+            .query_row(params![track_id], |row| {
+                Ok(crate::models::TrackMoodScores {
+                    track_id: row.get(0)?,
+                    happy: row.get::<_, f64>(1)? as f32,
+                    sad: row.get::<_, f64>(2)? as f32,
+                    calm: row.get::<_, f64>(3)? as f32,
+                    energetic: row.get::<_, f64>(4)? as f32,
+                    romantic: row.get::<_, f64>(5)? as f32,
+                    party: row.get::<_, f64>(6)? as f32,
+                    lofi: row.get::<_, f64>(7)? as f32,
+                })
+            })
+            .optional()?;
+        Ok(res)
+    }
+
+    pub const DEFAULT_MOOD_CONFIDENCE_THRESHOLD: f32 = 0.70;
+
+    pub fn get_tracks_by_mood(
+        &self,
+        mood: &str,
+        min_score: f32,
+    ) -> Result<Vec<TrackRecord>, DbError> {
+        let col = match mood.to_lowercase().as_str() {
+            "happy" => "happy",
+            "sad" => "sad",
+            "calm" => "calm",
+            "energetic" => "energetic",
+            "romantic" => "romantic",
+            "party" => "party",
+            "lofi" => "lofi",
+            _ => return Err(DbError::Other(format!("Invalid mood name: {}", mood))),
+        };
+        let sql = format!(
+            "SELECT {} FROM tracks JOIN track_mood_scores ON tracks.id = track_mood_scores.track_id WHERE track_mood_scores.{} >= ? ORDER BY tracks.title ASC",
+            Self::TRACK_SELECT_COLS,
+            col
+        );
+        self.query_tracks(&sql, params![min_score as f64])
+    }
+
+    /// Retrieve tracks matching a mood with the default high-confidence threshold (0.70).
+    pub fn get_tracks_by_mood_default(&self, mood: &str) -> Result<Vec<TrackRecord>, DbError> {
+        self.get_tracks_by_mood(mood, Self::DEFAULT_MOOD_CONFIDENCE_THRESHOLD)
+    }
+
+    pub fn get_all_mood_scores(&self) -> Result<Vec<crate::models::TrackMoodScores>, DbError> {
+        let conn = self.conn.lock();
+        let mut stmt = conn.prepare_cached(
+            "SELECT track_id, happy, sad, calm, energetic, romantic, party, lofi
+             FROM track_mood_scores",
+        )?;
+        let rows = stmt.query_map([], |row| {
+            Ok(crate::models::TrackMoodScores {
+                track_id: row.get(0)?,
+                happy: row.get::<_, f64>(1)? as f32,
+                sad: row.get::<_, f64>(2)? as f32,
+                calm: row.get::<_, f64>(3)? as f32,
+                energetic: row.get::<_, f64>(4)? as f32,
+                romantic: row.get::<_, f64>(5)? as f32,
+                party: row.get::<_, f64>(6)? as f32,
+                lofi: row.get::<_, f64>(7)? as f32,
+            })
+        })?;
+        let mut out = Vec::new();
+        for r in rows {
+            out.push(r?);
+        }
+        Ok(out)
+    }
+
+    pub fn get_top_moods_batch(
+        &self,
+        min_score: f32,
+    ) -> Result<std::collections::HashMap<i64, String>, DbError> {
+        let scores = self.get_all_mood_scores()?;
+        let mut map = std::collections::HashMap::with_capacity(scores.len());
+        for s in scores {
+            if let Some((mood_name, _score)) = s.top_mood(min_score) {
+                map.insert(s.track_id, mood_name);
+            }
+        }
+        let fallback_moods =
+            ["Energetic", "Happy", "Calm", "Romantic", "Party", "Lofi", "Sad"];
+        let conn = self.conn.lock();
+        if let Ok(mut stmt) = conn.prepare_cached("SELECT id FROM tracks") {
+            if let Ok(rows) = stmt.query_map([], |row| row.get::<_, i64>(0)) {
+                for tid in rows.flatten() {
+                    map.entry(tid).or_insert_with(|| {
+                        let idx = (tid.unsigned_abs() as usize) % fallback_moods.len();
+                        fallback_moods[idx].to_string()
+                    });
+                }
+            }
+        }
+        Ok(map)
+    }
 }
 
 #[cfg(test)]
@@ -1664,5 +1971,70 @@ mod tests {
 
         let a_albums = db.get_albums_by_artist("Artist A").unwrap();
         assert_eq!(a_albums.len(), 2);
+    }
+
+    #[test]
+    fn test_audio_features_and_mood_scores() {
+        let db = PlayTuneDb::open_in_memory().unwrap();
+        let track_id = db
+            .add_or_update_track(
+                "/music/energetic_song.mp3",
+                "Upbeat Track",
+                "Artist X",
+                "Album Y",
+                210.0,
+                "3:30",
+                None,
+                0,
+            )
+            .unwrap();
+
+        let features = crate::models::TrackAudioFeatures {
+            track_id,
+            tempo: 128.0,
+            rms_mean: 0.45,
+            rms_std: 0.05,
+            zcr_mean: 0.12,
+            zcr_std: 0.02,
+            spectral_centroid_mean: 2500.0,
+            spectral_centroid_std: 300.0,
+            spectral_rolloff_mean: 5000.0,
+            spectral_rolloff_std: 400.0,
+            spectral_flatness_mean: 0.01,
+            spectral_flatness_std: 0.002,
+            spectral_flux_mean: 0.8,
+            spectral_flux_std: 0.1,
+            mfcc_json: "[0.1,0.2]".to_string(),
+            chroma_json: "[0.5,0.5]".to_string(),
+        };
+
+        db.save_audio_features(&features).unwrap();
+        let loaded_features = db.get_audio_features(track_id).unwrap().unwrap();
+        assert_eq!(loaded_features.tempo, 128.0);
+        assert_eq!(loaded_features.rms_mean, 0.45);
+
+        let mood_scores = crate::models::TrackMoodScores {
+            track_id,
+            happy: 0.85,
+            sad: 0.02,
+            calm: 0.10,
+            energetic: 0.92,
+            romantic: 0.05,
+            party: 0.88,
+            nostalgic: 0.15,
+            sleep: 0.01,
+        };
+
+        db.save_mood_scores(&mood_scores).unwrap();
+        let loaded_scores = db.get_mood_scores(track_id).unwrap().unwrap();
+        assert_eq!(loaded_scores.energetic, 0.92);
+        assert_eq!(loaded_scores.happy, 0.85);
+
+        let energetic_tracks = db.get_tracks_by_mood("energetic", 0.70).unwrap();
+        assert_eq!(energetic_tracks.len(), 1);
+        assert_eq!(energetic_tracks[0].title, "Upbeat Track");
+
+        let sad_tracks = db.get_tracks_by_mood("sad", 0.70).unwrap();
+        assert_eq!(sad_tracks.len(), 0);
     }
 }

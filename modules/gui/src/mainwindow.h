@@ -31,6 +31,7 @@ public:
 protected:
     void keyPressEvent(QKeyEvent* event) override;
     void resizeEvent(QResizeEvent* event) override;
+    void changeEvent(QEvent* event) override;
     void closeEvent(QCloseEvent* event) override;
 
 private slots:
@@ -41,6 +42,7 @@ private:
     void connectBridge();
     void loadStyleSheet();
     void setupKeyboardShortcuts();
+    void updateSidebarDimensions();
     void showToast(const QString& message);  // Issue 10: in-app toast notification
     void updateLayoutForCurrentTab(int index);
     void setupSystemTray();
@@ -108,6 +110,8 @@ private:
     bool         m_inResizeEvent = false;
     bool         m_sidebarCollapsedByUser = false;
     bool         m_queueHiddenByUser = false;
+    bool         m_wasMaximizedBeforeMinimize = false;
+    bool         m_wasFullScreenBeforeMinimize = false;
 };
 
 #endif // MAINWINDOW_H

@@ -1,3 +1,9 @@
+pub mod feature_extractor;
+pub mod mood_classifier;
+
+pub use feature_extractor::AudioFeatureExtractor;
+pub use mood_classifier::MoodClassifierModel;
+
 #[derive(Debug, Clone, Default)]
 pub struct TrackAnalysis {
     pub bpm: Option<f32>,
@@ -344,5 +350,86 @@ impl FftVisualizerTap {
             }
             Err(_) => 0,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_feature_extraction_synthetic() {
+        let extractor = AudioFeatureExtractor::new();
+
+        // Generate 3 seconds of 440 Hz sine wave @ 22050 Hz
+        let sample_rate = 22050;
+        let num_samples = 3 * sample_rate;
+        let mut samples = Vec::with_capacity(num_samples);
+
+        for i in 0..num_samples {
+            let t = i as f32 / sample_rate as f32;
+            let val = (2.0 * std::f32::consts::PI * 440.0 * t).sin() * 0.5;
+            samples.push(val);
+        }
+
+        let features = extractor.extract_from_samples(42, &samples);
+        assert_eq!(features.track_id, 42);
+        assert!(features.rms_mean > 0.3); // RMS of sine wave 0.5 amp is ~0.353
+        assert!(features.spectral_centroid_mean > 350.0 && features.spectral_centroid_mean < 550.0); // Close to 440 Hz
+
+        // Check MFCC & Chroma JSON formatting
+        let mfcc_parsed: Vec<(f32, f32)> = serde_json::from_str(&features.mfcc_json).unwrap();
+        assert_eq!(mfcc_parsed.len(), 13);
+
+        let chroma_parsed: Vec<f32> = serde_json::from_str(&features.chroma_json).unwrap();
+        assert_eq!(chroma_parsed.len(), 12);
+    }
+
+    #[test]
+    fn test_mood_classifier_tree_eval() {
+        use mood_classifier::{MoodClassifierModel, MoodEnsemble, Tree, TreeNode};
+
+        let tree = Tree {
+            nodes: vec![
+                TreeNode {
+                    feature_idx: 0, // tempo
+                    threshold: 120.0,
+                    left_child: Some(1),
+                    right_child: Some(2),
+                    leaf_value: 0.0,
+                    is_leaf: false,
+                },
+                TreeNode {
+                    feature_idx: 0,
+                    threshold: 0.0,
+                    left_child: None,
+                    right_child: None,
+                    leaf_value: -1.5,
+                    is_leaf: true,
+                },
+                TreeNode {
+                    feature_idx: 0,
+                    threshold: 0.0,
+                    left_child: None,
+                    right_child: None,
+                    leaf_value: 2.0,
+                    is_leaf: true,
+                },
+            ],
+        };
+
+        let ensemble = MoodEnsemble { trees: vec![tree], base_score: 0.0 };
+
+        let model = MoodClassifierModel { energetic: ensemble, ..Default::default() };
+
+        let low_tempo_features =
+            db::models::TrackAudioFeatures { track_id: 1, tempo: 90.0, ..Default::default() };
+        let scores_low = model.classify(&low_tempo_features);
+        assert!(scores_low.energetic < 0.5); // Sigmoid(-1.5) approx 0.18
+
+        let high_tempo_features =
+            db::models::TrackAudioFeatures { track_id: 2, tempo: 140.0, ..Default::default() };
+        let scores_high = model.classify(&high_tempo_features);
+        assert!(scores_high.energetic > 0.8); // Sigmoid(2.0) approx 0.88
     }
 }

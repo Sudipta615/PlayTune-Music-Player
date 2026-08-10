@@ -255,9 +255,15 @@ void SidebarWidget::setupUi() {
     });
 }
 
+void SidebarWidget::setSidebarWidths(int expandedWidth, int collapsedWidth) {
+    m_expandedWidth = expandedWidth;
+    m_collapsedWidth = collapsedWidth;
+    setFixedWidth(m_isCollapsed ? m_collapsedWidth : m_expandedWidth);
+}
+
 void SidebarWidget::setCollapsed(bool collapsed) {
     m_isCollapsed = collapsed;
-    setFixedWidth(m_isCollapsed ? 64 : 200);
+    setFixedWidth(m_isCollapsed ? m_collapsedWidth : m_expandedWidth);
     if (m_logoText) m_logoText->setVisible(!m_isCollapsed);
     if (m_sectionLabel) m_sectionLabel->setVisible(!m_isCollapsed);
     if (m_addPlaylistBtn) m_addPlaylistBtn->setVisible(!m_isCollapsed);

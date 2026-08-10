@@ -127,6 +127,16 @@ PlayTune replaces cluttered sliders with an elegant, **context-aware 3-tab segme
 </details>
 
 <details>
+<summary><b>🧠 Intelligent Mood Analyzer & Automatic Track Classifier</b> — <code>modules/analysis</code></summary>
+<br/>
+
+- **DSP Feature Extraction** — Computes spectral centroid, signal energy, zero-crossing rate, loudness, and tempo attributes across audio files.
+- **Automated Track Classification** — Categorizes library tracks into 7 distinct mood states (*Calm*, *Energetic*, *Happy*, *Sad*, *Romantic*, *Party*, *Luft*).
+- **One-Click Sidebar Filtering & Visual Badges** — Interactive Mood sidebar presets and color-coded table badges for seamless music browsing.
+
+</details>
+
+<details>
 <summary><b>🌐 Deep OS Media Key & Desktop Integration</b> — via <a href="https://github.com/Sinono3/souvlaki"><code>souvlaki</code></a></summary>
 <br/>
 
@@ -176,7 +186,7 @@ No monolith, no spaghetti — just seven focused crates that each do one thing w
 | **`library`** | `modules/library/` | Recursive directory traversal, single-pass metadata extraction, cover art decoding |
 | **`platform`** | `modules/platform/` | OS media key listeners and MPRIS / SMTC / MPRemoteCommandCenter bridges |
 | **`config`** | `modules/config/` | Serialized player preferences, EQ bands, window geometry (`serde`) |
-| **`analysis`** | `modules/analysis/` | Shared real-time FFT spectrum analysis utilities (`realfft`) |
+| **`analysis`** | `modules/analysis/` | Audio feature extraction (energy, spectral centroid, ZCR, tempo), automated mood classification & real-time FFT utilities |
 
 </div>
 
@@ -229,6 +239,23 @@ cargo run --release
 RUST_LOG=info cargo run --release    # Standard operational info
 RUST_LOG=debug cargo run --release   # Verbose DSP & database traces
 ```
+
+---
+
+## 📖 How to Train Your Model (Developer Guide)
+
+1. Open PlayTune and create playlists starting with `Mood - ` (e.g. `Mood - Happy`, `Mood - Sad`, `Mood - Energetic`, `Mood - Calm`, `Mood - Romantic`, `Mood - Party`, `Mood - Lofi`).
+2. Add songs into their corresponding mood playlists.
+3. Run the export CLI command:
+   ```bash
+   cargo run -- export-training-data
+   ```
+   *This automatically generates `training_dataset.csv`.*
+4. Train the LightGBM models:
+   ```bash
+   python3 tools/train_mood_model.py training_dataset.csv assets/mood_models.json
+   ```
+5. Done! The updated `assets/mood_models.json` will be shipped with PlayTune and automatically classify all user songs on scanning.
 
 ---
 

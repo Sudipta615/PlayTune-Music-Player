@@ -27,6 +27,7 @@
 #include <QMessageBox>
 #include <QCloseEvent>
 #include <QPixmapCache>
+#include <QWindowStateChangeEvent>
 #include "playlistcreatedialog.h"
 #include "sleeptimerdialog.h"
 
@@ -150,7 +151,7 @@ private:
 MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
     setObjectName("MainWindow");
     setWindowTitle("PlayTune");
-    resize(1200, 800);
+    resize(1400, 900);
     setMinimumSize(900, 600);
 
     if (!qApp->windowIcon().isNull()) {
@@ -574,6 +575,8 @@ void MainWindow::connectBridge() {
             m_toolTipController->setEnabled(enabled);
         }
     });
+    connect(m_settingsPage, &SettingsPageWidget::moodColumnToggled,
+            m_songsTable, &SongsTableWidget::setMoodColumnVisible);
     // Wire the gapless/crossfade toggles. Gapless is the inverse of crossfade:
     // when gapless is ON, crossfade is OFF and vice versa. We expose this to
     // the backend as a single crossfade_enabled flag.
@@ -1174,11 +1177,68 @@ void MainWindow::keyPressEvent(QKeyEvent* event) {
     QMainWindow::keyPressEvent(event);
 }
 
+void MainWindow::updateSidebarDimensions() {
+    bool isLargeOrFullScreen = isFullScreen() || isMaximized() || width() >= 1600;
+    int expandedLeft  = isLargeOrFullScreen ? 250 : 200;
+    int collapsedLeft = isLargeOrFullScreen ? 80  : 64;
+    int rightWidth    = isLargeOrFullScreen ? 350 : 290;
+
+    if (m_sidebar) {
+        m_sidebar->setSidebarWidths(expandedLeft, collapsedLeft);
+    }
+    if (m_queueWidget) {
+        m_queueWidget->setFixedWidth(rightWidth);
+    }
+}
+
+void MainWindow::changeEvent(QEvent* event) {
+    QMainWindow::changeEvent(event);
+    if (event && event->type() == QEvent::WindowStateChange) {
+        auto* stateEvent = static_cast<QWindowStateChangeEvent*>(event);
+        Qt::WindowStates oldState = stateEvent->oldState();
+        Qt::WindowStates newState = windowState();
+
+        if (newState & Qt::WindowMinimized) {
+            // Window is being minimized
+            if (oldState & Qt::WindowMaximized) {
+                m_wasMaximizedBeforeMinimize = true;
+            }
+            if (oldState & Qt::WindowFullScreen) {
+                m_wasFullScreenBeforeMinimize = true;
+            }
+        } else if (oldState & Qt::WindowMinimized) {
+            // Window is being unminimized / restored from minimized state
+            if (m_wasMaximizedBeforeMinimize) {
+                m_wasMaximizedBeforeMinimize = false;
+                if (!(newState & Qt::WindowMaximized)) {
+                    setWindowState((windowState() & ~Qt::WindowMinimized) | Qt::WindowMaximized);
+                }
+            } else if (m_wasFullScreenBeforeMinimize) {
+                m_wasFullScreenBeforeMinimize = false;
+                if (!(newState & Qt::WindowFullScreen)) {
+                    setWindowState((windowState() & ~Qt::WindowMinimized) | Qt::WindowFullScreen);
+                }
+            }
+        } else {
+            // State change while restored (e.g. user manually unmaximized or unfullscreened)
+            if (!(newState & Qt::WindowMaximized)) {
+                m_wasMaximizedBeforeMinimize = false;
+            }
+            if (!(newState & Qt::WindowFullScreen)) {
+                m_wasFullScreenBeforeMinimize = false;
+            }
+        }
+
+        updateSidebarDimensions();
+    }
+}
+
 void MainWindow::resizeEvent(QResizeEvent* event) {
     QMainWindow::resizeEvent(event);
     int w = width();
 
     m_inResizeEvent = true;
+    updateSidebarDimensions();
 
     // Left Sidebar staged collapse
     if (w < 1050) {
@@ -1298,7 +1358,13 @@ void MainWindow::setupSystemTray() {
     });
     connect(m_trayShowHideAction, &QAction::triggered, this, [this]() {
         if (isHidden()) {
-            show();
+            if (m_wasMaximizedBeforeMinimize) {
+                showMaximized();
+            } else if (m_wasFullScreenBeforeMinimize) {
+                showFullScreen();
+            } else {
+                show();
+            }
             raise();
             activateWindow();
         } else {
@@ -1314,7 +1380,13 @@ void MainWindow::setupSystemTray() {
             [this](QSystemTrayIcon::ActivationReason reason) {
         if (reason == QSystemTrayIcon::Trigger) {
             if (isHidden()) {
-                show();
+                if (m_wasMaximizedBeforeMinimize) {
+                    showMaximized();
+                } else if (m_wasFullScreenBeforeMinimize) {
+                    showFullScreen();
+                } else {
+                    show();
+                }
                 raise();
                 activateWindow();
             } else {

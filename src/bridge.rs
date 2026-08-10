@@ -157,12 +157,13 @@ pub struct FfiSongRow {
     pub album: *const c_char,
     pub duration: *const c_char,
     pub cover_path: *const c_char,
+    pub mood: *const c_char,
 }
 
-// Sanity check: the struct must be exactly 5 pointers + 4 ints.
+// Sanity check: the struct must be exactly 6 pointers + 4 ints.
 const _: () = assert!(
     std::mem::size_of::<FfiSongRow>()
-        == 5 * std::mem::size_of::<*const c_char>() + 4 * std::mem::size_of::<c_int>(),
+        == 6 * std::mem::size_of::<*const c_char>() + 4 * std::mem::size_of::<c_int>(),
     "FfiSongRow layout mismatch — check C++ SongRowFfi"
 );
 
@@ -444,7 +445,7 @@ pub fn set_songs_batch(rows: &[SongRowArg]) {
     // Build the CString backing storage first so the pointers stay
     // valid for the duration of the FFI call. We keep them in a Vec to
     // prevent them from being dropped early.
-    let mut cstrings: Vec<CString> = Vec::with_capacity(rows.len() * 5);
+    let mut cstrings: Vec<CString> = Vec::with_capacity(rows.len() * 6);
     let mut ffi_rows: Vec<FfiSongRow> = Vec::with_capacity(rows.len());
 
     for r in rows {
@@ -453,12 +454,14 @@ pub fn set_songs_batch(rows: &[SongRowArg]) {
         let c_album = cstring_or_warn(&r.album, "album");
         let c_duration = cstring_or_warn(&r.duration, "duration");
         let c_cover = cstring_or_warn(&r.cover_path, "cover_path");
+        let c_mood = cstring_or_warn(&r.mood, "mood");
 
         let title_ptr = c_title.as_ptr();
         let artist_ptr = c_artist.as_ptr();
         let album_ptr = c_album.as_ptr();
         let duration_ptr = c_duration.as_ptr();
         let cover_ptr = c_cover.as_ptr();
+        let mood_ptr = c_mood.as_ptr();
 
         // Push the CStrings BEFORE pushing the FfiSongRow that holds
         // their pointers, so the order of drop (reverse of push) at end
@@ -468,6 +471,7 @@ pub fn set_songs_batch(rows: &[SongRowArg]) {
         cstrings.push(c_album);
         cstrings.push(c_duration);
         cstrings.push(c_cover);
+        cstrings.push(c_mood);
 
         ffi_rows.push(FfiSongRow {
             display_index: r.display_index,
@@ -479,6 +483,7 @@ pub fn set_songs_batch(rows: &[SongRowArg]) {
             album: album_ptr,
             duration: duration_ptr,
             cover_path: cover_ptr,
+            mood: mood_ptr,
         });
     }
 
@@ -499,6 +504,7 @@ pub struct SongRowArg {
     pub album: String,
     pub duration: String,
     pub cover_path: String,
+    pub mood: String,
 }
 
 pub fn clear_folders() {

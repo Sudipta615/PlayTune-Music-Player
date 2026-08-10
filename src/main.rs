@@ -13,6 +13,7 @@ use platform::{MediaKeyAction, PlatformIntegration};
 
 mod app_state;
 mod bridge;
+mod export_cli;
 mod handlers;
 mod ui_sync;
 
@@ -61,6 +62,43 @@ unsafe fn silence_alsa_logs() {}
 
 fn main() {
     env_logger::init();
+
+    // Check for CLI subcommands before starting audio/GUI systems
+    let args_os: Vec<String> = std::env::args().collect();
+    if args_os.iter().any(|arg| arg == "export-training-data" || arg == "--export-training-data") {
+        println!("PlayTune Mood Analyzer Dataset Exporter");
+        let db = match PlayTuneDb::open_default() {
+            Ok(d) => d,
+            Err(e) => {
+                eprintln!("Failed to open database: {}", e);
+                std::process::exit(1);
+            }
+        };
+        let output_file = "training_dataset.csv";
+        if let Err(e) = export_cli::export_training_data(&db, output_file) {
+            eprintln!("Export error: {}", e);
+            std::process::exit(1);
+        }
+        std::process::exit(0);
+    }
+
+    if args_os.iter().any(|arg| arg == "classify-moods" || arg == "--classify-moods") {
+        println!("PlayTune Mood Classifier");
+        let db = match PlayTuneDb::open_default() {
+            Ok(d) => d,
+            Err(e) => {
+                eprintln!("Failed to open database: {}", e);
+                std::process::exit(1);
+            }
+        };
+        let model_file = "assets/mood_models.json";
+        if let Err(e) = export_cli::classify_all_tracks(&db, model_file) {
+            eprintln!("Classification error: {}", e);
+            std::process::exit(1);
+        }
+        std::process::exit(0);
+    }
+
     unsafe {
         silence_alsa_logs();
     }
@@ -488,7 +526,7 @@ fn main() {
                     }
                 }
             }
-            let lib_mgr = LibraryManager::new(arc_db, lib_config);
+            let lib_mgr = LibraryManager::new(arc_db.clone(), lib_config);
             let lib_mgr_arc = std::sync::Arc::new(lib_mgr);
             let _ = LIBRARY_MANAGER.set(lib_mgr_arc.clone());
 
@@ -517,6 +555,17 @@ fn main() {
                     return;
                 }
                 refresh_folders_view();
+
+                if std::path::Path::new("assets/mood_models.json").exists() {
+                    let db_clone = std::sync::Arc::clone(&arc_db);
+                    spawn_worker("playtune-mood-classifier", move || {
+                        log::info!("Starting background mood classification...");
+                        let _ =
+                            export_cli::classify_all_tracks(&db_clone, "assets/mood_models.json");
+                        crate::app_state::invalidate_loaded_filter();
+                        refresh_ui("all", None);
+                    });
+                }
             });
         }
         Err(e) => {

@@ -294,6 +294,12 @@ fn rust_search_worker(query_str: String, gen: u64) {
     // the C++ CoverLoader resolves them lazily as rows scroll into view,
     // avoiding N `cached_cover_path()` calls (each may hit disk) on the
     // background thread under a write lock.
+    let mood_map = if let Some(db) = GLOBAL_DB.get() {
+        db.get_top_moods_batch(0.50).unwrap_or_default()
+    } else {
+        std::collections::HashMap::new()
+    };
+
     let ffi_rows: Vec<crate::bridge::SongRowArg> = filtered
         .iter()
         .enumerate()
@@ -306,6 +312,7 @@ fn rust_search_worker(query_str: String, gen: u64) {
             album: track.album.clone(),
             duration: track.duration_str.clone(),
             cover_path: cached_cover_path(&track.path).unwrap_or_default(),
+            mood: mood_map.get(&track.id).cloned().unwrap_or_default(),
         })
         .collect();
 
