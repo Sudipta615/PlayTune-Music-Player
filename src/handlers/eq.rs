@@ -8,7 +8,7 @@ use crate::app_state::{
     EQ_BAND_FREQS, REPEAT_ENABLED, SHUFFLE_ENABLED,
 };
 use crate::ffi_safe;
-use crate::ui_sync::{refresh_up_next_queue};
+use crate::ui_sync::refresh_up_next_queue;
 
 pub extern "C" fn rust_eq_band(band_idx: i32, gain_db: c_double) {
     ffi_safe!({
@@ -100,7 +100,6 @@ pub extern "C" fn rust_set_output_backend(backend: i32) {
         if let Some(tx) = ENGINE_CMD_TX.get() {
             let _ = tx.send(EngineCommand::SetOutputBackend(b));
         }
-        
     });
 }
 

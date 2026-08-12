@@ -159,14 +159,18 @@ pub fn refresh_ui_gen(filter_type: &str, filter_id: Option<i64>, expected_gen: u
     // take a name string rather than an id.
     let album_name_opt: Option<String> = if filter_type == "album" {
         filter_id.and_then(|id| {
-            GLOBAL_DB.get().and_then(|db| db.get_track(id).ok().flatten().map(|t| t.album.to_string()))
+            GLOBAL_DB
+                .get()
+                .and_then(|db| db.get_track(id).ok().flatten().map(|t| t.album.to_string()))
         })
     } else {
         None
     };
     let artist_name_opt: Option<String> = if filter_type == "artist" {
         filter_id.and_then(|id| {
-            GLOBAL_DB.get().and_then(|db| db.get_track(id).ok().flatten().map(|t| t.artist.to_string()))
+            GLOBAL_DB
+                .get()
+                .and_then(|db| db.get_track(id).ok().flatten().map(|t| t.artist.to_string()))
         })
     } else {
         None

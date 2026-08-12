@@ -374,7 +374,7 @@ impl CpalOutput {
                 let in_callback = Arc::clone(&in_callback);
                 let visualizer_tap = visualizer_tap.clone();
                 let callback_initialized = Arc::clone(&callback_initialized);
-                
+
                 let scratch_cap = match self.stream_config.buffer_size {
                     cpal::BufferSize::Fixed(f) => (f as usize) * channels,
                     cpal::BufferSize::Default => 65536, // generous fallback
@@ -408,7 +408,7 @@ impl CpalOutput {
                 let in_callback = Arc::clone(&in_callback);
                 let visualizer_tap = visualizer_tap.clone();
                 let callback_initialized = Arc::clone(&callback_initialized);
-                
+
                 let scratch_cap = match self.stream_config.buffer_size {
                     cpal::BufferSize::Fixed(f) => (f as usize) * channels,
                     cpal::BufferSize::Default => 65536, // generous fallback
