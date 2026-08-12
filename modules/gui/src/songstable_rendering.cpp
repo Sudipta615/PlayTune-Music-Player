@@ -114,6 +114,12 @@ private:
     SongsTableWidget* m_owner = nullptr;
 };
 
+void SongsTableWidget::initTableDelegate() {
+    if (m_table) {
+        m_table->setItemDelegate(new SongTableRowDelegate(this, m_table));
+    }
+}
+
 QPixmap SongsTableWidget::getThumbnail(const QString& title) {
     Q_UNUSED(title);
     return getDefaultAlbumArt();

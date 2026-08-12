@@ -1,4 +1,5 @@
 #include "apptheme.h"
+#include "coverloader.h"
 #include <QSettings>
 #include <QApplication>
 #include <QWidget>
@@ -232,6 +233,16 @@ void ThemeManager::setTheme(const QString& themeId) {
         return;
     }
 
+    if (m_currentPalette.id == themeId) {
+        return; // Skip redundant theme switch
+    }
+
+    static bool s_isChangingTheme = false;
+    if (s_isChangingTheme) {
+        return; // Guard against re-entrant calls during rapid switching
+    }
+    s_isChangingTheme = true;
+
     m_currentPalette = m_themes[themeId];
 
     QSettings settings("PlayTune", "Settings");
@@ -254,7 +265,9 @@ void ThemeManager::setTheme(const QString& themeId) {
         }
     }
 
+    CoverLoader::instance().clearCache();
     emit themeChanged(m_currentPalette);
+    s_isChangingTheme = false;
 }
 
 // ─── Icon Tinting ───────────────────────────────────────────────────────────

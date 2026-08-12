@@ -167,6 +167,7 @@ impl SymphoniaDecoder {
                     break;
                 }
                 Err(SymphoniaError::ResetRequired) => {
+                    self.decoder.reset();
                     consecutive_skips += 1;
                     if consecutive_skips > MAX_CONSECUTIVE_SKIPS {
                         log::debug!("Max consecutive ResetRequired skips reached near stream end");
@@ -221,12 +222,13 @@ impl SymphoniaDecoder {
                     consecutive_skips = 0;
                 }
                 Err(SymphoniaError::DecodeError(_)) => {
+                    self.decoder.reset();
                     consecutive_skips += 1;
                     if consecutive_skips > MAX_CONSECUTIVE_SKIPS {
-                        return Err(DecodeError::Decode(format!(
-                            "Too many consecutive DecodeError skips ({})",
-                            consecutive_skips
-                        )));
+                        if self.sample_buffer.is_empty() {
+                            return Err(DecodeError::EndOfStream);
+                        }
+                        break;
                     }
                     continue;
                 }

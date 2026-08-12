@@ -158,6 +158,7 @@ impl AudioEngine {
                             self.crossfade_triggered = false;
                             self.pending_chunk = None;
                             self.pending_incoming_chunk = None;
+                            self.write_playback_info(|pb| pb.position_secs = clamped_pos);
                             info!("Seeked to {:.1}s", clamped_pos);
                         }
                         Err(e) => {
@@ -378,10 +379,12 @@ impl AudioEngine {
                     Ok(metadata) if metadata.is_file() => {}
                     Ok(_) => {
                         warn!("OpenUri: path is not a regular file: {}", path.display());
+                        self.update_playback_state(PlaybackState::Stopped);
                         return;
                     }
                     Err(_) => {
                         warn!("OpenUri: cannot access path: {}", path.display());
+                        self.update_playback_state(PlaybackState::Stopped);
                         return;
                     }
                 }
@@ -409,6 +412,7 @@ impl AudioEngine {
                     }
                     Err(e) => {
                         warn!("Failed to load URI '{}': {}", uri, e);
+                        self.update_playback_state(PlaybackState::Stopped);
                     }
                 }
             }

@@ -1,4 +1,4 @@
-use std::sync::atomic::{AtomicBool, AtomicI64, AtomicU32};
+use std::sync::atomic::{AtomicBool, AtomicI64, AtomicU32, AtomicU64};
 use std::sync::{Arc, OnceLock};
 use std::thread;
 use std::time::{Duration, Instant};
@@ -70,6 +70,7 @@ pub static REPEAT_ENABLED: AtomicBool = AtomicBool::new(false);
 pub static QUEUE_CLEARED_BY_USER: AtomicBool = AtomicBool::new(false);
 pub static SHUFFLE_ORDER: Mutex<Vec<usize>> = parking_lot::const_mutex(Vec::new());
 pub static SHUFFLE_POS: Mutex<usize> = parking_lot::const_mutex(0);
+pub static USER_SELECT_GEN: AtomicU64 = AtomicU64::new(0);
 
 /// Track ID for which a play event has already been recorded this session
 /// (reset to 0 when a new track starts, set to track.id after >= 10s).

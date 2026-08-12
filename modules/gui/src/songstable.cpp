@@ -387,6 +387,7 @@ void SongsTableWidget::setupUi() {
     m_table->setColumnWidth(7, 48);
 
     m_table->setColumnHidden(2, !AppSettings::instance().isMoodColumnEnabled());
+    initTableDelegate();
 
     m_stackedWidget->addWidget(m_table);
 
@@ -515,7 +516,7 @@ void SongsTableWidget::setupUi() {
     }, Qt::QueuedConnection);
 
     connect(m_table->verticalScrollBar(), &QScrollBar::valueChanged, this, [this]() {
-        loadVisibleThumbnails();
+        QTimer::singleShot(40, this, &SongsTableWidget::loadVisibleThumbnails);
     });
 }
 
@@ -536,34 +537,25 @@ void SongsTableWidget::clearSongs() {
 }
 
 void SongsTableWidget::setOptimizedMode(bool enabled) {
-    int rows = m_table->rowCount();
-    for (int row = 0; row < rows; ++row) {
-        if (auto* titleCont = m_table->cellWidget(row, 1)) {
-            auto labels = titleCont->findChildren<QLabel*>();
-            for (QLabel* l : labels) {
-                if (l->objectName() != "SongTitleLabel") {
-                    if (enabled) {
-                        l->setPixmap(loadThumbnail(""));
-                        l->setVisible(true);
-                    } else {
-                        if (auto* firstItem = m_table->item(row, 0)) {
-                            QString cp = firstItem->data(Qt::UserRole + 1).toString();
-                            if (!cp.isEmpty()) {
-                                CoverLoader::instance().requestAsync(cp, 44);
-                            }
-                        }
-                    }
-                    break;
-                }
-            }
-        }
-    }
-
     if (enabled) {
         CoverLoader::instance().clearCache();
         CoverLoader::instance().setCacheLimitKb(2048);
+        int rows = m_table->rowCount();
+        for (int row = 0; row < rows; ++row) {
+            if (auto* titleCont = m_table->cellWidget(row, 1)) {
+                auto labels = titleCont->findChildren<QLabel*>();
+                for (QLabel* l : labels) {
+                    if (l->objectName() != "SongTitleLabel") {
+                        l->setPixmap(loadThumbnail(""));
+                        l->setVisible(true);
+                        break;
+                    }
+                }
+            }
+        }
     } else {
         CoverLoader::instance().setCacheLimitKb(15 * 1024);
+        loadVisibleThumbnails();
     }
     if (m_gridPopulated) {
         m_gridWidget->setOptimizedMode(enabled);
@@ -935,8 +927,8 @@ void SongsTableWidget::setSongsBatch(QVector<SongRow> rows) {
     }
 
     m_table->blockSignals(false);
-    if (m_table->viewport()) m_table->viewport()->setUpdatesEnabled(true);
     m_table->setUpdatesEnabled(true);
+    if (m_table->viewport()) m_table->viewport()->setUpdatesEnabled(true);
 
     if (m_songCountLabel) {
         m_songCountLabel->setText(QString::number(n) + " songs");

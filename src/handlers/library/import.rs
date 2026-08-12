@@ -27,32 +27,56 @@ pub extern "C" fn rust_import_files(paths: *const *const std::ffi::c_char, count
         if let Some(db_arc) = GLOBAL_DB.get() {
             let db_clone = std::sync::Arc::clone(db_arc);
             spawn_worker("playtune-import-files", move || {
-                for path_str in &path_vec {
-                    if SHUTDOWN.load(Ordering::SeqCst) {
-                        log::info!("rust_import_files: SHUTDOWN detected, aborting import");
-                        return;
-                    }
-                    let p = std::path::Path::new(path_str);
-                    let (title, artist, album, duration_secs, duration_str) =
-                        engine::extract_track_metadata(p);
-                    let _ = engine::extract_cover_art_to_cache(p);
-                    let mtime = std::fs::metadata(p)
-                        .ok()
-                        .and_then(|m| m.modified().ok())
-                        .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
-                        .map(|d| d.as_secs() as i64)
-                        .unwrap_or(0);
-                    let _ = db_clone.add_or_update_track(
-                        path_str,
-                        &title,
-                        &artist,
-                        &album,
-                        duration_secs,
-                        &duration_str,
-                        None,
-                        mtime,
-                    );
+                use rayon::prelude::*;
+
+                let extracted: Vec<_> = path_vec
+                    .par_iter()
+                    .filter_map(|path_str| {
+                        if SHUTDOWN.load(Ordering::SeqCst) {
+                            return None;
+                        }
+                        let p = std::path::Path::new(path_str);
+                        let (title, artist, album, duration_secs, duration_str) =
+                            engine::extract_track_metadata(p);
+                        let _ = engine::extract_cover_art_to_cache(p);
+                        let mtime = std::fs::metadata(p)
+                            .ok()
+                            .and_then(|m| m.modified().ok())
+                            .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
+                            .map(|d| d.as_secs() as i64)
+                            .unwrap_or(0);
+                        Some((path_str.clone(), title, artist, album, duration_secs, duration_str, mtime))
+                    })
+                    .collect();
+
+                if SHUTDOWN.load(Ordering::SeqCst) || extracted.is_empty() {
+                    return;
                 }
+
+                let batch_inputs: Vec<_> = extracted
+                    .iter()
+                    .map(|(path, title, artist, album, dur_secs, dur_str, mtime)| {
+                        (
+                            path.as_str(),
+                            title.as_str(),
+                            artist.as_str(),
+                            album.as_str(),
+                            *dur_secs,
+                            dur_str.as_str(),
+                            None,
+                            *mtime,
+                            None,
+                            None,
+                            None,
+                        )
+                    })
+                    .collect();
+
+                let _ = db_clone.with_transaction(|tx| {
+                    db::PlayTuneDb::insert_tracks_batch_tx(tx, &batch_inputs)?;
+                    Ok(())
+                });
+
                 if SHUTDOWN.load(Ordering::SeqCst) {
                     return;
                 }

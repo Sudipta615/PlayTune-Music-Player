@@ -59,7 +59,7 @@ pub fn refresh_up_next_queue() {
         if let Some(track) = list.get(idx) {
             let cover_path = cached_cover_path(&track.path).unwrap_or_default();
             bridge::add_queue_song(
-                idx as i32,
+                track.id as i32,
                 &track.title,
                 &track.artist,
                 &track.duration_str,

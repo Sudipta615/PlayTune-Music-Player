@@ -1,6 +1,6 @@
 //! Core decode-and-process loop for single and crossfade playback modes.
 
-use log::{error, info, warn};
+use log::{info, warn};
 
 use std::sync::Arc;
 
@@ -183,10 +183,12 @@ impl AudioEngine {
                     }
                     Err(e) => {
                         self.consecutive_decode_errors += 1;
-                        warn!("Decode error ({}/{}): {}", self.consecutive_decode_errors, 10, e);
-                        if self.consecutive_decode_errors >= 10 {
-                            error!("Too many consecutive decode errors; stopping playback");
+                        warn!("Decode error ({}/{}): {}", self.consecutive_decode_errors, 50, e);
+                        if self.consecutive_decode_errors >= 50 {
+                            warn!("Too many consecutive decode errors; advancing to end of track");
+                            self.position_secs = self.duration_secs;
                             self.update_playback_state(PlaybackState::Stopped);
+                            self.stream_ended = true;
                         }
                         None
                     }

@@ -122,6 +122,7 @@ private slots:
 
 private:
     void setupUi();
+    void initTableDelegate();
     void populateGridFromTable();  // Lazily build grid cards from m_rows.
     QPixmap getThumbnail(const QString& title);
     void populateAddToPlaylistMenu(QMenu* menu, int songId);

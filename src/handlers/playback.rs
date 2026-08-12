@@ -8,7 +8,7 @@ use crate::app_state::{
     apply_play_state, cached_cover_path, send_track_info_and_lyrics, sync_shuffle_order,
     CURRENT_INDEX, CURRENT_TRACK_LIST, CURRENT_VOLUME, ELAPSED_SECONDS, ENGINE_CMD_TX, IS_PLAYING,
     LAST_RECORDED_TRACK_ID, PLATFORM, QUEUE_CLEARED_BY_USER, REPEAT_ENABLED, SHUFFLE_ENABLED,
-    SHUFFLE_ORDER, SHUFFLE_POS,
+    SHUFFLE_ORDER, SHUFFLE_POS, USER_SELECT_GEN,
 };
 use crate::bridge;
 use crate::ffi_safe;
@@ -91,10 +91,9 @@ pub fn rust_prev_inner() {
     };
 
     if let Some((track, _new_idx)) = track_opt {
+        USER_SELECT_GEN.fetch_add(1, Ordering::SeqCst);
         log::info!("Prev Track clicked. Playing track: {}", track.title);
-        if let Some(mut elapsed) = ELAPSED_SECONDS.try_lock() {
-            *elapsed = 0.0;
-        }
+        *ELAPSED_SECONDS.lock() = 0.0;
 
         let cover_path = cached_cover_path(&track.path).unwrap_or_default();
         send_track_info_and_lyrics(&track, &cover_path);
@@ -186,10 +185,9 @@ pub fn rust_next_inner() {
     };
 
     if let Some((track, _new_idx)) = track_opt {
+        USER_SELECT_GEN.fetch_add(1, Ordering::SeqCst);
         log::info!("Next Track clicked. Playing track: {}", track.title);
-        if let Some(mut elapsed) = ELAPSED_SECONDS.try_lock() {
-            *elapsed = 0.0;
-        }
+        *ELAPSED_SECONDS.lock() = 0.0;
 
         let cover_path = cached_cover_path(&track.path).unwrap_or_default();
         send_track_info_and_lyrics(&track, &cover_path);
@@ -362,6 +360,7 @@ pub extern "C" fn rust_select_song(song_idx: i32) {
 }
 
 pub fn rust_select_song_inner(song_idx: i32) {
+    USER_SELECT_GEN.fetch_add(1, Ordering::SeqCst);
     QUEUE_CLEARED_BY_USER.store(false, Ordering::SeqCst);
     let target_id = song_idx as i64;
     let (track_opt, list_len) = if let Some(list_lock) = CURRENT_TRACK_LIST.get() {
@@ -386,6 +385,21 @@ pub fn rust_select_song_inner(song_idx: i32) {
     };
 
     if let Some(track) = track_opt {
+        let track_path = std::path::Path::new(&track.path);
+        if !track_path.is_file() {
+            log::warn!("Selected track file does not exist: {}", track.path);
+            crate::app_state::notify_track_change(&track);
+            bridge::show_desktop_notification(
+                "Track Unavailable",
+                &format!("File not found: {}", track.title),
+            );
+            IS_PLAYING.store(false, Ordering::SeqCst);
+            bridge::set_play_state(false);
+            crate::app_state::invalidate_all_views();
+            crate::ui_sync::refresh_ui("all", None);
+            return;
+        }
+
         let selected_idx = if let Some(list_lock) = CURRENT_TRACK_LIST.get() {
             if let Some(list) = list_lock.try_lock() {
                 list.iter().position(|t| t.id == track.id).unwrap_or(0)
@@ -402,9 +416,7 @@ pub fn rust_select_song_inner(song_idx: i32) {
             sync_shuffle_order(selected_idx, list_len);
         }
         log::info!("Song selected from list: {} - {}", track.title, track.artist);
-        if let Some(mut elapsed) = ELAPSED_SECONDS.try_lock() {
-            *elapsed = 0.0;
-        }
+        *ELAPSED_SECONDS.lock() = 0.0;
 
         let cover_path = cached_cover_path(&track.path).unwrap_or_default();
         send_track_info_and_lyrics(&track, &cover_path);

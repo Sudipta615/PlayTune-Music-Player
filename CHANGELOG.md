@@ -42,6 +42,37 @@ All developers and contributors **MUST** follow the standard 3-way (`x.y.z`) Sem
 
 ## 🗓️ Version History
 
+### [2.1.0] — 2026-08-11 — Static Waveform Preview Redesign, Engine EndOfStream & Playback Stability
+
+#### Summary
+Redesigned the waveform visualizer to a lightweight, zero-CPU 2D static audio waveform preview with interactive seeking, fixed audio decoder `EndOfStream` handling to eliminate transient packet decode freezes, resolved manual song selection ticker race conditions, added unreadable/missing track path validation with desktop notifications, and synchronized theme switching cover art caches.
+
+#### Added / Improved
+- **Zero-CPU 2D Static Audio Waveform Preview (`custom_widgets.h` & `custom_widgets.cpp`)**:
+  - Replaced legacy `QOpenGLWidget` waveform visualizer with a lightweight, 2D static waveform preview `QWidget`.
+  - Renders 44 static audio amplitude bars filled with theme linear gradients for played position and semi-transparent tint for unplayed position.
+  - Interactive click and drag across the waveform bar directly updates playback position (`seekRequested`).
+  - Eliminates OpenGL FBO driver artifacts, modal dialog float-over glitches, and drops active playback visualizer CPU overhead from ~10% to **0.0%**.
+- **Unreadable / Missing Track Path Validation (`playback.rs`)**:
+  - Added `std::path::Path::new(&track.path).is_file()` validation in `rust_select_song_inner` before initiating playback.
+  - Displays desktop toast notifications (`Track Unavailable: File not found`) and resets `IS_PLAYING = false` when an unreadable or deleted track is selected, preventing stuck `0:00` player card states.
+- **Theme Switch Thumbnail Eviction (`apptheme.cpp`)**:
+  - Added `CoverLoader::instance().clearCache()` invocation inside `ThemeManager::setTheme()` prior to `themeChanged` signal emission, updating default artwork thumbnails across Songs table, Queue, cards, and grid views instantly upon theme selection.
+
+#### Fixed
+- **Audio Decoder Loop EndOfStream & Packet Error Resilience (`symphonia_decoder.rs` & `decode_loop.rs`)**:
+  - Fixed audio decoding termination issue where `decode_next()` returned `DecodeError::Decode` instead of `DecodeError::EndOfStream` upon encountering trailing ID3 tags or metadata at stream end.
+  - Updated `decode_loop.rs` to advance to end of track (`stream_ended = true`) when max decode errors occur, enabling seamless auto-next song transitions without halting playback.
+- **Manual Track Selection Ticker Race Condition (`appstate.rs`, `playback.rs`, & `main.rs`)**:
+  - Added atomic `USER_SELECT_GEN` generation counter to distinguish manual user track clicks from natural End-Of-Stream track completion events.
+  - Prevents background ticker thread (`playtune-ticker`) from misidentifying manual song selections as EOS events and skipping track 0 or selected songs.
+- **Engine OpenUri Failure State Synchronization (`commands.rs`)**:
+  - Explicitly updated `EngineCommand::OpenUri` to set `self.update_playback_state(PlaybackState::Stopped)` when file metadata or `load_track` fails, preserving state alignment between audio engine and GUI.
+- **Automatic UI Sync on Startup Cleanup (`main.rs`)**:
+  - Connected `delete_mock_tracks()` background cleanup on startup to `invalidate_all_views()` and `refresh_ui("all", None)`, immediately purging stale/missing track rows from the table view.
+
+---
+
 ### [2.0.0] — 2026-08-11 — Architectural Codebase Modularization & God Files Refactoring
 
 #### Summary

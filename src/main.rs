@@ -217,6 +217,7 @@ fn main() {
         let mut prev_engine_state = PlaybackState::Stopped;
         let mut last_ui_update = std::time::Instant::now();
         let mut last_db_save = std::time::Instant::now();
+        let mut last_seen_user_gen = app_state::USER_SELECT_GEN.load(Ordering::SeqCst);
 
         loop {
             if SHUTDOWN.load(Ordering::SeqCst) {
@@ -235,9 +236,9 @@ fn main() {
             }
 
             let is_playing_engine = current_engine_state == PlaybackState::Playing;
-            let sleep_ms = if is_playing_engine && !has_pending { 10 } else { 100 };
+            let sleep_ms = if is_playing_engine && !has_pending { 15 } else { 100 };
 
-            let ui_sync_interval_ms = if is_playing_engine { 30u64 } else { 200u64 };
+            let ui_sync_interval_ms = if is_playing_engine { 40u64 } else { 200u64 };
 
             // 2. Read PlaybackInfo lock-free and sync UI state
             if last_ui_update.elapsed() >= Duration::from_millis(ui_sync_interval_ms) {
@@ -246,7 +247,10 @@ fn main() {
                 if let Some(info_swap) = PLAYBACK_INFO.get() {
                     let info = info_swap.load();
 
-                    if prev_engine_state == PlaybackState::Playing
+                    let current_user_gen = app_state::USER_SELECT_GEN.load(Ordering::SeqCst);
+                    if current_user_gen != last_seen_user_gen {
+                        last_seen_user_gen = current_user_gen;
+                    } else if prev_engine_state == PlaybackState::Playing
                         && info.state == PlaybackState::Stopped
                         && info.duration_secs > 0.0
                         && IS_PLAYING.load(Ordering::SeqCst)
@@ -488,7 +492,11 @@ fn main() {
                     return;
                 }
                 match db_for_cleanup.delete_mock_tracks() {
-                    Ok(n) if n > 0 => log::info!("Cleaned up {} mock tracks", n),
+                    Ok(n) if n > 0 => {
+                        log::info!("Cleaned up {} mock/missing tracks", n);
+                        invalidate_all_views();
+                        refresh_ui("all", None);
+                    }
                     Ok(_) => {}
                     Err(e) => log::warn!("Mock-track cleanup failed: {}", e),
                 }
