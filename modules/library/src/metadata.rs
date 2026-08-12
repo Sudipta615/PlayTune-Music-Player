@@ -153,25 +153,26 @@ impl super::LibraryManager {
 
         Ok(Track {
             id: 0,
-            path: path.to_string_lossy().into_owned(),
-            title,
-            artist: tags.artist,
-            album: tags.album,
-            album_artist: tags.album_artist,
-            genre: tags.genre,
+            path: std::sync::Arc::from(path.to_string_lossy()),
+            title: std::sync::Arc::from(title),
+            artist: tags.artist.map(std::sync::Arc::from),
+            album: tags.album.map(std::sync::Arc::from),
+            album_artist: tags.album_artist.map(std::sync::Arc::from),
+            genre: tags.genre.map(std::sync::Arc::from),
             year: tags.year,
             track_number: tags.track_number,
             disc_number: tags.disc_number,
             duration_secs: stored_duration,
-            duration_str,
+            duration_str: std::sync::Arc::from(duration_str),
             sample_rate: sample_rate as i32,
             channels: channels as i32,
             bitrate_kbps,
-            format: path
-                .extension()
-                .and_then(|e| e.to_str())
-                .map(|s| s.to_lowercase())
-                .unwrap_or_else(|| "unknown".to_string()),
+            format: std::sync::Arc::from(
+                path.extension()
+                    .and_then(|e| e.to_str())
+                    .map(|s| s.to_lowercase())
+                    .unwrap_or_else(|| "unknown".to_string()),
+            ),
             file_size,
             file_modified,
             crc32: None,
@@ -182,8 +183,8 @@ impl super::LibraryManager {
             ebu_r128_loudness: None,
             ebu_r128_peak: None,
             bpm: None,
-            lyrics_synced,
-            lyrics_unsynced,
+            lyrics_synced: lyrics_synced.map(std::sync::Arc::from),
+            lyrics_unsynced: lyrics_unsynced.map(std::sync::Arc::from),
             rating: 0,
             last_played: None,
             play_count: 0,

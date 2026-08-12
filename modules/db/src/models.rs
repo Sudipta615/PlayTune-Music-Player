@@ -7,18 +7,20 @@
 //! scanner writes a subset of these columns to the DB and keeps the rest
 //! in memory for the running session.
 
+use std::sync::Arc;
+
 use chrono::NaiveDateTime;
 
 /// Full track metadata extracted during a library scan.
 #[derive(Debug, Clone, Default)]
 pub struct Track {
     pub id: i64,
-    pub path: String,
-    pub title: String,
-    pub artist: Option<String>,
-    pub album: Option<String>,
-    pub album_artist: Option<String>,
-    pub genre: Option<String>,
+    pub path: Arc<str>,
+    pub title: Arc<str>,
+    pub artist: Option<Arc<str>>,
+    pub album: Option<Arc<str>>,
+    pub album_artist: Option<Arc<str>>,
+    pub genre: Option<Arc<str>>,
     pub year: Option<i32>,
     pub track_number: Option<i32>,
     pub disc_number: Option<i32>,
@@ -26,12 +28,12 @@ pub struct Track {
     /// lengths (sub-millisecond precision at 1 hour).
     pub duration_secs: f32,
     /// Pre-formatted "M:SS" / "H:MM:SS" string for display.
-    pub duration_str: String,
+    pub duration_str: Arc<str>,
     pub sample_rate: i32,
     pub channels: i32,
     pub bitrate_kbps: Option<i32>,
     /// Lowercased codec/container extension ("mp3", "flac", ...).
-    pub format: String,
+    pub format: Arc<str>,
     pub file_size: i64,
     pub file_modified: i64,
     pub crc32: Option<u32>,
@@ -42,8 +44,8 @@ pub struct Track {
     pub ebu_r128_loudness: Option<f32>,
     pub ebu_r128_peak: Option<f32>,
     pub bpm: Option<f32>,
-    pub lyrics_synced: Option<String>,
-    pub lyrics_unsynced: Option<String>,
+    pub lyrics_synced: Option<Arc<str>>,
+    pub lyrics_unsynced: Option<Arc<str>>,
     /// 0–5 star user rating (0 = unrated).
     pub rating: i32,
     pub last_played: Option<NaiveDateTime>,
@@ -60,9 +62,10 @@ impl Track {
         let now = chrono::Utc::now().naive_utc();
         Self {
             id: 0,
-            path: path.into(),
-            title: "Unknown".to_string(),
-            duration_str: "0:00".to_string(),
+            path: Arc::from(path.into()),
+            title: Arc::from("Unknown"),
+            duration_str: Arc::from("0:00"),
+            format: Arc::from(""),
             date_added: now,
             date_scanned: now,
             ..Default::default()

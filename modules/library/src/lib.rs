@@ -389,12 +389,12 @@ impl LibraryManager {
             .iter()
             .map(|t| {
                 (
-                    t.path.as_str(),
-                    if t.title.is_empty() { "Unknown" } else { t.title.as_str() },
+                    t.path.as_ref(),
+                    if t.title.is_empty() { "Unknown" } else { t.title.as_ref() },
                     t.artist.as_deref().unwrap_or("Unknown"),
                     t.album.as_deref().unwrap_or("Unknown"),
                     t.duration_secs as f64,
-                    t.duration_str.as_str(),
+                    t.duration_str.as_ref(),
                     t.folder_id,
                     t.file_modified,
                     t.lyrics_synced.as_deref(),
@@ -482,12 +482,12 @@ impl LibraryManager {
             .iter()
             .map(|t| {
                 (
-                    t.path.as_str(),
-                    if t.title.is_empty() { "Unknown" } else { t.title.as_str() },
+                    t.path.as_ref(),
+                    if t.title.is_empty() { "Unknown" } else { t.title.as_ref() },
                     t.artist.as_deref().unwrap_or("Unknown"),
                     t.album.as_deref().unwrap_or("Unknown"),
                     t.duration_secs as f64,
-                    t.duration_str.as_str(),
+                    t.duration_str.as_ref(),
                     t.folder_id,
                     t.file_modified,
                     t.lyrics_synced.as_deref(),

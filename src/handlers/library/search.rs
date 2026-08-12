@@ -69,10 +69,10 @@ fn rust_search_worker(query_str: String, gen: u64) {
             display_index: (i + 1) as i32,
             song_id: track.id as i32,
             is_favorite: track.is_favorite,
-            title: track.title.clone(),
+            title: track.title.to_string(),
             artist: track.artist.to_string(),
             album: track.album.to_string(),
-            duration: track.duration_str.clone(),
+            duration: track.duration_str.to_string(),
             cover_path: cached_cover_path(&track.path).unwrap_or_default(),
             mood: mood_map.get(&track.id).cloned().unwrap_or_default(),
         })

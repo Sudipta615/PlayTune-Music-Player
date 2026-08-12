@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use rusqlite::Connection;
 use serde::{Deserialize, Serialize};
 
@@ -23,16 +25,16 @@ pub struct FolderRecord {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TrackRecord {
     pub id: i64,
-    pub path: String,
-    pub title: String,
-    pub artist: String,
-    pub album: String,
+    pub path: Arc<str>,
+    pub title: Arc<str>,
+    pub artist: Arc<str>,
+    pub album: Arc<str>,
     pub duration_secs: f64,
-    pub duration_str: String,
+    pub duration_str: Arc<str>,
     pub folder_id: Option<i64>,
     pub is_favorite: bool,
     pub play_count: i32,
-    pub last_played_at: Option<String>,
+    pub last_played_at: Option<Arc<str>>,
     pub file_modified: i64,
     pub replaygain_track_db: Option<f64>,
     pub replaygain_album_db: Option<f64>,
@@ -40,8 +42,8 @@ pub struct TrackRecord {
     pub replaygain_album_peak: Option<f64>,
     pub ebu_r128_loudness: Option<f64>,
     pub ebu_r128_peak: Option<f64>,
-    pub lyrics_synced: Option<String>,
-    pub lyrics_unsynced: Option<String>,
+    pub lyrics_synced: Option<Arc<str>>,
+    pub lyrics_unsynced: Option<Arc<str>>,
     /// 0–5 star user rating. 0 means "unrated".
     pub rating: i32,
     pub track_number: Option<i32>,
@@ -62,8 +64,8 @@ pub struct PlaylistRecord {
 pub struct AlbumRecord {
     /// Stable identifier (smallest track id in the album).
     pub id: i64,
-    pub album: String,
-    pub album_artist: String,
+    pub album: Arc<str>,
+    pub album_artist: Arc<str>,
     pub track_count: i32,
     pub duration_secs: f64,
     pub year: Option<i32>,
@@ -89,7 +91,7 @@ pub type BatchTrackInput<'a> = (
 pub struct ArtistRecord {
     /// Stable identifier (smallest track id by the artist)
     pub id: i64,
-    pub artist: String,
+    pub artist: Arc<str>,
     pub album_count: i32,
     pub track_count: i32,
 }

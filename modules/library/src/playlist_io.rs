@@ -269,7 +269,7 @@ pub fn write_m3u_file(
         let display = if !t.artist.is_empty() {
             format!("{} - {}", t.artist, t.title)
         } else {
-            t.title.clone()
+            t.title.to_string()
         };
         let dur = if t.duration_secs > 0.0 { t.duration_secs as i64 } else { -1 };
         content.push_str(&format!("#EXTINF:{},{}\n", dur, display));
@@ -332,12 +332,12 @@ mod tests {
     fn make_track(id: i64, path: &str, title: &str, artist: &str) -> TrackRecord {
         TrackRecord {
             id,
-            path: path.to_string(),
-            title: title.to_string(),
-            artist: artist.to_string(),
-            album: String::new(),
+            path: std::sync::Arc::from(path),
+            title: std::sync::Arc::from(title),
+            artist: std::sync::Arc::from(artist),
+            album: std::sync::Arc::from(""),
             duration_secs: 200.0,
-            duration_str: "3:20".to_string(),
+            duration_str: std::sync::Arc::from("3:20"),
             folder_id: None,
             is_favorite: false,
             play_count: 0,

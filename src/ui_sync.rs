@@ -265,10 +265,10 @@ pub fn refresh_ui_gen(filter_type: &str, filter_id: Option<i64>, expected_gen: u
                 },
                 song_id: track.id as i32,
                 is_favorite: track.is_favorite,
-                title: track.title.clone(),
+                title: track.title.to_string(),
                 artist: track.artist.to_string(),
                 album: track.album.to_string(),
-                duration: track.duration_str.clone(),
+                duration: track.duration_str.to_string(),
                 cover_path: cached_cover_path(&track.path).unwrap_or_default(),
                 mood: mood_map.get(&track.id).cloned().unwrap_or_default(),
             })
@@ -614,7 +614,7 @@ pub fn populate_gui_state() {
             if let Some(platform_lock) = PLATFORM.get() {
                 if let Some(mut platform) = platform_lock.try_lock() {
                     platform.set_mpris_track(MprisTrackInfo {
-                        title: Some(track.title.clone()),
+                        title: Some(track.title.to_string()),
                         artist: Some(track.artist.to_string()),
                         album: Some(track.album.to_string()),
                         art_url: Some(format!("file://{}", cover_path)),
@@ -630,7 +630,7 @@ pub fn populate_gui_state() {
             if let Some(tx) = ENGINE_CMD_TX.get() {
                 let vol = crate::app_state::CURRENT_VOLUME.load(Ordering::SeqCst) as f32 / 100.0;
                 let _ = tx.send(EngineCommand::SetVolume(vol));
-                let _ = tx.send(EngineCommand::OpenUri(track.path.clone()));
+                let _ = tx.send(EngineCommand::OpenUri(track.path.to_string()));
                 let elapsed = *ELAPSED_SECONDS.lock();
                 if elapsed > 0.0 {
                     let _ = tx.send(EngineCommand::Seek(elapsed as f32));

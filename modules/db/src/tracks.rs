@@ -1,6 +1,33 @@
+use std::collections::HashSet;
+use std::sync::Arc;
+
 use rusqlite::params;
 
 use crate::database::{BatchTrackInput, DbError, PlayTuneDb, TrackRecord};
+
+#[derive(Default)]
+pub(crate) struct StringDedupPool {
+    set: HashSet<Arc<str>>,
+}
+
+impl StringDedupPool {
+    pub fn get_or_intern(&mut self, s: &str) -> Arc<str> {
+        if s.is_empty() {
+            return Arc::from("");
+        }
+        if let Some(existing) = self.set.get(s) {
+            Arc::clone(existing)
+        } else {
+            let shared: Arc<str> = Arc::from(s);
+            self.set.insert(Arc::clone(&shared));
+            shared
+        }
+    }
+
+    pub fn get_or_intern_opt(&mut self, s: Option<&str>) -> Option<Arc<str>> {
+        s.filter(|v| !v.is_empty()).map(|v| self.get_or_intern(v))
+    }
+}
 
 impl PlayTuneDb {
     pub const TRACK_SELECT_COLS: &'static str = "id, path, title, artist, album, duration_secs, duration_str, folder_id, is_favorite, play_count, IFNULL(last_played_at, ''), file_modified, replaygain_track_db, replaygain_album_db, replaygain_track_peak, replaygain_album_peak, ebu_r128_loudness, ebu_r128_peak, lyrics_synced, lyrics_unsynced, rating, track_number";
@@ -12,39 +39,102 @@ impl PlayTuneDb {
     ) -> Result<Vec<TrackRecord>, DbError> {
         let conn = self.conn.lock();
         let mut stmt = conn.prepare_cached(sql)?;
+        let mut dedup = StringDedupPool::default();
+
         let rows = stmt.query_map(params, |row| {
             let fav_int: i32 = row.get(8)?;
             let last_played: String = row.get(10)?;
             let file_modified: i64 = row.get(11).unwrap_or(0);
             let rating: i32 = row.get(20).unwrap_or(0);
-            Ok(TrackRecord {
-                id: row.get(0)?,
-                path: row.get(1)?,
-                title: row.get(2)?,
-                artist: row.get(3)?,
-                album: row.get(4)?,
-                duration_secs: row.get(5)?,
-                duration_str: row.get(6)?,
-                folder_id: row.get(7)?,
-                is_favorite: fav_int != 0,
-                play_count: row.get(9)?,
-                last_played_at: if last_played.is_empty() { None } else { Some(last_played) },
+            let path_s: String = row.get(1)?;
+            let title_s: String = row.get(2)?;
+            let artist_s: String = row.get(3)?;
+            let album_s: String = row.get(4)?;
+            let dur_str_s: String = row.get(6)?;
+            let synced_s: Option<String> = row.get(18).unwrap_or(None);
+            let unsynced_s: Option<String> = row.get(19).unwrap_or(None);
+
+            Ok((
+                row.get::<_, i64>(0)?,
+                path_s,
+                title_s,
+                artist_s,
+                album_s,
+                row.get::<_, f64>(5)?,
+                dur_str_s,
+                row.get::<_, Option<i64>>(7)?,
+                fav_int != 0,
+                row.get::<_, i32>(9)?,
+                last_played,
                 file_modified,
-                replaygain_track_db: row.get(12).unwrap_or(None),
-                replaygain_album_db: row.get(13).unwrap_or(None),
-                replaygain_track_peak: row.get(14).unwrap_or(None),
-                replaygain_album_peak: row.get(15).unwrap_or(None),
-                ebu_r128_loudness: row.get(16).unwrap_or(None),
-                ebu_r128_peak: row.get(17).unwrap_or(None),
-                lyrics_synced: row.get(18).unwrap_or(None),
-                lyrics_unsynced: row.get(19).unwrap_or(None),
+                row.get::<_, Option<f64>>(12).unwrap_or(None),
+                row.get::<_, Option<f64>>(13).unwrap_or(None),
+                row.get::<_, Option<f64>>(14).unwrap_or(None),
+                row.get::<_, Option<f64>>(15).unwrap_or(None),
+                row.get::<_, Option<f64>>(16).unwrap_or(None),
+                row.get::<_, Option<f64>>(17).unwrap_or(None),
+                synced_s,
+                unsynced_s,
                 rating,
-                track_number: row.get(21).unwrap_or(None),
-            })
+                row.get::<_, Option<i32>>(21).unwrap_or(None),
+            ))
         })?;
+
         let mut tracks = Vec::new();
-        for t in rows {
-            tracks.push(t?);
+        for r in rows {
+            let (
+                id,
+                path_s,
+                title_s,
+                artist_s,
+                album_s,
+                duration_secs,
+                duration_str_s,
+                folder_id,
+                is_favorite,
+                play_count,
+                last_played,
+                file_modified,
+                replaygain_track_db,
+                replaygain_album_db,
+                replaygain_track_peak,
+                replaygain_album_peak,
+                ebu_r128_loudness,
+                ebu_r128_peak,
+                lyrics_synced_s,
+                lyrics_unsynced_s,
+                rating,
+                track_number,
+            ) = r?;
+
+            tracks.push(TrackRecord {
+                id,
+                path: dedup.get_or_intern(&path_s),
+                title: dedup.get_or_intern(&title_s),
+                artist: dedup.get_or_intern(&artist_s),
+                album: dedup.get_or_intern(&album_s),
+                duration_secs,
+                duration_str: dedup.get_or_intern(&duration_str_s),
+                folder_id,
+                is_favorite,
+                play_count,
+                last_played_at: if last_played.is_empty() {
+                    None
+                } else {
+                    Some(dedup.get_or_intern(&last_played))
+                },
+                file_modified,
+                replaygain_track_db,
+                replaygain_album_db,
+                replaygain_track_peak,
+                replaygain_album_peak,
+                ebu_r128_loudness,
+                ebu_r128_peak,
+                lyrics_synced: dedup.get_or_intern_opt(lyrics_synced_s.as_deref()),
+                lyrics_unsynced: dedup.get_or_intern_opt(lyrics_unsynced_s.as_deref()),
+                rating,
+                track_number,
+            });
         }
         Ok(tracks)
     }

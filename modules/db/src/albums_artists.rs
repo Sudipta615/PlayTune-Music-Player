@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use rusqlite::params;
 
 use crate::database::{AlbumRecord, ArtistRecord, DbError, PlayTuneDb};
@@ -23,10 +25,12 @@ impl PlayTuneDb {
              ORDER BY t.album COLLATE NOCASE ASC, t.artist COLLATE NOCASE ASC",
         )?;
         let rows = stmt.query_map([], |row| {
+            let album_str: String = row.get(1)?;
+            let artist_str: String = row.get(2)?;
             Ok(AlbumRecord {
                 id: row.get(0)?,
-                album: row.get(1)?,
-                album_artist: row.get(2)?,
+                album: Arc::from(album_str),
+                album_artist: Arc::from(artist_str),
                 track_count: row.get(3)?,
                 duration_secs: row.get(4)?,
                 year: row.get(5)?,
@@ -52,9 +56,10 @@ impl PlayTuneDb {
              ORDER BY t.artist COLLATE NOCASE ASC",
         )?;
         let rows = stmt.query_map([], |row| {
+            let artist_str: String = row.get(1)?;
             Ok(ArtistRecord {
                 id: row.get(0)?,
-                artist: row.get(1)?,
+                artist: Arc::from(artist_str),
                 album_count: row.get(2)?,
                 track_count: row.get(3)?,
             })
@@ -79,10 +84,12 @@ impl PlayTuneDb {
              ORDER BY t.album COLLATE NOCASE ASC",
         )?;
         let rows = stmt.query_map(params![artist], |row| {
+            let album_str: String = row.get(1)?;
+            let artist_str: String = row.get(2)?;
             Ok(AlbumRecord {
                 id: row.get(0)?,
-                album: row.get(1)?,
-                album_artist: row.get(2)?,
+                album: Arc::from(album_str),
+                album_artist: Arc::from(artist_str),
                 track_count: row.get(3)?,
                 duration_secs: row.get(4)?,
                 year: row.get(5)?,

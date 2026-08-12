@@ -47,7 +47,7 @@ pub fn export_training_data(db: &PlayTuneDb, output_csv_path: &str) -> Result<()
     for (mood, &pl_id) in &mood_playlists {
         let tracks = db.get_tracks_by_playlist(pl_id).map_err(|e| e.to_string())?;
         for tr in tracks {
-            track_paths.insert(tr.id, tr.path.clone());
+            track_paths.insert(tr.id, tr.path.to_string());
             track_meta.insert(tr.id, (tr.artist.to_string(), tr.album.to_string()));
             let labels = track_mood_labels.entry(tr.id).or_default();
             labels.insert(mood.clone(), 1);
@@ -199,8 +199,8 @@ pub fn classify_all_tracks(db: &PlayTuneDb, model_json_path: &str) -> Result<(),
         let features = match db.get_audio_features(track.id) {
             Ok(Some(feat)) => feat,
             _ => {
-                if Path::new(&track.path).exists() {
-                    match extractor.extract_from_file(track.id, &track.path) {
+                if Path::new(track.path.as_ref()).exists() {
+                    match extractor.extract_from_file(track.id, track.path.as_ref()) {
                         Ok(feat) => {
                             let _ = db.save_audio_features(&feat);
                             feat

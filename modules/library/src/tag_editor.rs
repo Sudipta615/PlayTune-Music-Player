@@ -43,7 +43,7 @@ pub fn update_track_tags(db: &Database, req: TagEditRequest) -> Result<TrackReco
         }
     };
 
-    let path = Path::new(&track.path);
+    let path = Path::new(track.path.as_ref());
     if !path.exists() {
         return Err(LibraryError::Other(format!(
             "Audio file does not exist on disk: {}",
@@ -256,10 +256,10 @@ pub fn get_track_tags(db: &Database, track_id: i64) -> Result<TagEditRequest, Li
         }
     };
 
-    let path = Path::new(&track.path);
-    let mut title = track.title.clone();
-    let mut artist = track.artist.clone();
-    let mut album = track.album.clone();
+    let path = Path::new(track.path.as_ref());
+    let mut title = track.title.to_string();
+    let mut artist = track.artist.to_string();
+    let mut album = track.album.to_string();
     let mut album_artist = None;
     let mut genre = None;
     let mut year = None;

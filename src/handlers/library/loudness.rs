@@ -74,7 +74,7 @@ pub extern "C" fn playtune_start_loudness_scan(
 
                 bridge::loudness_scan_progress(i as i32, total, &track.title);
 
-                let path = std::path::Path::new(&track.path);
+                let path = std::path::Path::new(track.path.as_ref());
                 if let Ok(res) =
                     library::loudness_scanner::scan_track_loudness(track.id, path, &track.title)
                 {
@@ -136,7 +136,7 @@ pub extern "C" fn playtune_write_loudness_results(
                     continue;
                 }
 
-                let path = std::path::Path::new(&track.path);
+                let path = std::path::Path::new(track.path.as_ref());
                 if let Err(e) = library::loudness_scanner::write_loudness_tags(
                     path,
                     item.rg_gain_db,

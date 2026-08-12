@@ -133,7 +133,7 @@ pub fn rust_prev_inner() {
         if let Some(platform_lock) = PLATFORM.get() {
             if let Some(mut platform) = platform_lock.try_lock() {
                 platform.set_mpris_track(MprisTrackInfo {
-                    title: Some(track.title.clone()),
+                    title: Some(track.title.to_string()),
                     artist: Some(track.artist.to_string()),
                     album: Some(track.album.to_string()),
                     art_url: Some(format!("file://{}", cover_path)),
@@ -155,7 +155,7 @@ pub fn rust_prev_inner() {
         refresh_up_next_queue();
 
         if let Some(tx) = ENGINE_CMD_TX.get() {
-            let _ = tx.send(EngineCommand::OpenUri(track.path.clone()));
+            let _ = tx.send(EngineCommand::OpenUri(track.path.to_string()));
             let _ = tx.send(EngineCommand::Play);
         }
         save_session_state();
@@ -228,7 +228,7 @@ pub fn rust_next_inner() {
         if let Some(platform_lock) = PLATFORM.get() {
             if let Some(mut platform) = platform_lock.try_lock() {
                 platform.set_mpris_track(MprisTrackInfo {
-                    title: Some(track.title.clone()),
+                    title: Some(track.title.to_string()),
                     artist: Some(track.artist.to_string()),
                     album: Some(track.album.to_string()),
                     art_url: Some(format!("file://{}", cover_path)),
@@ -250,7 +250,7 @@ pub fn rust_next_inner() {
         refresh_up_next_queue();
 
         if let Some(tx) = ENGINE_CMD_TX.get() {
-            let _ = tx.send(EngineCommand::OpenUri(track.path.clone()));
+            let _ = tx.send(EngineCommand::OpenUri(track.path.to_string()));
             let _ = tx.send(EngineCommand::Play);
         }
         save_session_state();
@@ -418,7 +418,7 @@ pub fn rust_select_song_inner(song_idx: i32) {
     };
 
     if let Some(track) = track_opt {
-        let track_path = std::path::Path::new(&track.path);
+        let track_path = std::path::Path::new(track.path.as_ref());
         if !track_path.is_file() {
             log::warn!("Selected track file does not exist: {}", track.path);
             crate::app_state::notify_track_change(&track);
@@ -456,7 +456,7 @@ pub fn rust_select_song_inner(song_idx: i32) {
         if let Some(platform_lock) = PLATFORM.get() {
             if let Some(mut platform) = platform_lock.try_lock() {
                 platform.set_mpris_track(MprisTrackInfo {
-                    title: Some(track.title.clone()),
+                    title: Some(track.title.to_string()),
                     artist: Some(track.artist.to_string()),
                     album: Some(track.album.to_string()),
                     art_url: Some(format!("file://{}", cover_path)),
@@ -477,7 +477,7 @@ pub fn rust_select_song_inner(song_idx: i32) {
         refresh_up_next_queue();
 
         if let Some(tx) = ENGINE_CMD_TX.get() {
-            let _ = tx.send(EngineCommand::OpenUri(track.path.clone()));
+            let _ = tx.send(EngineCommand::OpenUri(track.path.to_string()));
             let _ = tx.send(EngineCommand::Play);
         }
         save_session_state();
