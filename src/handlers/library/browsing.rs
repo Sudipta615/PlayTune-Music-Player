@@ -31,7 +31,9 @@ pub extern "C" fn rust_remove_from_library(track_id: std::ffi::c_int) {
         });
 
         if let Some(db) = GLOBAL_DB.get() {
-            let _ = db.delete_track(track_id_removed);
+            if let Err(e) = db.delete_track(track_id_removed) {
+                log::error!("delete_track failed: {}", e);
+            }
         }
         invalidate_all_views();
         refresh_ui("all", None);

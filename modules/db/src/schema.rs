@@ -162,6 +162,9 @@ impl PlayTuneDb {
                 party REAL NOT NULL DEFAULT 0.0,
                 lofi REAL NOT NULL DEFAULT 0.0,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+            CREATE TABLE IF NOT EXISTS ignored_paths (
+                path TEXT PRIMARY KEY
             );",
         )?;
 

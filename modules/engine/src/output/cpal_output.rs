@@ -374,6 +374,13 @@ impl CpalOutput {
                 let in_callback = Arc::clone(&in_callback);
                 let visualizer_tap = visualizer_tap.clone();
                 let callback_initialized = Arc::clone(&callback_initialized);
+                
+                let scratch_cap = match self.stream_config.buffer_size {
+                    cpal::BufferSize::Fixed(f) => (f as usize) * channels,
+                    cpal::BufferSize::Default => 65536, // generous fallback
+                };
+                let mut scratch_buffer = vec![0.0f32; scratch_cap];
+
                 self.device
                     .build_output_stream(
                         &self.stream_config,
@@ -389,6 +396,7 @@ impl CpalOutput {
                                 &underruns,
                                 channels,
                                 &visualizer_tap,
+                                &mut scratch_buffer,
                             );
                         },
                         error_callback,
@@ -400,6 +408,13 @@ impl CpalOutput {
                 let in_callback = Arc::clone(&in_callback);
                 let visualizer_tap = visualizer_tap.clone();
                 let callback_initialized = Arc::clone(&callback_initialized);
+                
+                let scratch_cap = match self.stream_config.buffer_size {
+                    cpal::BufferSize::Fixed(f) => (f as usize) * channels,
+                    cpal::BufferSize::Default => 65536, // generous fallback
+                };
+                let mut scratch_buffer = vec![0.0f32; scratch_cap];
+
                 self.device
                     .build_output_stream(
                         &self.stream_config,
@@ -415,6 +430,7 @@ impl CpalOutput {
                                 &underruns,
                                 channels,
                                 &visualizer_tap,
+                                &mut scratch_buffer,
                             );
                         },
                         error_callback,

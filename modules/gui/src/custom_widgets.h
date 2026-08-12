@@ -155,7 +155,6 @@ public:
     void setPlaybackProgress(double progress); // 0.0 to 1.0
     void updateBuffer(const QVector<float>& buffer);
     void setPlaying(bool playing);
-    void setGpuAccelerationEnabled(bool enabled);
 
 signals:
     void seekRequested(double ratio); // 0.0 to 1.0

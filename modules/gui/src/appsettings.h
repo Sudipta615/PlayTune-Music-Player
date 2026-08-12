@@ -20,16 +20,12 @@ public:
     bool isOptimizedMode() const { return m_optimizedMode; }
     void setOptimizedMode(bool enabled) { m_optimizedMode = enabled; }
 
-    bool isGpuAccelerationEnabled() const { return m_gpuAcceleration; }
-    void setGpuAccelerationEnabled(bool enabled) { m_gpuAcceleration = enabled; }
-
     bool isMoodColumnEnabled() const { return m_moodColumnEnabled; }
     void setMoodColumnEnabled(bool enabled) { m_moodColumnEnabled = enabled; }
 
 private:
     AppSettings() = default;
     bool m_optimizedMode = false;
-    bool m_gpuAcceleration = false;
     bool m_moodColumnEnabled = true;
 };
 

@@ -48,7 +48,7 @@ pub fn export_training_data(db: &PlayTuneDb, output_csv_path: &str) -> Result<()
         let tracks = db.get_tracks_by_playlist(pl_id).map_err(|e| e.to_string())?;
         for tr in tracks {
             track_paths.insert(tr.id, tr.path.clone());
-            track_meta.insert(tr.id, (tr.artist.clone(), tr.album.clone()));
+            track_meta.insert(tr.id, (tr.artist.to_string(), tr.album.to_string()));
             let labels = track_mood_labels.entry(tr.id).or_default();
             labels.insert(mood.clone(), 1);
         }

@@ -184,13 +184,14 @@ impl LibraryManager {
             current_path: String::new(),
         };
 
-        // Pre-load existing (path → file_modified) for O(1) lookups
         let existing_tracks: HashMap<String, i64> = self
             .db
             .get_tracks_with_mtime()?
             .into_iter()
             .map(|(_id, path, mtime)| (path, mtime))
             .collect();
+
+        let ignored_paths = self.db.get_ignored_paths().unwrap_or_default();
 
         let mut folder_cache: HashMap<String, i64> = self
             .db
@@ -281,6 +282,11 @@ impl LibraryManager {
                 .unwrap_or(0);
 
             let path_str = path.to_string_lossy().into_owned();
+
+            if ignored_paths.contains(&path_str) {
+                progress.files_processed += 1;
+                continue;
+            }
 
             if let Some(&existing_mtime) = existing_tracks.get(&path_str) {
                 if existing_mtime >= file_modified {
@@ -529,10 +535,17 @@ impl LibraryManager {
             }
         }
 
+        let ignored_paths = self.db.get_ignored_paths().unwrap_or_default();
+
         let mut added = 0usize;
         for path in paths {
             if !path.is_file() || !Self::is_audio_file(path) {
                 continue;
+            }
+
+            let path_str = path.to_string_lossy().into_owned();
+            if ignored_paths.contains(&path_str) {
+                let _ = self.db.remove_ignored_path(&path_str);
             }
             let metadata = match std::fs::metadata(path) {
                 Ok(m) => m,

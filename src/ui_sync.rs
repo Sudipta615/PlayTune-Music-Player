@@ -159,14 +159,14 @@ pub fn refresh_ui_gen(filter_type: &str, filter_id: Option<i64>, expected_gen: u
     // take a name string rather than an id.
     let album_name_opt: Option<String> = if filter_type == "album" {
         filter_id.and_then(|id| {
-            GLOBAL_DB.get().and_then(|db| db.get_track(id).ok().flatten().map(|t| t.album))
+            GLOBAL_DB.get().and_then(|db| db.get_track(id).ok().flatten().map(|t| t.album.to_string()))
         })
     } else {
         None
     };
     let artist_name_opt: Option<String> = if filter_type == "artist" {
         filter_id.and_then(|id| {
-            GLOBAL_DB.get().and_then(|db| db.get_track(id).ok().flatten().map(|t| t.artist))
+            GLOBAL_DB.get().and_then(|db| db.get_track(id).ok().flatten().map(|t| t.artist.to_string()))
         })
     } else {
         None
@@ -262,8 +262,8 @@ pub fn refresh_ui_gen(filter_type: &str, filter_id: Option<i64>, expected_gen: u
                 song_id: track.id as i32,
                 is_favorite: track.is_favorite,
                 title: track.title.clone(),
-                artist: track.artist.clone(),
-                album: track.album.clone(),
+                artist: track.artist.to_string(),
+                album: track.album.to_string(),
                 duration: track.duration_str.clone(),
                 cover_path: cached_cover_path(&track.path).unwrap_or_default(),
                 mood: mood_map.get(&track.id).cloned().unwrap_or_default(),
@@ -611,8 +611,8 @@ pub fn populate_gui_state() {
                 if let Some(mut platform) = platform_lock.try_lock() {
                     platform.set_mpris_track(MprisTrackInfo {
                         title: Some(track.title.clone()),
-                        artist: Some(track.artist.clone()),
-                        album: Some(track.album.clone()),
+                        artist: Some(track.artist.to_string()),
+                        album: Some(track.album.to_string()),
                         art_url: Some(format!("file://{}", cover_path)),
                         length_microseconds: Some((track.duration_secs * 1_000_000.0) as i64),
                         track_id: Some(format!("/org/playtune/track/{}", track.id)),

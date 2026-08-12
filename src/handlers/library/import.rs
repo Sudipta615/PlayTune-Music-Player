@@ -45,7 +45,15 @@ pub extern "C" fn rust_import_files(paths: *const *const std::ffi::c_char, count
                             .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
                             .map(|d| d.as_secs() as i64)
                             .unwrap_or(0);
-                        Some((path_str.clone(), title, artist, album, duration_secs, duration_str, mtime))
+                        Some((
+                            path_str.clone(),
+                            title,
+                            artist,
+                            album,
+                            duration_secs,
+                            duration_str,
+                            mtime,
+                        ))
                     })
                     .collect();
 
@@ -72,6 +80,9 @@ pub extern "C" fn rust_import_files(paths: *const *const std::ffi::c_char, count
                     })
                     .collect();
 
+                for input in &batch_inputs {
+                    let _ = db_clone.remove_ignored_path(input.0);
+                }
                 let _ = db_clone.with_transaction(|tx| {
                     db::PlayTuneDb::insert_tracks_batch_tx(tx, &batch_inputs)?;
                     Ok(())

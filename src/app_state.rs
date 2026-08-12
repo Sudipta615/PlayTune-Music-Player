@@ -212,7 +212,7 @@ pub fn notify_track_change(track: &DbTrack) {
     let body = if track.artist.is_empty() && track.album.is_empty() {
         String::new()
     } else if track.album.is_empty() {
-        track.artist.clone()
+        track.artist.to_string()
     } else {
         format!("{} — {}", track.artist, track.album)
     };

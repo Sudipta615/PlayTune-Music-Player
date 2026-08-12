@@ -42,6 +42,34 @@ All developers and contributors **MUST** follow the standard 3-way (`x.y.z`) Sem
 
 ## 🗓️ Version History
 
+### [2.1.1] — 2026-08-12 — Audio Hot-Path Allocations, Settings Cleanup & Mood Column Persistence
+
+#### Summary
+Resolved a real-time audio thread heap allocation violation, eliminated binary size bloat from redundant Symphonia feature flags, corrected Mood column visibility state on application startup, and modernized the Settings interface by automating Target Audio Device selection and removing deprecated GPU visualizer toggles.
+
+#### Changed
+- **Target Audio Device Automation**:
+  - Completely removed the granular "Target Audio Device" dropdown from the Audio Processing settings page.
+  - The engine now automatically relies on CPAL's default device resolution or auto-fallback, reducing UI clutter and preventing cross-platform enumeration lockups.
+- **Removed GPU Acceleration Toggle**:
+  - Stripped out the "Enable GPU Acceleration" setting and all related C++ backend flags from `AppSettings`, `SettingsPageWidget`, `NowPlayingCard`, and `WaveformVisualizer`, as the visualizer was previously rebuilt as a zero-CPU static preview.
+  
+#### Fixed
+- **Real-Time Audio Hot-Path Zero-Allocation (`cpal_callbacks.rs` & `cpal_output.rs`)**:
+  - Eliminated a severe heap allocation (`vec!`) fallback inside the real-time audio thread that triggered whenever CPAL requested a buffer larger than `4096` samples.
+  - Fixed by pre-allocating a generously sized dynamic `scratch_buffer` natively in `CpalOutput::start_raw` and explicitly passing it by `&mut [f32]` reference into the closures for `audio_callback_i16` and `audio_callback_u16`.
+- **Symphonia Feature Bloat & Codec Selection**:
+  - Fixed an issue where the global workspace `Cargo.toml` and `analysis` crate forced `features = ["all"]` on the Symphonia decoder, silently defeating the fine-grained `codec-mp3` / `codec-flac` gating inside the `engine` crate.
+  - Restored proper `default-features = false` dependency delegation, resulting in reduced compile times and a leaner executable footprint.
+- **Mood Column Restart Persistence (`mainwindow_bridge.cpp`)**:
+  - Fixed a bug where the "Show Mood Column" toggle state was ignored upon restarting the application because `SongsTableWidget` constructed before QSettings variables propagated.
+  - Resolved by actively initializing `setMoodColumnVisible` during the bridge connection phase using `AppSettings` memory.
+- **Removed Track Resurrection Bug (`ignored_paths` SQLite Table)**:
+  - Fixed a major UX bug where deleting/removing tracks from the library temporarily hid them, only for them to magically reappear the next time the app opened.
+  - Handled by introducing a new persistent `ignored_paths` SQLite table. Tracks removed from the library now correctly populate the ignore list, permanently persisting their exclusion across all future background library rescans.
+
+---
+
 ### [2.1.0] — 2026-08-11 — Static Waveform Preview Redesign, Engine EndOfStream & Playback Stability
 
 #### Summary

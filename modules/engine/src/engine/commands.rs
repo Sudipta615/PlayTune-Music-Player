@@ -49,6 +49,17 @@ impl AudioEngine {
                     log::warn!(
                         "Play command ignored: stream has ended. Reload the track to play again."
                     );
+                } else {
+                    // No track has ever been loaded (self.stream is None and
+                    // stream_ended is false, e.g. the very first Play press
+                    // of a session before any OpenUri has been sent). This
+                    // used to be a silent no-op: nothing played, but the UI
+                    // layer had already flipped to a "playing" state,
+                    // leaving the app and engine permanently out of sync.
+                    // Fail loudly instead and make sure our own state
+                    // reflects reality so the UI can be corrected.
+                    log::warn!("Play command ignored: no track loaded");
+                    self.update_playback_state(PlaybackState::Stopped);
                 }
             }
             EngineCommand::Pause => {

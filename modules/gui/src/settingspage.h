@@ -19,7 +19,6 @@ public:
     bool isTooltipsEnabled() const;
     bool isMoodColumnEnabled() const { return m_moodColumnEnabled; }
     bool isOptimizedMode() const { return m_optimizedMode; }
-    bool isGpuRenderingEnabled() const { return m_gpuRendering; }
     bool isCrossfadeEnabled() const { return m_crossfadeEnabled; }
     bool isNormalizeEnabled() const { return m_normalizeEnabled; }
     bool isGaplessEnabled() const { return m_gaplessEnabled; }
@@ -41,9 +40,7 @@ signals:
     void minimizeToTrayToggled(bool enabled);
     void crossfadeDurationChanged(int duration_ms);
     void outputBackendChanged(int backend);
-    void outputDeviceChanged(const QString& deviceName);
     void optimizedModeToggled(bool enabled);
-    void gpuRenderingToggled(bool enabled);
     void addSongsRequested();
     void addFoldersRequested();
     void deleteFolderRequested(int folderId);
@@ -53,8 +50,6 @@ signals:
 public slots:
     void clearFolderList();
     void addFolderToList(int id, const QString& path, const QString& name, int trackCount);
-    void clearAudioDeviceList();
-    void addAudioDeviceToList(const QString& name, bool isCurrent);
 
 protected:
     void showEvent(QShowEvent* event) override;
@@ -68,7 +63,6 @@ private:
     // ── Controls ─────────────────────────────────────────────────────────
     QComboBox*    m_themeCombo           = nullptr;
     QComboBox*    m_backendCombo         = nullptr;
-    QComboBox*    m_deviceCombo          = nullptr;
     ToggleSwitch* m_tooltipToggle        = nullptr;
     ToggleSwitch* m_moodColumnToggle     = nullptr;
     ToggleSwitch* m_crossfadeToggle      = nullptr;
@@ -79,7 +73,6 @@ private:
     ToggleSwitch* m_trayToggle           = nullptr;
     ToggleSwitch* m_minimizeToTrayToggle = nullptr;
     ToggleSwitch* m_optimizedModeToggle  = nullptr;
-    ToggleSwitch* m_gpuRenderingToggle   = nullptr;
     QPushButton*  m_loudnessScanBtn      = nullptr;
     QSpinBox*     m_crossfadeDurationSpin= nullptr;
     QPushButton*  m_addSongsBtn          = nullptr;
@@ -117,9 +110,7 @@ private:
     bool    m_trayEnabled       = false;
     bool    m_minimizeToTray    = false;
     bool    m_optimizedMode     = false;
-    bool    m_gpuRendering      = false;
     int     m_currentBackend    = 0;
-    QString m_currentDevice     = "Default / Automatic";
     QString m_currentTheme      = "Dark Premium (Purple)";
 };
 

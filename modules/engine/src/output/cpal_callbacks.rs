@@ -89,6 +89,7 @@ pub fn audio_callback_i16(
     underruns: &AtomicU32,
     channels: usize,
     visualizer_tap: &Option<Arc<crate::analysis::FftVisualizerTap>>,
+    scratch_buffer: &mut [f32],
 ) {
     let _guard = CallbackGuard::new(in_callback);
     if paused.load(Ordering::Acquire) {
@@ -100,17 +101,17 @@ pub fn audio_callback_i16(
         return;
     }
 
-    const SCRATCH_CAP: usize = 4096;
-    let mut stack_scratch = [0.0f32; SCRATCH_CAP];
-
     let mut underrun_flag = false;
     if channels == 2 {
         let total_samples = data.len();
-        let scratch: &mut [f32] = if total_samples <= SCRATCH_CAP {
-            &mut stack_scratch[..total_samples]
-        } else {
-            &mut vec![0.0f32; total_samples]
-        };
+        if scratch_buffer.len() < total_samples {
+            // Panic or something? We're on audio thread, shouldn't allocate.
+            // But if it happens, we can't do anything better.
+            log::error!("Scratch buffer too small, audio glitch expected");
+            data.fill(0);
+            return;
+        }
+        let scratch = &mut scratch_buffer[..total_samples];
         let got = buffer.pop_block_interleaved(scratch);
         if got < total_samples {
             scratch[got..].fill(0.0);
@@ -157,6 +158,7 @@ pub fn audio_callback_u16(
     underruns: &AtomicU32,
     channels: usize,
     visualizer_tap: &Option<Arc<crate::analysis::FftVisualizerTap>>,
+    scratch_buffer: &mut [f32],
 ) {
     let _guard = CallbackGuard::new(in_callback);
     if paused.load(Ordering::Acquire) {
@@ -168,17 +170,15 @@ pub fn audio_callback_u16(
         return;
     }
 
-    const SCRATCH_CAP: usize = 4096;
-    let mut stack_scratch = [0.0f32; SCRATCH_CAP];
-
     let mut underrun_flag = false;
     if channels == 2 {
         let total_samples = data.len();
-        let scratch: &mut [f32] = if total_samples <= SCRATCH_CAP {
-            &mut stack_scratch[..total_samples]
-        } else {
-            &mut vec![0.0f32; total_samples]
-        };
+        if scratch_buffer.len() < total_samples {
+            log::error!("Scratch buffer too small, audio glitch expected");
+            data.fill(32768);
+            return;
+        }
+        let scratch = &mut scratch_buffer[..total_samples];
         let got = buffer.pop_block_interleaved(scratch);
         if got < total_samples {
             scratch[got..].fill(0.0);

@@ -335,19 +335,6 @@ void SettingsPageWidget::setupUi() {
             "Minimize CPU & RAM usage. Ideal for low-power devices or background listening.",
             m_optimizedModeToggle));
 
-        auto* divGpu = new QFrame(card);
-        divGpu->setFrameShape(QFrame::HLine);
-        m_cardSeparators.append(divGpu);
-        cl->addWidget(divGpu);
-
-        m_gpuRenderingToggle = new ToggleSwitch(card);
-        m_gpuRenderingToggle->setToolTip("Enable GPU Acceleration for audio visualizer rendering (Default: Off)");
-        cl->addLayout(createSettingRow(
-            card,
-            "Enable GPU Acceleration",
-            "Use hardware OpenGL context for visualizers (offloads repaints from CPU).",
-            m_gpuRenderingToggle));
-
         connect(m_optimizedModeToggle, &ToggleSwitch::toggled, this, [this](bool on) {
             m_optimizedMode = on;
             AppSettings::instance().setOptimizedMode(on);
@@ -361,13 +348,6 @@ void SettingsPageWidget::setupUi() {
             }
             saveSettings();
             emit optimizedModeToggled(on);
-        });
-
-        connect(m_gpuRenderingToggle, &ToggleSwitch::toggled, this, [this](bool on) {
-            m_gpuRendering = on;
-            AppSettings::instance().setGpuAccelerationEnabled(on);
-            saveSettings();
-            emit gpuRenderingToggled(on);
         });
 
         rightCol->addWidget(card);
@@ -416,17 +396,6 @@ void SettingsPageWidget::setupUi() {
 
         auto* divB = new QFrame(card); divB->setFrameShape(QFrame::HLine);
         m_cardSeparators.append(divB); cl->addWidget(divB);
-
-        m_deviceCombo = new QComboBox(card);
-        m_deviceCombo->setObjectName("DeviceComboBox");
-        ThemeManager::setupComboBox(m_deviceCombo);
-        m_deviceCombo->addItem("Default / Automatic");
-        m_deviceCombo->setFixedSize(220, 34);
-        m_deviceCombo->setToolTip("Select Specific DAC or Audio Device");
-        cl->addLayout(createSettingRow(card, "Target Audio Device", "Select hardware DAC or sound card interface.", m_deviceCombo));
-
-        auto* divD = new QFrame(card); divD->setFrameShape(QFrame::HLine);
-        m_cardSeparators.append(divD); cl->addWidget(divD);
 
         m_crossfadeToggle = new ToggleSwitch(card);
         m_crossfadeToggle->setToolTip("Toggle 3-Second Crossfade Between Track Transitions");
@@ -499,9 +468,6 @@ void SettingsPageWidget::setupUi() {
         connect(m_backendCombo, &QComboBox::activated, this, [this](int idx) {
             if (m_backendCombo && idx >= 0) { m_currentBackend = m_backendCombo->itemData(idx).toInt(); saveSettings(); emit outputBackendChanged(m_currentBackend); }
         });
-        connect(m_deviceCombo, &QComboBox::activated, this, [this](int idx) {
-            if (m_deviceCombo && idx >= 0) { m_currentDevice = m_deviceCombo->itemText(idx); saveSettings(); emit outputDeviceChanged(m_currentDevice); }
-        });
 
         rightCol->addWidget(card);
     }
@@ -561,8 +527,6 @@ void SettingsPageWidget::loadSettings() {
     AppSettings::instance().setMoodColumnEnabled(m_moodColumnEnabled);
     m_optimizedMode    = settings.value("optimized_mode", false).toBool();
     AppSettings::instance().setOptimizedMode(m_optimizedMode);
-    m_gpuRendering     = settings.value("gpu_acceleration", false).toBool();
-    AppSettings::instance().setGpuAccelerationEnabled(m_gpuRendering);
     m_crossfadeEnabled = settings.value("crossfade", false).toBool();
     m_normalizeEnabled = settings.value("normalize", false).toBool();
     m_gaplessEnabled   = settings.value("gapless", true).toBool();
@@ -573,7 +537,6 @@ void SettingsPageWidget::loadSettings() {
     int crossfade_ms   = settings.value("crossfade_duration_ms", 3000).toInt();
     m_currentTheme     = settings.value("theme_text", "Dark Premium (Purple)").toString();
     m_currentBackend   = settings.value("audio_backend", 0).toInt();
-    m_currentDevice    = settings.value("audio_device", "Default / Automatic").toString();
 
     if (m_tooltipToggle) {
         m_tooltipToggle->setChecked(m_tooltipsEnabled);
@@ -582,7 +545,6 @@ void SettingsPageWidget::loadSettings() {
     }
     if (m_moodColumnToggle)    m_moodColumnToggle->setChecked(m_moodColumnEnabled);
     if (m_optimizedModeToggle) m_optimizedModeToggle->setChecked(m_optimizedMode);
-    if (m_gpuRenderingToggle)   m_gpuRenderingToggle->setChecked(m_gpuRendering);
     if (m_loudnessScanBtn) {
         m_loudnessScanBtn->setEnabled(!m_optimizedMode);
         m_loudnessScanBtn->setToolTip(m_optimizedMode ? "Disabled in Optimized Mode" : "Scan Library for ReplayGain...");
@@ -614,7 +576,6 @@ void SettingsPageWidget::saveSettings() {
     settings.setValue("tooltips",               m_tooltipsEnabled);
     settings.setValue("show_mood_column",       m_moodColumnEnabled);
     settings.setValue("optimized_mode",         m_optimizedMode);
-    settings.setValue("gpu_acceleration",       m_gpuRendering);
     settings.setValue("crossfade",              m_crossfadeEnabled);
     settings.setValue("normalize",              m_normalizeEnabled);
     settings.setValue("gapless",                m_gaplessEnabled);
@@ -625,14 +586,12 @@ void SettingsPageWidget::saveSettings() {
     if (m_crossfadeDurationSpin) settings.setValue("crossfade_duration_ms", m_crossfadeDurationSpin->value());
     settings.setValue("theme_text",    m_currentTheme);
     settings.setValue("audio_backend", m_currentBackend);
-    settings.setValue("audio_device",  m_currentDevice);
 }
 
 void SettingsPageWidget::showEvent(QShowEvent* event) {
     QWidget::showEvent(event);
     if (m_tooltipToggle   && m_tooltipToggle->isChecked()   != m_tooltipsEnabled)  { QSignalBlocker b(m_tooltipToggle);   m_tooltipToggle->setChecked(m_tooltipsEnabled); }
     if (m_moodColumnToggle && m_moodColumnToggle->isChecked() != m_moodColumnEnabled) { QSignalBlocker b(m_moodColumnToggle); m_moodColumnToggle->setChecked(m_moodColumnEnabled); }
-    if (m_gpuRenderingToggle && m_gpuRenderingToggle->isChecked() != m_gpuRendering) { QSignalBlocker b(m_gpuRenderingToggle); m_gpuRenderingToggle->setChecked(m_gpuRendering); }
     if (m_crossfadeToggle && m_crossfadeToggle->isChecked() != m_crossfadeEnabled) { QSignalBlocker b(m_crossfadeToggle); m_crossfadeToggle->setChecked(m_crossfadeEnabled); }
     if (m_normalizeToggle && m_normalizeToggle->isChecked() != m_normalizeEnabled) { QSignalBlocker b(m_normalizeToggle); m_normalizeToggle->setChecked(m_normalizeEnabled); }
     if (m_gaplessToggle   && m_gaplessToggle->isChecked()   != m_gaplessEnabled)   { QSignalBlocker b(m_gaplessToggle);   m_gaplessToggle->setChecked(m_gaplessEnabled); }
@@ -648,10 +607,6 @@ void SettingsPageWidget::showEvent(QShowEvent* event) {
         int idx = m_backendCombo->findData(m_currentBackend);
         if (idx < 0) { idx = 0; m_currentBackend = 0; }
         if (m_backendCombo->currentIndex() != idx) { QSignalBlocker b(m_backendCombo); m_backendCombo->setCurrentIndex(idx); }
-    }
-    if (m_deviceCombo && !m_currentDevice.isEmpty()) {
-        int idx = m_deviceCombo->findText(m_currentDevice);
-        if (idx >= 0 && m_deviceCombo->currentIndex() != idx) { QSignalBlocker b(m_deviceCombo); m_deviceCombo->setCurrentIndex(idx); }
     }
 }
 
@@ -754,7 +709,6 @@ void SettingsPageWidget::updateThemeStyles(const ThemePalette& p) {
 
     if (m_themeCombo)   m_themeCombo->setStyleSheet(comboStyle);
     if (m_backendCombo) m_backendCombo->setStyleSheet(comboStyle);
-    if (m_deviceCombo)  m_deviceCombo->setStyleSheet(comboStyle);
 
     // ── SpinBox style ─────────────────────────────────────────────────────
     const QString spinStyle = QString(

@@ -344,11 +344,6 @@ WaveformVisualizer::WaveformVisualizer(QWidget* parent) : QWidget(parent) {
     });
 }
 
-void WaveformVisualizer::setGpuAccelerationEnabled(bool enabled) {
-    Q_UNUSED(enabled);
-    update();
-}
-
 void WaveformVisualizer::setPlaybackProgress(double progress) {
     double clamped = qBound(0.0, progress, 1.0);
     if (qAbs(m_progress - clamped) > 0.001) {

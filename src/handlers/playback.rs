@@ -7,15 +7,48 @@ use platform::{MprisPlaybackStatus, MprisTrackInfo};
 use crate::app_state::{
     apply_play_state, cached_cover_path, send_track_info_and_lyrics, sync_shuffle_order,
     CURRENT_INDEX, CURRENT_TRACK_LIST, CURRENT_VOLUME, ELAPSED_SECONDS, ENGINE_CMD_TX, IS_PLAYING,
-    LAST_RECORDED_TRACK_ID, PLATFORM, QUEUE_CLEARED_BY_USER, REPEAT_ENABLED, SHUFFLE_ENABLED,
-    SHUFFLE_ORDER, SHUFFLE_POS, USER_SELECT_GEN,
+    LAST_RECORDED_TRACK_ID, PLATFORM, PLAYBACK_INFO, QUEUE_CLEARED_BY_USER, REPEAT_ENABLED,
+    SHUFFLE_ENABLED, SHUFFLE_ORDER, SHUFFLE_POS, USER_SELECT_GEN,
 };
 use crate::bridge;
 use crate::ffi_safe;
 use crate::ui_sync::{refresh_up_next_queue, save_session_state};
 
+/// True once the engine has actually had a track loaded into it via
+/// `EngineCommand::OpenUri` (i.e. `PlaybackInfo::track_id` is `Some`).
+/// Used to distinguish "resume a loaded track" from "nothing has ever
+/// been opened yet" so the Play button can't send a bare `Play` command
+/// into an engine with no stream (see modules/engine .../commands.rs).
+fn engine_has_loaded_track() -> bool {
+    PLAYBACK_INFO.get().is_some_and(|info| info.load().track_id.is_some())
+}
+
 pub extern "C" fn rust_play_pause() {
     ffi_safe!({
+        // If nothing has ever been opened in the engine yet (e.g. the very
+        // first Play press after import, before any row was explicitly
+        // selected), pressing Play must load the currently displayed/
+        // selected track first instead of sending a bare Play command that
+        // the engine can't act on.
+        if !IS_PLAYING.load(Ordering::SeqCst) && !engine_has_loaded_track() {
+            let track_id = if let Some(list_lock) = CURRENT_TRACK_LIST.get() {
+                list_lock.try_lock().and_then(|list| {
+                    let idx = *CURRENT_INDEX.lock();
+                    list.get(idx).map(|t| t.id)
+                })
+            } else {
+                None
+            };
+
+            if let Some(id) = track_id {
+                if id >= 0 && id <= i32::MAX as i64 {
+                    log::info!("Play pressed with no track loaded; loading track id {}", id);
+                    rust_select_song_inner(id as i32);
+                    return;
+                }
+            }
+        }
+
         for _ in 0..4 {
             let old_state = IS_PLAYING.load(Ordering::SeqCst);
             let new_state = !old_state;
@@ -101,8 +134,8 @@ pub fn rust_prev_inner() {
             if let Some(mut platform) = platform_lock.try_lock() {
                 platform.set_mpris_track(MprisTrackInfo {
                     title: Some(track.title.clone()),
-                    artist: Some(track.artist.clone()),
-                    album: Some(track.album.clone()),
+                    artist: Some(track.artist.to_string()),
+                    album: Some(track.album.to_string()),
                     art_url: Some(format!("file://{}", cover_path)),
                     length_microseconds: Some((track.duration_secs * 1_000_000.0) as i64),
                     track_id: Some(format!("/org/playtune/track/{}", track.id)),
@@ -196,8 +229,8 @@ pub fn rust_next_inner() {
             if let Some(mut platform) = platform_lock.try_lock() {
                 platform.set_mpris_track(MprisTrackInfo {
                     title: Some(track.title.clone()),
-                    artist: Some(track.artist.clone()),
-                    album: Some(track.album.clone()),
+                    artist: Some(track.artist.to_string()),
+                    album: Some(track.album.to_string()),
                     art_url: Some(format!("file://{}", cover_path)),
                     length_microseconds: Some((track.duration_secs * 1_000_000.0) as i64),
                     track_id: Some(format!("/org/playtune/track/{}", track.id)),
@@ -424,8 +457,8 @@ pub fn rust_select_song_inner(song_idx: i32) {
             if let Some(mut platform) = platform_lock.try_lock() {
                 platform.set_mpris_track(MprisTrackInfo {
                     title: Some(track.title.clone()),
-                    artist: Some(track.artist.clone()),
-                    album: Some(track.album.clone()),
+                    artist: Some(track.artist.to_string()),
+                    album: Some(track.album.to_string()),
                     art_url: Some(format!("file://{}", cover_path)),
                     length_microseconds: Some((track.duration_secs * 1_000_000.0) as i64),
                     track_id: Some(format!("/org/playtune/track/{}", track.id)),

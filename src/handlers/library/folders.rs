@@ -21,6 +21,8 @@ pub extern "C" fn rust_import_folder(folder_path: *const std::ffi::c_char) {
                 let db_clone = std::sync::Arc::clone(db_arc);
                 let path_string = path_str.to_string();
                 spawn_worker("playtune-import-folder", move || {
+                    let _ = db_clone.unignore_paths_in_folder(&path_string);
+
                     let mut config = config::LibraryConfig::default();
                     config.watch_dirs.push(std::path::PathBuf::from(&path_string));
                     let temp_mgr = LibraryManager::new(db_clone.clone(), config);

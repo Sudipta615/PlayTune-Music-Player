@@ -452,12 +452,6 @@ void NowPlayingCard::setOptimizedMode(bool enabled) {
     }
 }
 
-void NowPlayingCard::setGpuAccelerationEnabled(bool enabled) {
-    if (m_visualizer) {
-        m_visualizer->setGpuAccelerationEnabled(enabled);
-    }
-}
-
 void NowPlayingCard::applyLabelStyles(const ThemePalette& p) {
     Q_UNUSED(p);
     if (m_nowPlayingLabel) {

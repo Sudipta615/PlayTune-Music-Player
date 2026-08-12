@@ -44,8 +44,39 @@ impl PlayTuneDb {
     }
 
     pub fn delete_track(&self, id: i64) -> Result<(), DbError> {
+        let mut conn = self.conn.lock();
+        let tx = conn.transaction()?;
+        if let Ok(path) = tx.query_row("SELECT path FROM tracks WHERE id = ?", params![id], |row| {
+            row.get::<_, String>(0)
+        }) {
+            tx.execute("INSERT OR IGNORE INTO ignored_paths (path) VALUES (?)", params![path])?;
+        }
+        tx.execute("DELETE FROM tracks WHERE id = ?", params![id])?;
+        tx.commit()?;
+        Ok(())
+    }
+
+    pub fn get_ignored_paths(&self) -> Result<std::collections::HashSet<String>, DbError> {
         let conn = self.conn.lock();
-        conn.execute("DELETE FROM tracks WHERE id = ?", params![id])?;
+        let mut stmt = conn.prepare_cached("SELECT path FROM ignored_paths")?;
+        let rows = stmt.query_map([], |row| row.get(0))?;
+        let mut paths = std::collections::HashSet::new();
+        for r in rows {
+            paths.insert(r?);
+        }
+        Ok(paths)
+    }
+
+    pub fn remove_ignored_path(&self, path: &str) -> Result<(), DbError> {
+        let conn = self.conn.lock();
+        conn.execute("DELETE FROM ignored_paths WHERE path = ?", params![path])?;
+        Ok(())
+    }
+
+    pub fn unignore_paths_in_folder(&self, folder_path: &str) -> Result<(), DbError> {
+        let conn = self.conn.lock();
+        let pattern = format!("{}%", folder_path);
+        conn.execute("DELETE FROM ignored_paths WHERE path LIKE ?", params![pattern])?;
         Ok(())
     }
 

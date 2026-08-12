@@ -231,6 +231,7 @@ void MainWindow::connectBridge() {
     });
     connect(m_settingsPage, &SettingsPageWidget::moodColumnToggled,
             m_songsTable, &SongsTableWidget::setMoodColumnVisible);
+    m_songsTable->setMoodColumnVisible(m_settingsPage->isMoodColumnEnabled());
     connect(m_settingsPage, &SettingsPageWidget::gaplessToggled, this, [cb](bool enabled) {
         if (cb.on_crossfade_toggled) cb.on_crossfade_toggled(enabled ? 0 : 1);
     });
@@ -276,12 +277,6 @@ void MainWindow::connectBridge() {
     connect(m_settingsPage, &SettingsPageWidget::outputBackendChanged, this, [cb](int backend) {
         if (cb.on_set_output_backend) cb.on_set_output_backend(backend);
     });
-    connect(m_settingsPage, &SettingsPageWidget::outputDeviceChanged, this, [cb](const QString& deviceName) {
-        if (cb.on_set_output_device) {
-            QByteArray ba = deviceName.toUtf8();
-            cb.on_set_output_device(ba.constData());
-        }
-    });
     if (m_toolTipController && m_settingsPage) {
         m_toolTipController->setEnabled(m_settingsPage->isTooltipsEnabled());
     }
@@ -289,8 +284,6 @@ void MainWindow::connectBridge() {
     // Live signal wiring for Optimized Mode
     connect(m_settingsPage, &SettingsPageWidget::optimizedModeToggled,
             m_nowPlayingCard,  &NowPlayingCard::setOptimizedMode);
-    connect(m_settingsPage, &SettingsPageWidget::gpuRenderingToggled,
-            m_nowPlayingCard,  &NowPlayingCard::setGpuAccelerationEnabled);
     connect(m_settingsPage, &SettingsPageWidget::optimizedModeToggled,
             m_songsTable,      &SongsTableWidget::setOptimizedMode);
     connect(m_settingsPage, &SettingsPageWidget::optimizedModeToggled,
@@ -314,10 +307,6 @@ void MainWindow::connectBridge() {
             if (cb.on_eq_enabled) cb.on_eq_enabled(0);
             QPixmapCache::setCacheLimit(2 * 1024);
         });
-    }
-
-    if (m_settingsPage->isGpuRenderingEnabled()) {
-        m_nowPlayingCard->setGpuAccelerationEnabled(true);
     }
 
     // Folders View Actions
@@ -428,8 +417,6 @@ void MainWindow::connectBridge() {
 
     connect(&manager, &GuiBridgeManager::foldersCleared, m_settingsPage, &SettingsPageWidget::clearFolderList, Qt::QueuedConnection);
     connect(&manager, &GuiBridgeManager::folderAdded, m_settingsPage, &SettingsPageWidget::addFolderToList, Qt::QueuedConnection);
-    connect(&manager, &GuiBridgeManager::audioDevicesCleared, m_settingsPage, &SettingsPageWidget::clearAudioDeviceList, Qt::QueuedConnection);
-    connect(&manager, &GuiBridgeManager::audioDeviceAdded, m_settingsPage, &SettingsPageWidget::addAudioDeviceToList, Qt::QueuedConnection);
 
     connect(m_sidebar, &SidebarWidget::collapsedToggled, this, [this](bool collapsed) {
         if (!m_inResizeEvent) {
