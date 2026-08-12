@@ -42,6 +42,28 @@ All developers and contributors **MUST** follow the standard 3-way (`x.y.z`) Sem
 
 ## 🗓️ Version History
 
+### [2.1.3] — 2026-08-12 — Queue Batch Signals, Audio Buffer Adaptation & Vector Range Removal
+
+#### Summary
+Optimized the Qt Queue widget bridge with transactional batch repainting signals (`begin_queue_update` / `end_queue_update`), upgraded the CPAL audio output engine with backend-adaptive buffer frame targeting (512–1024 frames for ASIO/Exclusive modes, 2048 for shared mode), replaced individual audio buffer deque pop loops with $O(1)$ range removals (`VecDeque::drain`), and removed orphaned debug assets.
+
+#### Added / Optimized
+- **Backend-Adaptive Audio Buffer Sizing (`cpal_output.rs`)**:
+  - Configured adaptive audio buffer frame sizing based on active `AudioBackend` host: 512 frames (~11.6 ms latency @ 44.1 kHz) for Exclusive ASIO, 1024 frames (~22.6 ms) for Exclusive ALSA / WASAPI / CoreAudio Hog, and 2048 frames (~46.4 ms) for standard shared audio servers (`Auto`).
+  - Reduces seek/pause/play hardware output latency in exclusive mode while preserving dropout immunity in shared consumer modes.
+- **Queue Widget Batch Update Signals (`ui_sync.rs`, `gui_bridge.cpp`, `queuewidget.cpp`)**:
+  - Introduced FFI bridge functions `begin_queue_update()` and `end_queue_update()` around `refresh_up_next_queue`.
+  - Disables Qt updates (`setUpdatesEnabled(false)`) and blocks signals on `m_queueTable` during batch insertion, eliminating 10 intermediate layout/repaint passes and replacing them with a single viewport flush.
+- **Audio Buffer $O(1)$ Range Removals (`decode_loop.rs`)**:
+  - Replaced 4 instances of sequential `pop_front()` loops on `pending_output_frames` with `self.pending_output_frames.drain(..count)`.
+  - Replaces per-element loop iterations with a single $O(1)$ head pointer offset update per drain pass.
+
+#### Removed
+- **Orphaned Debug File**:
+  - Removed unused debug entrypoint script `modules/engine/scratch.rs`.
+
+---
+
 ### [2.1.2] — 2026-08-12 — String Interning & Metadata Memory Deduplication (`Arc<str>`)
 
 #### Summary

@@ -212,6 +212,14 @@ pub fn clear_queue() {
     unsafe { raw::clear_queue() }
 }
 
+pub fn begin_queue_update() {
+    unsafe { raw::begin_queue_update() }
+}
+
+pub fn end_queue_update() {
+    unsafe { raw::end_queue_update() }
+}
+
 pub fn add_queue_song(index: i32, title: &str, artist: &str, duration: &str, cover_path: &str) {
     let c_title = cstring_or_warn(title, "title");
     let c_artist = cstring_or_warn(artist, "artist");

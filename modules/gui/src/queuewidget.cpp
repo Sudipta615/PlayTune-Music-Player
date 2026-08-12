@@ -566,6 +566,23 @@ void QueueWidget::clearQueue() {
     m_footerLabel->setText("0 songs • 0:00");
 }
 
+void QueueWidget::beginQueueUpdate() {
+    if (m_queueTable) {
+        m_queueTable->setUpdatesEnabled(false);
+        if (m_queueTable->viewport()) m_queueTable->viewport()->setUpdatesEnabled(false);
+        m_queueTable->blockSignals(true);
+    }
+}
+
+void QueueWidget::endQueueUpdate() {
+    if (m_queueTable) {
+        m_queueTable->blockSignals(false);
+        m_queueTable->setUpdatesEnabled(true);
+        if (m_queueTable->viewport()) m_queueTable->viewport()->setUpdatesEnabled(true);
+        if (m_queueTable->viewport()) m_queueTable->viewport()->update();
+    }
+}
+
 void QueueWidget::setTrackLyrics(int trackId, const QString& syncedLrc, const QString& unsyncedLyrics) {
     m_currentTrackId = trackId;
     m_lyricsLines.clear();

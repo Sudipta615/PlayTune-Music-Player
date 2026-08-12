@@ -289,6 +289,16 @@ void clear_queue(void) {
     emit GuiBridgeManager::instance().queueCleared();
 }
 
+void begin_queue_update(void) {
+    if (!g_gui_initialized.load(std::memory_order_acquire)) return;
+    emit GuiBridgeManager::instance().queueUpdateBegan();
+}
+
+void end_queue_update(void) {
+    if (!g_gui_initialized.load(std::memory_order_acquire)) return;
+    emit GuiBridgeManager::instance().queueUpdateEnded();
+}
+
 void add_queue_song(int index, const char* title, const char* artist, const char* duration, const char* cover_path) {
     if (!g_gui_initialized.load(std::memory_order_acquire)) return;
     emit GuiBridgeManager::instance().queueSongAdded(

@@ -56,6 +56,8 @@ public:
     // Setters to update from FFI
     void setTrackInfo(const QString& title, const QString& artist, const QString& album, const QString& coverPath);
     void clearQueue();
+    void beginQueueUpdate();
+    void endQueueUpdate();
     void addQueueSong(int index, const QString& title, const QString& artist, const QString& duration, const QString& coverPath);
     void setVolume(double level);
 

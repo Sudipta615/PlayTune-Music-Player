@@ -51,6 +51,8 @@ pub(super) mod raw {
         pub fn add_folder(id: c_int, path: *const c_char, name: *const c_char, track_count: c_int);
         pub fn switch_view(view_index: c_int);
         pub fn clear_queue();
+        pub fn begin_queue_update();
+        pub fn end_queue_update();
         pub fn add_queue_song(
             index: c_int,
             title: *const c_char,

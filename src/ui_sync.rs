@@ -29,6 +29,7 @@ pub fn refresh_up_next_queue() {
         return;
     }
     let curr = *CURRENT_INDEX.lock() % len;
+    bridge::begin_queue_update();
     bridge::clear_queue();
 
     let count = 10.min(len);
@@ -67,6 +68,7 @@ pub fn refresh_up_next_queue() {
             );
         }
     }
+    bridge::end_queue_update();
 }
 
 pub fn push_audio_devices_to_gui(backend: AudioBackend) {

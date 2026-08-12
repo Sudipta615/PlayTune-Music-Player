@@ -253,9 +253,21 @@ impl CpalOutput {
         let channels = config.channels();
         let sample_format = config.sample_format();
 
+        let target_buffer_frames: u32 = match backend {
+            #[cfg(all(target_os = "windows", feature = "asio"))]
+            AudioBackend::ExclusiveAsio => 512,
+            #[cfg(target_os = "linux")]
+            AudioBackend::ExclusiveAlsa => 1024,
+            #[cfg(target_os = "windows")]
+            AudioBackend::ExclusiveWasapi => 1024,
+            #[cfg(target_os = "macos")]
+            AudioBackend::ExclusiveCoreAudioHog => 1024,
+            _ => 2048,
+        };
+
         let buffer_size = match config.buffer_size() {
             cpal::SupportedBufferSize::Range { min, max } => {
-                cpal::BufferSize::Fixed(2048.clamp(*min, *max))
+                cpal::BufferSize::Fixed(target_buffer_frames.clamp(*min, *max))
             }
             cpal::SupportedBufferSize::Unknown => cpal::BufferSize::Default,
         };

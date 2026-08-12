@@ -128,8 +128,8 @@ impl AudioEngine {
             }
             let written = self.output_buffer.push_block_interleaved(&stereo_buf[..n * 2]);
             let frames_written = written / 2;
-            for _ in 0..frames_written {
-                self.pending_output_frames.pop_front();
+            if frames_written > 0 {
+                self.pending_output_frames.drain(..frames_written);
             }
             if frames_written < n {
                 // Buffer full — leave remaining pending frames for next tick.
@@ -320,8 +320,8 @@ impl AudioEngine {
                             batch[(batch_fill + k) * 2 + 1] = r;
                         }
                         batch_fill += n;
-                        for _ in 0..n {
-                            self.pending_output_frames.pop_front();
+                        if n > 0 {
+                            self.pending_output_frames.drain(..n);
                         }
                         if batch_fill == BATCH_FRAMES {
                             if !flush_batch!() {
@@ -388,8 +388,8 @@ impl AudioEngine {
                     }
                     let written = self.output_buffer.push_block_interleaved(&stereo_buf[..n * 2]);
                     let frames_written = written / 2;
-                    for _ in 0..frames_written {
-                        self.pending_output_frames.pop_front();
+                    if frames_written > 0 {
+                        self.pending_output_frames.drain(..frames_written);
                     }
                     if frames_written < n {
                         break;
@@ -441,8 +441,8 @@ impl AudioEngine {
             }
             let written = self.output_buffer.push_block_interleaved(&stereo_buf[..n * 2]);
             let frames_written = written / 2;
-            for _ in 0..frames_written {
-                self.pending_output_frames.pop_front();
+            if frames_written > 0 {
+                self.pending_output_frames.drain(..frames_written);
             }
             if frames_written < n {
                 return;

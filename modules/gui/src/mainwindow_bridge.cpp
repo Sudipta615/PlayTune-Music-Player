@@ -412,6 +412,8 @@ void MainWindow::connectBridge() {
     }, Qt::QueuedConnection);
 
     connect(&manager, &GuiBridgeManager::queueCleared, m_queueWidget, &QueueWidget::clearQueue, Qt::QueuedConnection);
+    connect(&manager, &GuiBridgeManager::queueUpdateBegan, m_queueWidget, &QueueWidget::beginQueueUpdate, Qt::QueuedConnection);
+    connect(&manager, &GuiBridgeManager::queueUpdateEnded, m_queueWidget, &QueueWidget::endQueueUpdate, Qt::QueuedConnection);
     connect(&manager, &GuiBridgeManager::queueSongAdded, m_queueWidget, &QueueWidget::addQueueSong, Qt::QueuedConnection);
     connect(&manager, &GuiBridgeManager::visualizerUpdated, m_nowPlayingCard, &NowPlayingCard::updateVisualizer, Qt::QueuedConnection);
 

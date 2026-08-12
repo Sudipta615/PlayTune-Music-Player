@@ -144,6 +144,12 @@ void switch_view(int view_index);
 // Clears all entries in the queue
 void clear_queue(void);
 
+// Signals that a batch of queue song insertions is about to start
+void begin_queue_update(void);
+
+// Signals that a batch of queue song insertions has completed
+void end_queue_update(void);
+
 // Appends a track to the right-side queue
 void add_queue_song(int index, const char* title, const char* artist, const char* duration, const char* cover_path);
 

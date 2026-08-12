@@ -57,6 +57,8 @@ signals:
     /// FFI round-trips into one signal emission per refresh.
     void songsBatchReplaced(QVector<SongRow> rows);
     void queueCleared();
+    void queueUpdateBegan();
+    void queueUpdateEnded();
     void queueSongAdded(int index, const QString& title, const QString& artist, const QString& duration, const QString& cover_path);
     void foldersCleared();
     void folderAdded(int id, const QString& path, const QString& name, int track_count);
