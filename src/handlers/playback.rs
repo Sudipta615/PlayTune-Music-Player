@@ -15,12 +15,15 @@ use crate::ffi_safe;
 use crate::ui_sync::{refresh_up_next_queue, save_session_state};
 
 /// True once the engine has actually had a track loaded into it via
-/// `EngineCommand::OpenUri` (i.e. `PlaybackInfo::track_id` is `Some`).
+/// `EngineCommand::OpenUri` (i.e. `PlaybackInfo::duration_secs > 0.0` and state is not Stopped).
 /// Used to distinguish "resume a loaded track" from "nothing has ever
 /// been opened yet" so the Play button can't send a bare `Play` command
 /// into an engine with no stream (see modules/engine .../commands.rs).
-fn engine_has_loaded_track() -> bool {
-    PLAYBACK_INFO.get().is_some_and(|info| info.load().track_id.is_some())
+pub fn engine_has_loaded_track() -> bool {
+    PLAYBACK_INFO.get().is_some_and(|info| {
+        let pb = info.load();
+        pb.state != engine::buffer::PlaybackState::Stopped && pb.duration_secs > 0.0
+    })
 }
 
 pub extern "C" fn rust_play_pause() {

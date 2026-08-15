@@ -121,19 +121,13 @@ fn main() {
                 Ok(action) => match action {
                     MediaKeyAction::PlayPause => rust_play_pause(),
                     MediaKeyAction::Play => {
-                        if IS_PLAYING
-                            .compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst)
-                            .is_ok()
-                        {
-                            apply_play_state(true);
+                        if !IS_PLAYING.load(Ordering::SeqCst) {
+                            rust_play_pause();
                         }
                     }
                     MediaKeyAction::Pause => {
-                        if IS_PLAYING
-                            .compare_exchange(true, false, Ordering::SeqCst, Ordering::SeqCst)
-                            .is_ok()
-                        {
-                            apply_play_state(false);
+                        if IS_PLAYING.load(Ordering::SeqCst) {
+                            rust_play_pause();
                         }
                     }
                     MediaKeyAction::Next => rust_next(),

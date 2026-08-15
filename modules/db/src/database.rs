@@ -133,7 +133,7 @@ mod tests {
         let tracks = db.get_all_tracks().unwrap();
         assert_eq!(tracks.len(), 1);
         assert_eq!(tracks[0].id, track_id);
-        assert_eq!(tracks[0].title, "Song One");
+        assert_eq!(tracks[0].title.as_ref(), "Song One");
 
         let is_fav = db.toggle_favorite(track_id).unwrap();
         assert!(is_fav);
@@ -206,24 +206,24 @@ mod tests {
         // List tracks
         let tracks = db.get_tracks_by_playlist(pid).unwrap();
         assert_eq!(tracks.len(), 3);
-        assert_eq!(tracks[0].title, "Song One");
-        assert_eq!(tracks[1].title, "Song Two");
-        assert_eq!(tracks[2].title, "Song Three");
+        assert_eq!(tracks[0].title.as_ref(), "Song One");
+        assert_eq!(tracks[1].title.as_ref(), "Song Two");
+        assert_eq!(tracks[2].title.as_ref(), "Song Three");
 
         // Move track 0 to position 2
         let moved = db.move_track_in_playlist(pid, t1, 2).unwrap();
         assert!(moved);
         let tracks = db.get_tracks_by_playlist(pid).unwrap();
-        assert_eq!(tracks[0].title, "Song Two");
-        assert_eq!(tracks[1].title, "Song Three");
-        assert_eq!(tracks[2].title, "Song One");
+        assert_eq!(tracks[0].title.as_ref(), "Song Two");
+        assert_eq!(tracks[1].title.as_ref(), "Song Three");
+        assert_eq!(tracks[2].title.as_ref(), "Song One");
 
         // Remove a track — positions compact
         db.remove_track_from_playlist(pid, t2).unwrap();
         let tracks = db.get_tracks_by_playlist(pid).unwrap();
         assert_eq!(tracks.len(), 2);
-        assert_eq!(tracks[0].title, "Song Three");
-        assert_eq!(tracks[1].title, "Song One");
+        assert_eq!(tracks[0].title.as_ref(), "Song Three");
+        assert_eq!(tracks[1].title.as_ref(), "Song One");
 
         // Rename playlist
         let ok = db.rename_playlist(pid, "Night Drive").unwrap();
@@ -291,7 +291,7 @@ mod tests {
         // Query by rating
         let fives = db.get_tracks_by_rating(5, 100).unwrap();
         assert_eq!(fives.len(), 1);
-        assert_eq!(fives[0].title, "Song Two");
+        assert_eq!(fives[0].title.as_ref(), "Song Two");
 
         // Min rating query
         let four_plus = db.get_tracks_with_min_rating(4, 100).unwrap();
@@ -351,7 +351,7 @@ mod tests {
 
         let artists = db.get_all_artists().unwrap();
         assert_eq!(artists.len(), 2); // A and B
-        let a = artists.iter().find(|a| a.artist == "Artist A").unwrap();
+        let a = artists.iter().find(|a| a.artist.as_ref() == "Artist A").unwrap();
         assert_eq!(a.album_count, 2);
         assert_eq!(a.track_count, 3);
 
@@ -418,7 +418,7 @@ mod tests {
 
         let energetic_tracks = db.get_tracks_by_mood("energetic", 0.70).unwrap();
         assert_eq!(energetic_tracks.len(), 1);
-        assert_eq!(energetic_tracks[0].title, "Upbeat Track");
+        assert_eq!(energetic_tracks[0].title.as_ref(), "Upbeat Track");
 
         let sad_tracks = db.get_tracks_by_mood("sad", 0.70).unwrap();
         assert_eq!(sad_tracks.len(), 0);

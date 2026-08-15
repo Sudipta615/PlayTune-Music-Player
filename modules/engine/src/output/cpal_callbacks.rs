@@ -81,6 +81,7 @@ pub fn audio_callback_f32(
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 pub fn audio_callback_i16(
     data: &mut [i16],
     buffer: &FixedFrameBuffer,
@@ -150,6 +151,7 @@ pub fn audio_callback_i16(
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 pub fn audio_callback_u16(
     data: &mut [u16],
     buffer: &FixedFrameBuffer,
