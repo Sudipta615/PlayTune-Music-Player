@@ -16,6 +16,7 @@
 #include <QStyledItemDelegate>
 #include <QEvent>
 #include <QSettings>
+#include <QScrollBar>
 #include <QPixmapCache>
 
 // Helper to round pixmaps
@@ -293,6 +294,7 @@ void QueueWidget::setupUi() {
     m_queueTable->verticalHeader()->setVisible(false);
     m_queueTable->horizontalHeader()->setVisible(false);
     m_queueTable->setVerticalScrollMode(QAbstractItemView::ScrollPerPixel);
+    m_queueTable->verticalScrollBar()->setSingleStep(m_queueTable->fontMetrics().lineSpacing() * 2);
 
     m_queueTable->horizontalHeader()->setSectionResizeMode(0, QHeaderView::Fixed);
     m_queueTable->setColumnWidth(0, 36);
@@ -380,6 +382,7 @@ void QueueWidget::setupUi() {
         ).arg(p.headerBg.name(), p.cardBorder.name(), p.itemHoverBg.name()));
     }
     m_lyricsListWidget->setVerticalScrollMode(QAbstractItemView::ScrollPerPixel);
+    m_lyricsListWidget->verticalScrollBar()->setSingleStep(m_lyricsListWidget->fontMetrics().lineSpacing() * 2);
     m_lyricsListWidget->setFocusPolicy(Qt::NoFocus);
     connect(m_lyricsListWidget, &QListWidget::itemClicked, this, &QueueWidget::onLyricsLineClicked);
     lyricsLayout->addWidget(m_lyricsListWidget, 1);

@@ -255,6 +255,7 @@ MediaGridWidget::MediaGridWidget(QWidget* parent) : QListWidget(parent) {
         "    background-color: transparent; border: none;"
         "}");
     setVerticalScrollMode(QAbstractItemView::ScrollPerPixel);
+    verticalScrollBar()->setSingleStep(fontMetrics().lineSpacing() * 2);
     setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
 
     connect(this, &QListWidget::itemClicked, this, &MediaGridWidget::onItemClicked);

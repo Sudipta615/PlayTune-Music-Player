@@ -13,8 +13,11 @@
 #include <QShowEvent>
 #include <QListWidgetItem>
 #include <QScrollArea>
+#include <QScrollBar>
 #include <QSignalBlocker>
 #include <QApplication>
+#include <QShortcut>
+#include <QKeySequence>
 
 SettingsPageWidget::SettingsPageWidget(QWidget* parent) : QWidget(parent) {
     setObjectName("SettingsPage");
@@ -38,6 +41,7 @@ void SettingsPageWidget::setupUi() {
     scrollArea->setWidgetResizable(true);
     scrollArea->setFrameShape(QFrame::NoFrame);
     scrollArea->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    scrollArea->verticalScrollBar()->setSingleStep(fontMetrics().lineSpacing() * 2);
     scrollArea->setStyleSheet(
         "QScrollArea#SettingsScrollArea { background-color: transparent; border: none; }"
         "QScrollArea#SettingsScrollArea > QWidget > QWidget { background-color: transparent; }"
@@ -51,7 +55,7 @@ void SettingsPageWidget::setupUi() {
 
     auto* mainLayout = new QVBoxLayout(scrollContent);
     mainLayout->setContentsMargins(30, 24, 30, 30);
-    mainLayout->setSpacing(20);
+    mainLayout->setSpacing(18);
 
     // Helper: register a setting row label pair (title bold + subtitle muted)
     auto registerRow = [this](QLabel* titleLbl, QLabel* subLbl) {
@@ -60,15 +64,16 @@ void SettingsPageWidget::setupUi() {
     };
 
     // Helper: creates a row with title+description left, control right
-    auto createSettingRow = [&](QFrame* parentCard, const QString& title, const QString& subtitle, QWidget* control) -> QLayout* {
-        auto* row = new QHBoxLayout();
+    auto createSettingRow = [&](QFrame* parentCard, const QString& title, const QString& subtitle, QWidget* control, const QString& keywords = QString(), QFrame* divBelow = nullptr) -> QWidget* {
+        auto* rowWidget = new QWidget(parentCard);
+        auto* row = new QHBoxLayout(rowWidget);
         row->setContentsMargins(0, 4, 0, 4);
         row->setSpacing(16);
 
         auto* textCol = new QVBoxLayout();
         textCol->setSpacing(2);
-        auto* titleLbl = new QLabel(title, parentCard);
-        auto* subLbl   = new QLabel(subtitle, parentCard);
+        auto* titleLbl = new QLabel(title, rowWidget);
+        auto* subLbl   = new QLabel(subtitle, rowWidget);
         subLbl->setWordWrap(true);
         textCol->addWidget(titleLbl);
         textCol->addWidget(subLbl);
@@ -77,7 +82,8 @@ void SettingsPageWidget::setupUi() {
         row->addWidget(control, 0, Qt::AlignVCenter | Qt::AlignRight);
 
         registerRow(titleLbl, subLbl);
-        return row;
+        m_settingItems.append({title, subtitle, keywords, rowWidget, parentCard, divBelow});
+        return rowWidget;
     };
 
     // ─── Page Header ──────────────────────────────────────────────────────
@@ -90,6 +96,71 @@ void SettingsPageWidget::setupUi() {
         headerLayout->addWidget(m_pageTitle);
         headerLayout->addWidget(m_pageSub);
         mainLayout->addLayout(headerLayout);
+    }
+
+    // ─── Search Bar ───────────────────────────────────────────────────────
+    {
+        auto* searchContainer = new QWidget(scrollContent);
+        auto* searchLayout = new QHBoxLayout(searchContainer);
+        searchLayout->setContentsMargins(0, 2, 0, 4);
+        searchLayout->setSpacing(10);
+
+        m_searchBox = new QLineEdit(searchContainer);
+        m_searchBox->setObjectName("SettingsSearchBox");
+        m_searchBox->setPlaceholderText("Search settings, preferences, audio options... (Ctrl+F)");
+        m_searchBox->setFixedHeight(38);
+        m_searchBox->setClearButtonEnabled(true);
+
+        m_searchAction = m_searchBox->addAction(
+            ThemeManager::tintedIcon(":/resources/icons/search.png", ThemeManager::instance().currentTheme().iconColor),
+            QLineEdit::LeadingPosition
+        );
+
+        connect(m_searchBox, &QLineEdit::textChanged, this, &SettingsPageWidget::filterSettings);
+
+        auto* findShortcut = new QShortcut(QKeySequence::Find, this);
+        connect(findShortcut, &QShortcut::activated, this, [this]() {
+            if (m_searchBox) {
+                m_searchBox->setFocus();
+                m_searchBox->selectAll();
+            }
+        });
+
+        searchLayout->addStretch(1);
+        searchLayout->addWidget(m_searchBox);
+        searchLayout->addStretch(1);
+        m_searchBox->setMaximumWidth(680);
+        m_searchBox->setMinimumWidth(380);
+        mainLayout->addWidget(searchContainer);
+    }
+
+    // ─── No Results State ─────────────────────────────────────────────────
+    {
+        m_noResultsCard = new QFrame(scrollContent);
+        m_noResultsCard->setObjectName("SettingsCard");
+        m_noResultsCard->setFrameShape(QFrame::NoFrame);
+        auto* nrl = new QVBoxLayout(m_noResultsCard);
+        nrl->setContentsMargins(40, 36, 40, 36);
+        nrl->setAlignment(Qt::AlignCenter);
+        nrl->setSpacing(14);
+
+        m_noResultsLabel = new QLabel(m_noResultsCard);
+        m_noResultsLabel->setAlignment(Qt::AlignCenter);
+        m_noResultsLabel->setStyleSheet("font-size: 14px; font-weight: bold; color: #94A3B8;");
+
+        auto* clearSearchBtn = new QPushButton("Clear Search", m_noResultsCard);
+        clearSearchBtn->setFixedSize(120, 32);
+        clearSearchBtn->setCursor(Qt::PointingHandCursor);
+        clearSearchBtn->setStyleSheet(
+            "QPushButton { background-color: rgba(124, 58, 237, 0.18); color: #C084FC; "
+            "border: 1px solid rgba(124, 58, 237, 0.4); border-radius: 6px; font-weight: 600; font-size: 12px; }"
+            "QPushButton:hover { background-color: rgba(124, 58, 237, 0.32); border-color: #C084FC; color: #FFFFFF; }");
+        connect(clearSearchBtn, &QPushButton::clicked, m_searchBox, &QLineEdit::clear);
+
+        nrl->addWidget(m_noResultsLabel);
+        nrl->addWidget(clearSearchBtn, 0, Qt::AlignCenter);
+        m_noResultsCard->hide();
+        mainLayout->addWidget(m_noResultsCard);
     }
 
     // ─── 2-Column Split Layout ───────────────────────────────────────────
@@ -136,25 +207,26 @@ void SettingsPageWidget::setupUi() {
         m_themeCombo->setFixedHeight(34);
         m_themeCombo->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
         m_themeCombo->setToolTip("Select Application Visual Theme");
-        cl->addLayout(createSettingRow(card, "Application Theme", "Select the visual color scheme across all windows and controls.", m_themeCombo));
 
         auto* div1 = new QFrame(card);
         div1->setFrameShape(QFrame::HLine);
         m_cardSeparators.append(div1);
-        cl->addWidget(div1);
 
-        m_tooltipToggle = new ToggleSwitch(card);
-        m_tooltipToggle->setToolTip("Enable or Disable Descriptive Tooltips Across the Application");
-        cl->addLayout(createSettingRow(card, "UI Tooltips & Hints", "Display descriptive popups when hovering controls.", m_tooltipToggle));
+        cl->addWidget(createSettingRow(card, "Application Theme", "Select the visual color scheme across all windows and controls.", m_themeCombo, "theme color dark light appearance skin palette style", div1));
+        cl->addWidget(div1);
 
         auto* divMood = new QFrame(card);
         divMood->setFrameShape(QFrame::HLine);
         m_cardSeparators.append(divMood);
+
+        m_tooltipToggle = new ToggleSwitch(card);
+        m_tooltipToggle->setToolTip("Enable or Disable Descriptive Tooltips Across the Application");
+        cl->addWidget(createSettingRow(card, "UI Tooltips & Hints", "Display descriptive popups when hovering controls.", m_tooltipToggle, "tooltips hints help popup info hover", divMood));
         cl->addWidget(divMood);
 
         m_moodColumnToggle = new ToggleSwitch(card);
         m_moodColumnToggle->setToolTip("Show or Hide the Dedicated Mood Column in Songs Tables");
-        cl->addLayout(createSettingRow(card, "Show Mood Column", "Display AI acoustic mood pill badges in library tables.", m_moodColumnToggle));
+        cl->addWidget(createSettingRow(card, "Show Mood Column", "Display AI acoustic mood pill badges in library tables.", m_moodColumnToggle, "mood column badges table tags vibes acoustic"));
 
         connect(m_tooltipToggle, &ToggleSwitch::toggled, this, [this](bool on) {
             m_tooltipsEnabled = on; saveSettings(); emit tooltipsToggled(on);
@@ -195,18 +267,23 @@ void SettingsPageWidget::setupUi() {
         m_cardSeparators.append(sep);
         cl->addWidget(sep);
 
+        auto* card2Content = new QWidget(card);
+        auto* c2Layout = new QVBoxLayout(card2Content);
+        c2Layout->setContentsMargins(0, 0, 0, 0);
+        c2Layout->setSpacing(14);
+
         auto* desc = new QLabel(
             "Import audio tracks or scan directories directly into your local PlayTune collection. "
             "Supported formats: MP3, FLAC, WAV, M4A, OGG, and AAC.",
-            card);
+            card2Content);
         desc->setWordWrap(true);
         m_settingSubLabels.append(desc);
-        cl->addWidget(desc);
+        c2Layout->addWidget(desc);
 
         auto* btnGrid = new QGridLayout();
         btnGrid->setSpacing(10);
 
-        m_addSongsBtn = new QPushButton("  Add Songs", card);
+        m_addSongsBtn = new QPushButton("  Add Songs", card2Content);
         m_addSongsBtn->setObjectName("AddMusicBtn");
         m_addSongsBtn->setIcon(ThemeManager::tintedIcon(":/resources/icons/plus.png",
             ThemeManager::instance().currentTheme().iconColor));
@@ -215,7 +292,7 @@ void SettingsPageWidget::setupUi() {
         m_addSongsBtn->setFixedHeight(36);
         m_addSongsBtn->setToolTip("Select and Import Individual Audio Tracks (.mp3, .flac, .wav, .m4a)");
 
-        m_addFoldersBtn = new QPushButton("  Add Folder", card);
+        m_addFoldersBtn = new QPushButton("  Add Folder", card2Content);
         m_addFoldersBtn->setObjectName("AddMusicBtn");
         m_addFoldersBtn->setIcon(ThemeManager::tintedIcon(":/resources/icons/folders.png",
             ThemeManager::instance().currentTheme().iconColor));
@@ -224,7 +301,7 @@ void SettingsPageWidget::setupUi() {
         m_addFoldersBtn->setFixedHeight(36);
         m_addFoldersBtn->setToolTip("Select and Scan an Entire Directory for Audio Tracks");
 
-        m_importM3UBtn = new QPushButton("  Import Playlist", card);
+        m_importM3UBtn = new QPushButton("  Import Playlist", card2Content);
         m_importM3UBtn->setObjectName("AddMusicBtn");
         m_importM3UBtn->setIcon(ThemeManager::tintedIcon(":/resources/icons/plus.png",
             ThemeManager::instance().currentTheme().iconColor));
@@ -233,7 +310,7 @@ void SettingsPageWidget::setupUi() {
         m_importM3UBtn->setFixedHeight(36);
         m_importM3UBtn->setToolTip("Import an M3U/M3U8 playlist file.");
 
-        m_exportM3UBtn = new QPushButton("  Export Playlist", card);
+        m_exportM3UBtn = new QPushButton("  Export Playlist", card2Content);
         m_exportM3UBtn->setObjectName("AddMusicBtn");
         m_exportM3UBtn->setIcon(ThemeManager::tintedIcon(":/resources/icons/folders.png",
             ThemeManager::instance().currentTheme().iconColor));
@@ -246,7 +323,17 @@ void SettingsPageWidget::setupUi() {
         btnGrid->addWidget(m_addFoldersBtn, 0, 1);
         btnGrid->addWidget(m_importM3UBtn, 1, 0);
         btnGrid->addWidget(m_exportM3UBtn, 1, 1);
-        cl->addLayout(btnGrid);
+        c2Layout->addLayout(btnGrid);
+        cl->addWidget(card2Content);
+
+        m_settingItems.append({
+            "Add Music & Playlists",
+            "Import audio tracks or scan directories directly into your local PlayTune collection.",
+            "add songs folder import export m3u playlist music files mp3 flac wav m4a ogg aac collection scan",
+            card2Content,
+            card,
+            nullptr
+        });
 
         connect(m_addSongsBtn,   &QPushButton::clicked, this, &SettingsPageWidget::addSongsRequested);
         connect(m_addFoldersBtn, &QPushButton::clicked, this, &SettingsPageWidget::addFoldersRequested);
@@ -277,17 +364,32 @@ void SettingsPageWidget::setupUi() {
         m_cardSeparators.append(sep);
         cl->addWidget(sep);
 
-        auto* desc = new QLabel("Directories synchronized with your PlayTune library:", card);
-        m_settingSubLabels.append(desc);
-        cl->addWidget(desc);
+        auto* card3Content = new QWidget(card);
+        auto* c3Layout = new QVBoxLayout(card3Content);
+        c3Layout->setContentsMargins(0, 0, 0, 0);
+        c3Layout->setSpacing(14);
 
-        m_foldersListWidget = new QListWidget(card);
+        auto* desc = new QLabel("Directories synchronized with your PlayTune library:", card3Content);
+        m_settingSubLabels.append(desc);
+        c3Layout->addWidget(desc);
+
+        m_foldersListWidget = new QListWidget(card3Content);
         m_foldersListWidget->setFixedHeight(130);
         m_foldersListWidget->setFrameShape(QFrame::NoFrame);
         m_foldersListWidget->setAlternatingRowColors(true);
         m_foldersListWidget->setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
         m_foldersListWidget->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
-        cl->addWidget(m_foldersListWidget);
+        c3Layout->addWidget(m_foldersListWidget);
+        cl->addWidget(card3Content);
+
+        m_settingItems.append({
+            "Library Folders",
+            "Directories synchronized with your PlayTune library",
+            "folders paths directories sync scan watch library local storage",
+            card3Content,
+            card,
+            nullptr
+        });
 
         leftCol->addWidget(card);
         leftCol->addStretch();
@@ -315,25 +417,41 @@ void SettingsPageWidget::setupUi() {
         m_cardSeparators.append(sep);
         cl->addWidget(sep);
 
+        auto* card0bContent = new QWidget(card);
+        auto* c0bLayout = new QVBoxLayout(card0bContent);
+        c0bLayout->setContentsMargins(0, 0, 0, 0);
+        c0bLayout->setSpacing(14);
+
         m_perfInfoLabel = new QLabel(
             "Disables: Spectrum Visualizer · Cover Art in all Library tabs · "
             "Drop Shadows & Color Animations · Loudness Scanner. "
             "EQ DSP is also bypassed when all bands are at 0 dB. "
             "Now Playing card cover art is always preserved.",
-            card);
+            card0bContent);
         m_perfInfoLabel->setWordWrap(true);
         m_perfInfoLabel->setStyleSheet(
             "font-size: 12px; color: #F59E0B; background-color: rgba(245,158,11,0.08); "
             "border: 1px solid rgba(245,158,11,0.25); border-radius: 8px; padding: 8px 10px;");
-        cl->addWidget(m_perfInfoLabel);
+        c0bLayout->addWidget(m_perfInfoLabel);
 
-        m_optimizedModeToggle = new ToggleSwitch(card);
+        m_optimizedModeToggle = new ToggleSwitch(card0bContent);
         m_optimizedModeToggle->setToolTip("Enable Optimized Mode: reduces CPU and RAM usage with no impact on audio quality");
-        cl->addLayout(createSettingRow(
+        c0bLayout->addWidget(createSettingRow(
             card,
             "Optimized Mode",
             "Minimize CPU & RAM usage. Ideal for low-power devices or background listening.",
-            m_optimizedModeToggle));
+            m_optimizedModeToggle,
+            "performance low power battery ram cpu memory save optimize resource"));
+        cl->addWidget(card0bContent);
+
+        m_settingItems.append({
+            "Performance & Resource Usage",
+            "Minimize CPU & RAM usage. Ideal for low-power devices or background listening.",
+            "performance low power battery ram cpu memory save optimize resource visualizer",
+            card0bContent,
+            card,
+            nullptr
+        });
 
         connect(m_optimizedModeToggle, &ToggleSwitch::toggled, this, [this](bool on) {
             m_optimizedMode = on;
@@ -392,32 +510,35 @@ void SettingsPageWidget::setupUi() {
 #endif
         m_backendCombo->setFixedSize(220, 34);
         m_backendCombo->setToolTip("Select Audio Output Driver Backend (Exclusive Bit-Perfect or Shared Mode)");
-        cl->addLayout(createSettingRow(card, "Audio Output Driver", "Choose driver API (exclusive modes bypass OS mixer).", m_backendCombo));
 
         auto* divB = new QFrame(card); divB->setFrameShape(QFrame::HLine);
-        m_cardSeparators.append(divB); cl->addWidget(divB);
-
-        m_crossfadeToggle = new ToggleSwitch(card);
-        m_crossfadeToggle->setToolTip("Toggle 3-Second Crossfade Between Track Transitions");
-        cl->addLayout(createSettingRow(card, "Crossfade Transition", "Smoothly blend audio between tracks.", m_crossfadeToggle));
+        m_cardSeparators.append(divB);
+        cl->addWidget(createSettingRow(card, "Audio Output Driver", "Choose driver API (exclusive modes bypass OS mixer).", m_backendCombo, "audio output driver backend alsa wasapi asio coreaudio exclusive bitperfect hardware", divB));
+        cl->addWidget(divB);
 
         auto* div1 = new QFrame(card); div1->setFrameShape(QFrame::HLine);
-        m_cardSeparators.append(div1); cl->addWidget(div1);
-
-        m_normalizeToggle = new ToggleSwitch(card);
-        m_normalizeToggle->setToolTip("Normalize Volume Levels Across Different Audio Tracks");
-        cl->addLayout(createSettingRow(card, "Audio Normalization", "Balance volume levels across tracks.", m_normalizeToggle));
+        m_cardSeparators.append(div1);
+        m_crossfadeToggle = new ToggleSwitch(card);
+        m_crossfadeToggle->setToolTip("Toggle 3-Second Crossfade Between Track Transitions");
+        cl->addWidget(createSettingRow(card, "Crossfade Transition", "Smoothly blend audio between tracks.", m_crossfadeToggle, "crossfade transition fade blend overlap mix", div1));
+        cl->addWidget(div1);
 
         auto* div2 = new QFrame(card); div2->setFrameShape(QFrame::HLine);
-        m_cardSeparators.append(div2); cl->addWidget(div2);
-
-        m_gaplessToggle = new ToggleSwitch(card);
-        m_gaplessToggle->setToolTip("Enable Zero-Latency Gapless Playback Between Consecutive Tracks");
-        cl->addLayout(createSettingRow(card, "Gapless Playback Mode", "Eliminate delays between consecutive tracks.", m_gaplessToggle));
+        m_cardSeparators.append(div2);
+        m_normalizeToggle = new ToggleSwitch(card);
+        m_normalizeToggle->setToolTip("Normalize Volume Levels Across Different Audio Tracks");
+        cl->addWidget(createSettingRow(card, "Audio Normalization", "Balance volume levels across tracks.", m_normalizeToggle, "normalize volume replaygain loudness level ebu r128", div2));
+        cl->addWidget(div2);
 
         auto* div2b = new QFrame(card); div2b->setFrameShape(QFrame::HLine);
-        m_cardSeparators.append(div2b); cl->addWidget(div2b);
+        m_cardSeparators.append(div2b);
+        m_gaplessToggle = new ToggleSwitch(card);
+        m_gaplessToggle->setToolTip("Enable Zero-Latency Gapless Playback Between Consecutive Tracks");
+        cl->addWidget(createSettingRow(card, "Gapless Playback Mode", "Eliminate delays between consecutive tracks.", m_gaplessToggle, "gapless zero latency transition delay continuous", div2b));
+        cl->addWidget(div2b);
 
+        auto* div2c = new QFrame(card); div2c->setFrameShape(QFrame::HLine);
+        m_cardSeparators.append(div2c);
         m_crossfadeDurationSpin = new QSpinBox(card);
         m_crossfadeDurationSpin->setRange(500, 12000);
         m_crossfadeDurationSpin->setSingleStep(500);
@@ -425,35 +546,33 @@ void SettingsPageWidget::setupUi() {
         m_crossfadeDurationSpin->setSuffix(" ms");
         m_crossfadeDurationSpin->setFixedSize(110, 34);
         m_crossfadeDurationSpin->setToolTip("Crossfade duration in milliseconds (only used when Crossfade is ON).");
-        cl->addLayout(createSettingRow(card, "Crossfade Duration", "Duration in ms (when Crossfade is ON).", m_crossfadeDurationSpin));
-
-        auto* div2c = new QFrame(card); div2c->setFrameShape(QFrame::HLine);
-        m_cardSeparators.append(div2c); cl->addWidget(div2c);
-
-        m_cursorFollowToggle = new ToggleSwitch(card);
-        m_cursorFollowToggle->setToolTip("Auto-scroll the songs table to follow the currently playing track.");
-        cl->addLayout(createSettingRow(card, "Cursor Follows Playback", "Auto-scroll list to active playing song.", m_cursorFollowToggle));
+        cl->addWidget(createSettingRow(card, "Crossfade Duration", "Duration in ms (when Crossfade is ON).", m_crossfadeDurationSpin, "crossfade duration time length ms milliseconds", div2c));
+        cl->addWidget(div2c);
 
         auto* div2d = new QFrame(card); div2d->setFrameShape(QFrame::HLine);
-        m_cardSeparators.append(div2d); cl->addWidget(div2d);
-
-        m_notificationsToggle = new ToggleSwitch(card);
-        m_notificationsToggle->setToolTip("Show desktop notifications when the track changes.");
-        cl->addLayout(createSettingRow(card, "Desktop Notifications", "Display popup notification on track change.", m_notificationsToggle));
+        m_cardSeparators.append(div2d);
+        m_cursorFollowToggle = new ToggleSwitch(card);
+        m_cursorFollowToggle->setToolTip("Auto-scroll the songs table to follow the currently playing track.");
+        cl->addWidget(createSettingRow(card, "Cursor Follows Playback", "Auto-scroll list to active playing song.", m_cursorFollowToggle, "cursor follow playback scroll auto active track song", div2d));
+        cl->addWidget(div2d);
 
         auto* div2e = new QFrame(card); div2e->setFrameShape(QFrame::HLine);
-        m_cardSeparators.append(div2e); cl->addWidget(div2e);
-
-        m_trayToggle = new ToggleSwitch(card);
-        m_trayToggle->setToolTip("Show PlayTune in the system tray for background playback.");
-        cl->addLayout(createSettingRow(card, "System Tray Icon", "Show system tray icon for background control.", m_trayToggle));
+        m_cardSeparators.append(div2e);
+        m_notificationsToggle = new ToggleSwitch(card);
+        m_notificationsToggle->setToolTip("Show desktop notifications when the track changes.");
+        cl->addWidget(createSettingRow(card, "Desktop Notifications", "Display popup notification on track change.", m_notificationsToggle, "notifications desktop popup alert toast notify", div2e));
+        cl->addWidget(div2e);
 
         auto* div2f = new QFrame(card); div2f->setFrameShape(QFrame::HLine);
-        m_cardSeparators.append(div2f); cl->addWidget(div2f);
+        m_cardSeparators.append(div2f);
+        m_trayToggle = new ToggleSwitch(card);
+        m_trayToggle->setToolTip("Show PlayTune in the system tray for background playback.");
+        cl->addWidget(createSettingRow(card, "System Tray Icon", "Show system tray icon for background control.", m_trayToggle, "system tray icon background taskbar minimize", div2f));
+        cl->addWidget(div2f);
 
         m_minimizeToTrayToggle = new ToggleSwitch(card);
         m_minimizeToTrayToggle->setToolTip("Hide to tray when closing the window instead of quitting.");
-        cl->addLayout(createSettingRow(card, "Minimize to Tray on Close", "Hide to tray on close instead of quitting.", m_minimizeToTrayToggle));
+        cl->addWidget(createSettingRow(card, "Minimize to Tray on Close", "Hide to tray on close instead of quitting.", m_minimizeToTrayToggle, "minimize tray close hide exit background quit"));
 
         connect(m_crossfadeToggle,     &ToggleSwitch::toggled, this, [this](bool c) { m_crossfadeEnabled = c; saveSettings(); emit crossfadeToggled(c); });
         connect(m_normalizeToggle,     &ToggleSwitch::toggled, this, [this](bool c) { m_normalizeEnabled = c; saveSettings(); emit normalizeToggled(c); });
@@ -492,13 +611,18 @@ void SettingsPageWidget::setupUi() {
         m_cardSeparators.append(sep);
         cl->addWidget(sep);
 
-        auto* desc = new QLabel("Scan library using EBU R128 K-weighting for integrated LUFS and true peaks, writing ReplayGain 2.0 / R128 tags.", card);
+        auto* card5Content = new QWidget(card);
+        auto* c5Layout = new QVBoxLayout(card5Content);
+        c5Layout->setContentsMargins(0, 0, 0, 0);
+        c5Layout->setSpacing(14);
+
+        auto* desc = new QLabel("Scan library using EBU R128 K-weighting for integrated LUFS and true peaks, writing ReplayGain 2.0 / R128 tags.", card5Content);
         desc->setWordWrap(true);
         m_settingSubLabels.append(desc);
-        cl->addWidget(desc);
+        c5Layout->addWidget(desc);
 
         auto* btnLayout = new QHBoxLayout();
-        auto* scanBtn = new QPushButton("Scan Library for ReplayGain...", card);
+        auto* scanBtn = new QPushButton("Scan Library for ReplayGain...", card5Content);
         m_loudnessScanBtn = scanBtn;
         scanBtn->setFixedHeight(36);
         connect(scanBtn, &QPushButton::clicked, this, [this]() {
@@ -507,7 +631,17 @@ void SettingsPageWidget::setupUi() {
         });
         btnLayout->addWidget(scanBtn);
         btnLayout->addStretch();
-        cl->addLayout(btnLayout);
+        c5Layout->addLayout(btnLayout);
+        cl->addWidget(card5Content);
+
+        m_settingItems.append({
+            "Audio Analysis & ReplayGain",
+            "Scan library using EBU R128 K-weighting for integrated LUFS and true peaks, writing ReplayGain 2.0 / R128 tags.",
+            "replaygain loudness scan ebu r128 lufs true peak tags analysis volume gain normalizer",
+            card5Content,
+            card,
+            nullptr
+        });
 
         rightCol->addWidget(card);
     }
@@ -518,7 +652,45 @@ void SettingsPageWidget::setupUi() {
     mainLayout->addStretch();
 }
 
+void SettingsPageWidget::filterSettings(const QString& query) {
+    QString cleanQuery = query.trimmed().toLower();
+    bool searching = !cleanQuery.isEmpty();
 
+    QSet<QFrame*> visibleCards;
+    int matchCount = 0;
+
+    for (const auto& item : m_settingItems) {
+        bool matches = true;
+        if (searching) {
+            QString haystack = (item.title + " " + item.subtitle + " " + item.keywords).toLower();
+            matches = haystack.contains(cleanQuery);
+        }
+        if (item.widget) {
+            item.widget->setVisible(matches);
+        }
+        if (item.separator) {
+            item.separator->setVisible(matches);
+        }
+        if (matches) {
+            visibleCards.insert(item.parentCard);
+            matchCount++;
+        }
+    }
+
+    for (auto* card : m_settingsCards) {
+        card->setVisible(visibleCards.contains(card));
+    }
+    if (m_performanceCard) {
+        m_performanceCard->setVisible(visibleCards.contains(m_performanceCard));
+    }
+
+    if (m_noResultsCard) {
+        m_noResultsCard->setVisible(searching && matchCount == 0);
+        if (m_noResultsLabel) {
+            m_noResultsLabel->setText(QString("No settings found matching \"%1\"").arg(query));
+        }
+    }
+}
 
 void SettingsPageWidget::loadSettings() {
     QSettings settings("PlayTune", "Settings");
@@ -771,5 +943,30 @@ void SettingsPageWidget::updateThemeStyles(const ThemePalette& p) {
             "QListWidget::item:hover { background-color: %5; }"
         ).arg(p.headerBg.name(), p.cardBorder.name(), p.primaryText.name(),
               p.cardBg.name(), p.itemHoverBg.name()));
+    }
+
+    // ── Search Box ────────────────────────────────────────────────────────
+    if (m_searchBox) {
+        m_searchBox->setStyleSheet(QString(
+            "QLineEdit#SettingsSearchBox {"
+            "  background-color: %1;"
+            "  color: %2;"
+            "  border: 1px solid %3;"
+            "  border-radius: 8px;"
+            "  padding: 6px 12px 6px 36px;"
+            "  font-size: 13px;"
+            "}"
+            "QLineEdit#SettingsSearchBox:focus {"
+            "  border-color: %4;"
+            "  background-color: %5;"
+            "}"
+            "QLineEdit#SettingsSearchBox::placeholder {"
+            "  color: %6;"
+            "}"
+        ).arg(p.headerBg.name(), p.primaryText.name(), p.cardBorder.name(),
+              p.primaryAccent.name(), p.cardBg.name(), p.mutedText.name()));
+        if (m_searchAction) {
+            m_searchAction->setIcon(ThemeManager::tintedIcon(":/resources/icons/search.png", p.iconColor));
+        }
     }
 }

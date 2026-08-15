@@ -200,9 +200,9 @@ impl ParametricEq {
             .collect();
 
         let mut bass_band = EqBand::new();
-        bass_band.params = EqBandParams::lowshelf(90.0, 0.0, 0.80);
+        bass_band.params = EqBandParams::lowshelf(100.0, 0.0, 1.0);
         let mut treble_band = EqBand::new();
-        treble_band.params = EqBandParams::highshelf(10000.0, 0.0, 0.60);
+        treble_band.params = EqBandParams::highshelf(7500.0, 0.0, 0.70);
 
         Self {
             bands,
@@ -214,14 +214,14 @@ impl ParametricEq {
             preamp_linear: 1.0,
             post_gain_db: 0.0,
             post_gain_linear: 1.0,
-            headroom_db: -1.0,
-            headroom_linear: 10.0_f32.powf(-1.0 / 20.0),
+            headroom_db: -0.3,
+            headroom_linear: 10.0_f32.powf(-0.3 / 20.0),
             headroom_scale: 1.0,
             headroom_scale_target: 1.0,
-            headroom_attack_rate: 0.01, // Fast attack: ~7ms to 95% at 44.1kHz
-            headroom_release_rate: 0.0005, // Slow release: ~136ms to 95% at 44.1kHz
+            headroom_attack_rate: 0.01, // Fast attack: ~3ms to catch transients smoothly
+            headroom_release_rate: 0.002, // Fast musical release: ~25ms recovery to preserve punch
             peak_envelope: 0.0,
-            envelope_release_rate: 0.0001, // Very slow envelope release
+            envelope_release_rate: 0.003, // Fast envelope release: ~15ms
         }
     }
 
@@ -229,9 +229,9 @@ impl ParametricEq {
     pub fn new(num_bands: usize, sample_rate: f32) -> Self {
         let bands = (0..num_bands).map(|_| EqBand::new()).collect();
         let mut bass_band = EqBand::new();
-        bass_band.params = EqBandParams::lowshelf(90.0, 0.0, 0.80);
+        bass_band.params = EqBandParams::lowshelf(100.0, 0.0, 1.0);
         let mut treble_band = EqBand::new();
-        treble_band.params = EqBandParams::highshelf(10000.0, 0.0, 0.60);
+        treble_band.params = EqBandParams::highshelf(7500.0, 0.0, 0.70);
 
         Self {
             bands,
@@ -243,14 +243,14 @@ impl ParametricEq {
             preamp_linear: 1.0,
             post_gain_db: 0.0,
             post_gain_linear: 1.0,
-            headroom_db: -1.0,
-            headroom_linear: 10.0_f32.powf(-1.0 / 20.0),
+            headroom_db: -0.3,
+            headroom_linear: 10.0_f32.powf(-0.3 / 20.0),
             headroom_scale: 1.0,
             headroom_scale_target: 1.0,
             headroom_attack_rate: 0.01,
-            headroom_release_rate: 0.0005,
+            headroom_release_rate: 0.002,
             peak_envelope: 0.0,
-            envelope_release_rate: 0.0001,
+            envelope_release_rate: 0.003,
         }
     }
 
@@ -315,13 +315,7 @@ impl ParametricEq {
         (l, r) = self.bass_band.process(l, r);
         (l, r) = self.treble_band.process(l, r);
 
-        // Attack (signal exceeds threshold): Use a fast attack rate so the
-        // scale reduces quickly to prevent clipping. At 0.01, 95% of the
-        // target is reached in ~300 samples (~7ms at 44.1kHz), which is fast
-        // enough to catch transients while still avoiding zipper noise.
-        //
-        // the scale returns to unity gradually, avoiding pumping artifacts.
-        // At 0.0005, 95% return takes ~6000 samples (~136ms at 44.1kHz).
+        // Musical fast-recovery headroom limiter: protects from digital clipping while preserving punch
         let headroom_linear = self.headroom_linear;
         let peak = l.abs().max(r.abs());
         // Envelope follower
@@ -341,7 +335,7 @@ impl ParametricEq {
             // Fast attack: reduce gain quickly to prevent clipping
             self.headroom_scale += self.headroom_attack_rate * (target_scale - self.headroom_scale);
         } else {
-            // Slow release: avoid pumping artifacts and waveform distortion
+            // Fast musical release: restore full volume immediately after transient
             self.headroom_scale +=
                 self.headroom_release_rate * (target_scale - self.headroom_scale);
         }

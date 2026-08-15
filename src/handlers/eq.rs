@@ -247,7 +247,8 @@ pub fn rust_slider_param_inner(param_idx: i32, value: c_double) {
                     let _ = tx.send(EngineCommand::SetTrebleShelf(value as f32));
                 }
                 2 => {
-                    let _ = tx.send(EngineCommand::SetStereoWidth(value as f32));
+                    let width_factor = if value > 2.0 { value / 100.0 } else { value };
+                    let _ = tx.send(EngineCommand::SetStereoWidth(width_factor as f32));
                 }
                 3 => {
                     let _ = tx.send(EngineCommand::SetBalance(value as f32));

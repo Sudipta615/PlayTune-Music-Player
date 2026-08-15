@@ -268,9 +268,13 @@ impl DspPipeline {
 
     pub fn set_balance(&mut self, balance: f32) {
         self.balance = balance.clamp(-1.0, 1.0);
-        let angle = (self.balance + 1.0) * std::f32::consts::FRAC_PI_4;
-        self.balance_gain_l = angle.cos();
-        self.balance_gain_r = angle.sin();
+        if self.balance >= 0.0 {
+            self.balance_gain_l = 1.0 - self.balance;
+            self.balance_gain_r = 1.0;
+        } else {
+            self.balance_gain_l = 1.0;
+            self.balance_gain_r = 1.0 + self.balance;
+        }
     }
 
     pub fn set_speed(&mut self, speed: f32) {
@@ -402,7 +406,9 @@ impl DspPipeline {
     }
 
     pub fn set_stereo_width(&mut self, width: f32) {
-        self.stereo_enhancer.set_width(width);
+        let normalized = if width > 2.0 { width / 100.0 } else { width };
+        self.stereo_enhancer.set_width(normalized);
+        self.stereo_enhancer.set_enabled((normalized - 1.0).abs() > 0.001);
     }
 
     pub fn set_stereo_enhancer_enabled(&mut self, enabled: bool) {

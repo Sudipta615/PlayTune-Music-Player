@@ -8,7 +8,19 @@
 #include <QSpinBox>
 #include <QLabel>
 #include <QFrame>
+#include <QLineEdit>
+#include <QAction>
+#include <QSet>
 #include "custom_widgets.h"
+
+struct SettingItem {
+    QString title;
+    QString subtitle;
+    QString keywords;
+    QWidget* widget = nullptr;
+    QFrame* parentCard = nullptr;
+    QFrame* separator = nullptr;
+};
 
 class SettingsPageWidget : public QWidget {
     Q_OBJECT
@@ -50,6 +62,7 @@ signals:
 public slots:
     void clearFolderList();
     void addFolderToList(int id, const QString& path, const QString& name, int trackCount);
+    void filterSettings(const QString& query);
 
 protected:
     void showEvent(QShowEvent* event) override;
@@ -59,6 +72,13 @@ private:
     void loadSettings();
     void saveSettings();
     void updateThemeStyles(const ThemePalette& p);
+
+    // ── Search & Filter ──────────────────────────────────────────────────
+    QLineEdit*    m_searchBox            = nullptr;
+    QAction*      m_searchAction         = nullptr;
+    QFrame*       m_noResultsCard        = nullptr;
+    QLabel*       m_noResultsLabel       = nullptr;
+    QList<SettingItem> m_settingItems;
 
     // ── Controls ─────────────────────────────────────────────────────────
     QComboBox*    m_themeCombo           = nullptr;

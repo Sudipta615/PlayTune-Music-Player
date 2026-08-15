@@ -42,6 +42,32 @@ All developers and contributors **MUST** follow the standard 3-way (`x.y.z`) Sem
 
 ## 🗓️ Version History
 
+### [2.1.4] — 2026-08-15 — Settings Search Bar, Poweramp DSP Tuning & Smooth Headroom Saturation
+
+#### Summary
+Introduced an instant live-filtering search bar in the Settings tab with shortcut support (`Ctrl+F`), tuned Controls tab DSP shelf filters and linear balance matching Poweramp Equalizer acoustics, replaced hard gain clippers with smooth exponential soft-knee saturation and fast headroom limiting to eliminate audio distortion under heavy bass boosts, resized the default application window to $1300\times 800\text{ px}$, and optimized table/list scroll step increments.
+
+#### Added / Enhanced
+- **Settings Tab Live Search Bar (`settingspage.cpp`, `settingspage.h`)**:
+  - Integrated a centered, responsive search bar with live filtering across setting titles, descriptions, and keyword tags.
+  - Implemented automatic empty-state feedback with one-click search clearing.
+  - Added global tab keybinding (`Ctrl+F`) to quickly focus and highlight the search field.
+- **Poweramp Equalizer DSP Tuning (`equalizer.rs`, `pipeline.rs`, `eq.rs`)**:
+  - Re-tuned Controls tab Bass low-shelf filter to $100.0\text{ Hz}$ ($Q = 1.00$) for punchy, musical low-end impact.
+  - Re-tuned Controls tab Treble high-shelf filter to $7500.0\text{ Hz}$ ($Q = 0.70$) for smooth, airy treble presence.
+  - Switched stereo balance law to a true linear pan curve ($100\%/100\%$ at center with zero dB attenuation).
+  - Normalized stereo width slider scaling and automated DSP enhancer bypass when width is at unity ($1.0$).
+- **Anti-Distortion Soft-Knee Saturation & Headroom Limiting (`limiter.rs`, `equalizer.rs`)**:
+  - Replaced abrupt per-sample brickwall gain multiplication with continuous exponential soft-knee saturation (`soft_clip_sample`), preventing audio tearing and ripping distortion on high bass boosts.
+  - Tuned adaptive musical headroom limiter ($-0.3\text{ dBFS}$ ceiling, $3\text{ ms}$ attack, $25\text{ ms}$ release) for transparent peak control without dynamic pumping.
+- **UI Layout & Navigation Refinements (`mainwindow.cpp`, `songstable.cpp`, `queuewidget.cpp`, `mediagridview.cpp`, `karaokedialog.cpp`, `settingspage.cpp`)**:
+  - Updated default application window dimensions to $1300\times 800\text{ px}$ for balanced screen real estate.
+  - Adjusted single-step vertical scroll step size across all table, list, and grid views from 3 text lines to 2 text lines (`fontMetrics().lineSpacing() * 2`).
+- **Playback Progress Resume Fix (`playback.rs`)**:
+  - Resolved an issue where toggling pause/play resumed tracks from the beginning instead of preserving elapsed track progress.
+
+---
+
 ### [2.1.3] — 2026-08-12 — Queue Batch Signals, Audio Buffer Adaptation & Vector Range Removal
 
 #### Summary

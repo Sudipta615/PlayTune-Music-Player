@@ -334,6 +334,7 @@ void SongsTableWidget::setupUi() {
     m_table->setSelectionMode(QAbstractItemView::SingleSelection);
     m_table->setFocusPolicy(Qt::NoFocus);
     m_table->setVerticalScrollMode(QAbstractItemView::ScrollPerPixel);
+    m_table->verticalScrollBar()->setSingleStep(m_table->fontMetrics().lineSpacing() * 2);
     m_table->setStyleSheet(
         "QTableWidget { background-color: transparent; border: none; outline: none; }"
         "QHeaderView::section { background-color: transparent; color: #7E8494; font-weight: bold; padding: 6px; border: none; border-bottom: 1px solid #1E2538; }"

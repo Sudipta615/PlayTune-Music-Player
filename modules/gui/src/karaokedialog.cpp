@@ -84,6 +84,7 @@ KaraokeDialog::KaraokeDialog(QWidget *parent)
         "}"
     ));
     m_listWidget->setVerticalScrollMode(QAbstractItemView::ScrollPerPixel);
+    m_listWidget->verticalScrollBar()->setSingleStep(m_listWidget->fontMetrics().lineSpacing() * 2);
     m_listWidget->setFocusPolicy(Qt::NoFocus);
     m_listWidget->verticalScrollBar()->setStyleSheet(QStringLiteral(
         "QScrollBar:vertical {"

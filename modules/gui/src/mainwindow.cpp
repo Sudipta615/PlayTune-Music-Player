@@ -13,7 +13,7 @@
 MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
     setObjectName("MainWindow");
     setWindowTitle("PlayTune");
-    resize(1400, 900);
+    resize(1300, 800);
     setMinimumSize(900, 600);
 
     if (!qApp->windowIcon().isNull()) {
