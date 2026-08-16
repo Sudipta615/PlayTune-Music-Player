@@ -14,7 +14,7 @@
 
 EqualizerWindow::EqualizerWindow(QWidget* parent) : QWidget(parent) {
     setObjectName("EqualizerWindow");
-    setWindowIcon(QIcon(":/resources/icons/playtune_logo.png"));
+    setWindowIcon(QIcon(":/resources/icons/logo.png"));
     setWindowFlags(Qt::Widget | Qt::FramelessWindowHint);
     setAttribute(Qt::WA_TranslucentBackground, false);
     setAttribute(Qt::WA_StyledBackground, true);

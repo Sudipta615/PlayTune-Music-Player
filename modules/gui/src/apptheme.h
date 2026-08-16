@@ -9,8 +9,8 @@
 #include <QMap>
 
 struct ThemePalette {
-    QString id;                 // e.g. "light", "dark", "teal", "amber", "cyan", "crimson"
-    QString name;               // e.g. "Light Premium", "Dark Premium (Default)", etc.
+    QString id;                 // "dark", "light"
+    QString name;               // "Dark Mode", "Light Mode"
     bool isLight = false;
 
     // Main App Surface Backgrounds
@@ -41,9 +41,7 @@ struct ThemePalette {
     QColor tooltipBg;           // QToolTip background
     QColor tooltipBorder;       // QToolTip border
 
-    // Artwork & Placeholder Gradients
-    QColor placeholderGradStart;
-    QColor placeholderGradEnd;
+    // Fallback Card Gradients
     QColor cardBgGradStart;     // Fallback NowPlayingCard background gradient start
     QColor cardBgGradEnd;       // Fallback NowPlayingCard background gradient end
 };
@@ -61,7 +59,7 @@ public:
     // Returns available themes (id -> display name)
     QList<QPair<QString, QString>> availableThemes() const;
 
-    // Switch theme by ID ("light", "dark", "teal", "amber", "cyan", "crimson")
+    // Switch theme by ID ("dark", "light")
     void setTheme(const QString& themeId);
 
     // Generate dynamic application QSS string for current active theme

@@ -170,8 +170,8 @@ pub fn scan_album_loudness(
 /// the full content. Uses Symphonia's probe result.
 fn track_duration_seconds(path: &Path) -> Result<f64, String> {
     use std::fs::File;
+    use symphonia::core::formats::probe::Hint;
     use symphonia::core::io::MediaSourceStream;
-    use symphonia::core::probe::Hint;
 
     let file = File::open(path)
         .map_err(|e| format!("Failed to open {} for duration probe: {}", path.display(), e))?;
@@ -181,17 +181,18 @@ fn track_duration_seconds(path: &Path) -> Result<f64, String> {
         hint.with_extension(ext);
     }
     let prober = symphonia::default::get_probe();
-    let probed = prober
-        .format(&hint, mss, &Default::default(), &Default::default())
+    let format_reader = prober
+        .probe(&hint, mss, Default::default(), Default::default())
         .map_err(|e| format!("Probe error for {}: {}", path.display(), e))?;
-    let format = probed.format;
-    let tracks = format.tracks();
+    let tracks = format_reader.tracks();
     if let Some(track) = tracks.first() {
-        let codec_params = &track.codec_params;
-        if let Some(tb) = codec_params.time_base {
-            if let Some(n_frames) = codec_params.n_frames {
-                let time = tb.calc_time(n_frames);
-                return Ok(time.seconds as f64 + time.frac);
+        if let Some(tb) = track.time_base {
+            if let Some(n_frames) = track.num_frames {
+                if let Some(time) =
+                    tb.calc_time(symphonia::core::units::Timestamp::new(n_frames as i64))
+                {
+                    return Ok(time.as_secs_f64());
+                }
             }
         }
     }

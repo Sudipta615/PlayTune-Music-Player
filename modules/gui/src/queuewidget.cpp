@@ -180,65 +180,20 @@ void QueueWidget::setupUi() {
     npInfoLayout->setContentsMargins(0, 0, 0, 0);
 
     m_miniTitle = new QLabel("No Track Playing", npCard);
+    m_miniTitle->setObjectName("MiniTitle");
     m_miniArtistAlbum = new QLabel("PlayTune Music Player", npCard);
+    m_miniArtistAlbum->setObjectName("MiniArtistAlbum");
 
     auto applyTheme = [this](const ThemePalette& p) {
-        if (m_miniTitle) m_miniTitle->setStyleSheet(QString("font-size: 13px; font-weight: bold; color: %1;").arg(p.primaryText.name()));
-        if (m_miniArtistAlbum) m_miniArtistAlbum->setStyleSheet(QString("font-size: 11px; color: %1;").arg(p.mutedText.name()));
-        if (m_footerLabel) m_footerLabel->setStyleSheet(QString("color: %1; font-size: 11px; margin-left: 5px;").arg(p.mutedText.name()));
-        if (m_npHeaderLabel) m_npHeaderLabel->setStyleSheet(QString("color: %1; font-size: 11px; font-weight: bold; margin-top: 5px;").arg(p.mutedText.name()));
-        if (m_upNextLabel)  m_upNextLabel->setStyleSheet(QString("color: %1; font-size: 11px; font-weight: bold;").arg(p.mutedText.name()));
-        if (m_volumeLabel)  m_volumeLabel->setStyleSheet(QString("color: %1; font-size: 11px; min-width: 32px; font-weight: 500;").arg(p.mutedText.name()));
-        if (m_lyricsListWidget) {
-            m_lyricsListWidget->setStyleSheet(QString(
-                "QListWidget { background-color: %1; border-radius: 10px; border: 1px solid %2; outline: 0; }"
-                "QListWidget::item { padding: 10px 8px; }"
-                "QListWidget::item:hover { background: %3; border-radius: 6px; }"
-                "QListWidget::item:selected { background: transparent; }"
-            ).arg(p.headerBg.name(), p.cardBorder.name(), p.itemHoverBg.name()));
-        }
-        if (m_unsyncedLyricsLabel) {
-            m_unsyncedLyricsLabel->setStyleSheet(QString(
-                "QLabel { background-color: %1; border-radius: 10px; border: 1px solid %2;"
-                "  padding: 20px; color: %3; font-size: 13px; }"
-            ).arg(p.headerBg.name(), p.cardBorder.name(), p.primaryText.name()));
-        }
-        if (m_miniCover && m_miniCoverPath.isEmpty() && !AppSettings::instance().isOptimizedMode()) {
-            m_miniCover->setPixmap(getRoundedPixmap(getDefaultAlbumArt(), 44, 8));
-        }
         if (m_queueTable) {
-            int rows = m_queueTable->rowCount();
-            for (int r = 0; r < rows; ++r) {
-                if (auto* w = m_queueTable->cellWidget(r, 1)) {
-                    if (auto* thumbLabel = w->findChild<QLabel*>("QueueRowThumbLabel")) {
-                        QString path = thumbLabel->property("coverPath").toString();
-                        QPixmap cover;
-                        if (!path.isEmpty() && CoverLoader::instance().tryGet(path, 24, cover)) {
-                            thumbLabel->setPixmap(getRoundedPixmap(cover, 24, 6));
-                        } else {
-                            thumbLabel->setPixmap(getRoundedPixmap(getDefaultAlbumArt(), 24, 6));
-                        }
-                    }
-                    if (auto* titleLabel = w->findChild<QLabel*>("QueueRowTitleLabel")) {
-                        titleLabel->setStyleSheet(QString("font-size: 12px; font-weight: 500; color: %1; background: transparent; margin: 0px; padding: 0px;").arg(p.primaryText.name()));
-                    }
-                    if (auto* artistLabel = w->findChild<QLabel*>("QueueRowArtistLabel")) {
-                        artistLabel->setStyleSheet(QString("font-size: 10px; color: %1; background: transparent; margin: 0px; padding: 0px;").arg(p.mutedText.name()));
-                    }
-                }
+            int count = m_queueTable->rowCount();
+            for (int r = 0; r < count; ++r) {
                 if (auto* itemIdx = m_queueTable->item(r, 0)) {
                     itemIdx->setForeground(p.mutedText);
                 }
             }
-            if (m_queueTable->viewport()) m_queueTable->viewport()->update();
-        }
-        if (m_miniCover) {
-            QString path = m_miniCover->property("coverPath").toString();
-            QPixmap cover;
-            if (!path.isEmpty() && cover.load(path)) {
-                m_miniCover->setPixmap(getRoundedPixmap(cover, 44, 8));
-            } else {
-                m_miniCover->setPixmap(getRoundedPixmap(getDefaultAlbumArt(), 44, 8));
+            if (m_queueTable->viewport()) {
+                m_queueTable->viewport()->update();
             }
         }
     };
@@ -372,15 +327,7 @@ void QueueWidget::setupUi() {
 
     m_lyricsListWidget = new QListWidget(lyricsPage);
     m_lyricsListWidget->setFrameShape(QFrame::NoFrame);
-    {
-        const auto& p = ThemeManager::instance().currentTheme();
-        m_lyricsListWidget->setStyleSheet(QString(
-            "QListWidget { background-color: %1; border-radius: 10px; border: 1px solid %2; outline: 0; }"
-            "QListWidget::item { padding: 10px 8px; }"
-            "QListWidget::item:hover { background: %3; border-radius: 6px; }"
-            "QListWidget::item:selected { background: transparent; }"
-        ).arg(p.headerBg.name(), p.cardBorder.name(), p.itemHoverBg.name()));
-    }
+    m_lyricsListWidget->setObjectName("QueueLyricsList");
     m_lyricsListWidget->setVerticalScrollMode(QAbstractItemView::ScrollPerPixel);
     m_lyricsListWidget->verticalScrollBar()->setSingleStep(m_lyricsListWidget->fontMetrics().lineSpacing() * 2);
     m_lyricsListWidget->setFocusPolicy(Qt::NoFocus);
@@ -388,15 +335,9 @@ void QueueWidget::setupUi() {
     lyricsLayout->addWidget(m_lyricsListWidget, 1);
 
     m_unsyncedLyricsLabel = new QLabel(lyricsPage);
+    m_unsyncedLyricsLabel->setObjectName("QueueUnsyncedLyrics");
     m_unsyncedLyricsLabel->setAlignment(Qt::AlignCenter);
     m_unsyncedLyricsLabel->setWordWrap(true);
-    {
-        const auto& p = ThemeManager::instance().currentTheme();
-        m_unsyncedLyricsLabel->setStyleSheet(QString(
-            "QLabel { background-color: %1; border-radius: 10px; border: 1px solid %2;"
-            "  padding: 20px; color: %3; font-size: 13px; }"
-        ).arg(p.headerBg.name(), p.cardBorder.name(), p.primaryText.name()));
-    }
     m_unsyncedLyricsLabel->hide();
     lyricsLayout->addWidget(m_unsyncedLyricsLabel, 1);
 
@@ -739,11 +680,9 @@ void QueueWidget::addQueueSong(int index, const QString& title, const QString& a
     infoVLayout->setAlignment(Qt::AlignVCenter);
     auto* titleLabel = new QLabel(title, detailsContainer);
     titleLabel->setObjectName("QueueRowTitleLabel");
-    titleLabel->setStyleSheet(QString("font-size: 12px; font-weight: 500; color: %1; background: transparent; margin: 0px; padding: 0px;").arg(p.primaryText.name()));
     
     auto* artistLabel = new QLabel(artist, detailsContainer);
     artistLabel->setObjectName("QueueRowArtistLabel");
-    artistLabel->setStyleSheet(QString("font-size: 10px; color: %1; background: transparent; margin: 0px; padding: 0px;").arg(p.mutedText.name()));
 
     infoVLayout->addWidget(titleLabel);
     infoVLayout->addWidget(artistLabel);

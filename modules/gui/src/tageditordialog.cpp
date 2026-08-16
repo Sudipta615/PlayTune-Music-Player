@@ -14,7 +14,7 @@ TagEditorDialog::TagEditorDialog(const TagEditorTrackData& data, QWidget* parent
     : QDialog(parent), m_originalData(data), m_currentCoverPath(data.cover_path)
 {
     setObjectName("TagEditorDialog");
-    setWindowIcon(QIcon(":/resources/icons/playtune_logo.png"));
+    setWindowIcon(QIcon(":/resources/icons/logo.png"));
     setWindowFlags(Qt::Dialog | Qt::FramelessWindowHint);
     setAttribute(Qt::WA_StyledBackground, true);
 
@@ -77,7 +77,7 @@ void TagEditorDialog::setupUi() {
     headerLayout->setSpacing(10);
 
     auto* iconLabel = new QLabel(this);
-    iconLabel->setPixmap(QIcon(":/resources/icons/playtune_logo.png").pixmap(20, 20));
+    iconLabel->setPixmap(QIcon(":/resources/icons/logo.png").pixmap(20, 20));
     
     auto* titleLabel = new QLabel("Metadata Tag Editor", this);
     titleLabel->setStyleSheet("font-size: 17px; font-weight: bold; color: #FFFFFF;");

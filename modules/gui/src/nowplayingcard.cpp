@@ -40,19 +40,13 @@ NowPlayingCard::NowPlayingCard(QWidget* parent) : QFrame(parent) {
     setupUi();
 
     connect(&ThemeManager::instance(), &ThemeManager::themeChanged, this, [this](const ThemePalette& p) {
-        applyLabelStyles(p);
         if (!m_hasCustomCover) {
             m_coverPixmap = getDefaultAlbumArt();
             updateCoverPixmap();
             applyCardStyle(p.cardBgGradStart, p.cardBgGradEnd, p.cardBorder);
         }
-        // Update icon tinting & hover for NowPlayingCard white buttons
         if (m_editTagsBtn) {
             m_editTagsBtn->setIcon(ThemeManager::tintedIcon(":/resources/icons/more.png", QColor("#FFFFFF")));
-            m_editTagsBtn->setStyleSheet(QString(
-                "QPushButton { border: none; background: transparent; }"
-                "QPushButton:hover { background-color: %1; border-radius: 8px; }"
-            ).arg(p.primaryAccent.name()));
         }
     });
 }

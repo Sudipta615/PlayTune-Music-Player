@@ -535,9 +535,19 @@ fn main() {
             let mgr_for_scan = lib_mgr_arc.clone();
             spawn_worker("playtune-startup-scan", move || {
                 log::info!("Starting background library scan on startup...");
+                let mut last_ui_refresh = std::time::Instant::now();
+                let mut last_added = 0;
                 let _ = mgr_for_scan.scan(|p| {
                     if SHUTDOWN.load(Ordering::SeqCst) {
                         return;
+                    }
+                    if p.files_added > last_added
+                        && last_ui_refresh.elapsed() >= std::time::Duration::from_millis(400)
+                    {
+                        last_added = p.files_added;
+                        last_ui_refresh = std::time::Instant::now();
+                        crate::app_state::invalidate_loaded_filter();
+                        refresh_ui("all", None);
                     }
                     if p.files_processed % 100 == 0 {
                         log::info!(

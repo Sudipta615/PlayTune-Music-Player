@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="assets/playtune_logo.png" width="130" alt="PlayTune Logo"/>
+<img src="assets/logo.png" width="130" alt="PlayTune Logo"/>
 
 <img src="https://capsule-render.vercel.app/api?type=waving&color=gradient&customColorList=6,11,20&height=220&section=header&text=PlayTune&fontSize=72&fontColor=ffffff&animation=fadeIn&fontAlignY=38&desc=Audiophile%20Fidelity%20%C2%B7%20Native%20C%2B%2B%20Speed&descAlignY=58&descSize=18" width="100%"/>
 

@@ -21,3 +21,4 @@ dirs = { workspace = true }
 sha2 = "0.10"
 lofty = "0.21"
 serde = { workspace = true }
+rayon = { workspace = true }

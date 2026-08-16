@@ -38,12 +38,14 @@ MediaGridCard::MediaGridCard(QWidget* parent) : QFrame(parent) {
     m_coverLabel->setStyleSheet("background: transparent; border: none;");
 
     m_titleLabel = new QLabel(this);
+    m_titleLabel->setObjectName("CardTitleLabel");
     m_titleLabel->setAlignment(Qt::AlignCenter);
     m_titleLabel->setWordWrap(false);
     m_titleLabel->setTextFormat(Qt::PlainText);
     m_titleLabel->setFixedHeight(16);
 
     m_subtitleLabel = new QLabel(this);
+    m_subtitleLabel->setObjectName("CardSubtitleLabel");
     m_subtitleLabel->setAlignment(Qt::AlignCenter);
     m_subtitleLabel->setWordWrap(false);
     m_subtitleLabel->setTextFormat(Qt::PlainText);
@@ -55,11 +57,6 @@ MediaGridCard::MediaGridCard(QWidget* parent) : QFrame(parent) {
     layout->addWidget(m_subtitleLabel);
 
     setPlaying(false);
-
-    connect(&ThemeManager::instance(), &ThemeManager::themeChanged, this, [this](const ThemePalette&) {
-        setPlaying(m_playing);
-        refreshCover();
-    });
 
     connect(&CoverLoader::instance(), &CoverLoader::coverReady,
             this, [this](const QString& path, int size, const QPixmap& pix) {
@@ -114,42 +111,15 @@ void MediaGridCard::setContent(const QString& title,
 
 void MediaGridCard::setPlaying(bool playing) {
     m_playing = playing;
-    const auto& p = ThemeManager::instance().currentTheme();
-    if (m_playing) {
-        m_titleLabel->setStyleSheet(QString(
-            "font-weight: 600; font-size: 11px; color: %1; "
-            "background: transparent; border: none;").arg(p.secondaryAccent.name()));
-        m_subtitleLabel->setStyleSheet(QString(
-            "font-size: 10px; color: %1; background: transparent; border: none;").arg(p.secondaryText.name()));
-        setStyleSheet(QString(
-            "QFrame#CardFrame {"
-            "  background-color: %1;"
-            "  border: 1px solid %2;"
-            "  border-radius: 14px;"
-            "}"
-            "QFrame#CardFrame:hover {"
-            "  background-color: %1;"
-            "  border: 1px solid %2;"
-            "}"
-        ).arg(p.itemSelectedBg.name(), p.secondaryAccent.name()));
-    } else {
-        m_titleLabel->setStyleSheet(QString(
-            "font-weight: 600; font-size: 11px; color: %1; "
-            "background: transparent; border: none;").arg(p.secondaryText.name()));
-        m_subtitleLabel->setStyleSheet(QString(
-            "font-size: 10px; color: %1; background: transparent; border: none;").arg(p.mutedText.name()));
-        setStyleSheet(QString(
-            "QFrame#CardFrame {"
-            "  background-color: %1;"
-            "  border: 1px solid %2;"
-            "  border-radius: 14px;"
-            "}"
-            "QFrame#CardFrame:hover {"
-            "  background-color: %3;"
-            "  border: 1px solid %4;"
-            "}"
-        ).arg(p.cardBg.name(), p.cardBorder.name(), p.itemHoverBg.name(), p.primaryAccent.name()));
+    setProperty("playing", playing);
+    if (m_titleLabel) m_titleLabel->setProperty("playing", playing);
+    style()->unpolish(this);
+    style()->polish(this);
+    if (m_titleLabel) {
+        m_titleLabel->style()->unpolish(m_titleLabel);
+        m_titleLabel->style()->polish(m_titleLabel);
     }
+    update();
 }
 
 void MediaGridCard::refreshCover() {

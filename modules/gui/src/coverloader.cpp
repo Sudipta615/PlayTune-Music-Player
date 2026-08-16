@@ -116,10 +116,6 @@ CoverLoader::CoverLoader() : QObject(nullptr) {
     m_flushTimer.setSingleShot(false);
     connect(&m_flushTimer, &QTimer::timeout, this, &CoverLoader::flushDeliveries);
     m_flushTimer.start();
-
-    connect(&ThemeManager::instance(), &ThemeManager::themeChanged, this, [this](const ThemePalette&) {
-        clearCache();
-    });
 }
 
 bool CoverLoader::tryGet(const QString& path, int size, QPixmap& out) const {
@@ -233,10 +229,8 @@ void CoverLoader::flushDeliveries() {
 }
 
 void CoverLoader::clearCache() {
-    QPixmapCache::clear();
-    m_pending.clear();
-    m_pendingDelivery.clear();
-    // Reset default cover so it is reloaded at the next request.
+    // Reset default cover so it is re-generated at the next request with the new theme colors.
+    // Do NOT wipe all real song album covers from QPixmapCache as their pixels do not change with themes.
     m_defaultCover = QPixmap();
     m_defaultCoverSize = 0;
 }

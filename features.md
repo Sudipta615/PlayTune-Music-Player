@@ -2,7 +2,7 @@
 
 <div align="center">
 
-![PlayTune Logo](assets/playtune_logo.png)
+![PlayTune Logo](assets/logo.png)
 
 **An Uncompromising Audiophile Music Player Powered by a Native C++ Qt6 GUI & a Zero-Allocation Lock-Free Rust Audio Engine**
 

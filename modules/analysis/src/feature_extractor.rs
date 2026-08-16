@@ -2,12 +2,13 @@ use realfft::RealFftPlanner;
 use std::f32::consts::PI;
 use std::fs::File;
 use std::path::Path;
-use symphonia::core::audio::SampleBuffer;
-use symphonia::core::codecs::DecoderOptions;
-use symphonia::core::formats::FormatOptions;
-use symphonia::core::io::MediaSourceStream;
-use symphonia::core::meta::MetadataOptions;
-use symphonia::core::probe::Hint;
+use symphonia::core::{
+    codecs::audio::{AudioDecoderOptions, CODEC_ID_NULL_AUDIO},
+    formats::{probe::Hint, FormatOptions, SeekMode, SeekTo},
+    io::MediaSourceStream,
+    meta::MetadataOptions,
+    units::Timestamp,
+};
 
 use db::models::TrackAudioFeatures;
 
@@ -49,33 +50,47 @@ impl AudioFeatureExtractor {
             hint.with_extension(ext);
         }
 
-        let format_opts = FormatOptions { enable_gapless: true, ..Default::default() };
+        let format_opts = FormatOptions::default();
         let metadata_opts = MetadataOptions::default();
-        let decoder_opts = DecoderOptions::default();
+        let decoder_opts = AudioDecoderOptions::default();
 
-        let probed = symphonia::default::get_probe()
-            .format(&hint, mss, &format_opts, &metadata_opts)
+        let mut format = symphonia::default::get_probe()
+            .probe(&hint, mss, format_opts, metadata_opts)
             .map_err(|e| format!("Symphonia probe failed: {}", e))?;
 
-        let mut format = probed.format;
-        let track =
-            format.default_track().ok_or_else(|| "No default audio track found".to_string())?;
+        let track = format
+            .tracks()
+            .iter()
+            .find(|t| {
+                t.codec_params
+                    .as_ref()
+                    .and_then(|cp| cp.audio())
+                    .is_some_and(|a| a.codec != CODEC_ID_NULL_AUDIO)
+            })
+            .ok_or_else(|| "No default audio track found".to_string())?;
 
         let track_id_spec = track.id;
-        let original_sample_rate = track.codec_params.sample_rate.unwrap_or(44100);
-        let channels = track.codec_params.channels.map_or(2, |c| c.count());
+        let audio_params = track
+            .codec_params
+            .as_ref()
+            .and_then(|cp| cp.audio())
+            .ok_or_else(|| "No audio codec parameters found".to_string())?;
+
+        let original_sample_rate = audio_params.sample_rate.unwrap_or(44100);
+        let channels = audio_params.channels.as_ref().map_or(2, |c| c.count());
 
         let mut decoder = symphonia::default::get_codecs()
-            .make(&track.codec_params, &decoder_opts)
+            .make_audio_decoder(audio_params, &decoder_opts)
             .map_err(|e| format!("Failed to create decoder: {}", e))?;
 
         // Target sample count at 22.05 kHz (approx 661,500 mono samples for 30s)
         let total_samples_target = (self.analysis_secs * self.sample_rate) as usize;
         let segment_samples_target = total_samples_target / 3;
         let mut raw_mono_samples: Vec<f32> = Vec::with_capacity(total_samples_target);
+        let mut temp_interleaved: Vec<f32> = Vec::new();
 
         // 3-Point Multi-Window Sampling (20%, 50%, 80% timestamp windows)
-        let n_frames = track.codec_params.n_frames;
+        let n_frames = track.num_frames;
         if let Some(total_frames) = n_frames {
             let target_duration_frames = self.analysis_secs as u64 * original_sample_rate as u64;
             if total_frames > target_duration_frames {
@@ -85,46 +100,43 @@ impl AudioFeatureExtractor {
 
                 for ts in [p20, p50, p80] {
                     let _ = format.seek(
-                        symphonia::core::formats::SeekMode::Accurate,
-                        symphonia::core::formats::SeekTo::TimeStamp { ts, track_id: track_id_spec },
+                        SeekMode::Accurate,
+                        SeekTo::Timestamp {
+                            ts: Timestamp::new(ts as i64),
+                            track_id: track_id_spec,
+                        },
                     );
                     let mut seg_count = 0;
-                    let mut sample_buf = None;
                     while seg_count < segment_samples_target {
                         let packet = match format.next_packet() {
-                            Ok(p) => p,
+                            Ok(Some(p)) => p,
+                            Ok(None) => break,
                             Err(symphonia::core::errors::Error::ResetRequired) => continue,
                             Err(_) => break,
                         };
-                        if packet.track_id() != track_id_spec {
+                        if packet.track_id != track_id_spec {
                             continue;
                         }
                         let decoded = match decoder.decode(&packet) {
                             Ok(d) => d,
                             Err(_) => break,
                         };
-                        if sample_buf.is_none() {
-                            let spec = *decoded.spec();
-                            sample_buf =
-                                Some(SampleBuffer::<f32>::new(decoded.capacity() as u64, spec));
-                        }
-                        if let Some(buf) = &mut sample_buf {
-                            buf.copy_interleaved_ref(decoded);
-                            let samples = buf.samples();
-                            let step = (original_sample_rate as f32 / self.sample_rate as f32)
-                                .max(1.0) as usize;
-                            let mut idx = 0;
-                            while idx + channels <= samples.len() {
-                                let mut sum = 0.0f32;
-                                for c in 0..channels {
-                                    sum += samples[idx + c];
-                                }
-                                raw_mono_samples.push(sum / channels as f32);
-                                seg_count += 1;
-                                idx += channels * step;
-                                if seg_count >= segment_samples_target {
-                                    break;
-                                }
+                        temp_interleaved.clear();
+                        decoded.copy_to_vec_interleaved(&mut temp_interleaved);
+                        let samples = &temp_interleaved;
+                        let step = (original_sample_rate as f32 / self.sample_rate as f32).max(1.0)
+                            as usize;
+                        let mut idx = 0;
+                        while idx + channels <= samples.len() {
+                            let mut sum = 0.0f32;
+                            for c in 0..channels {
+                                sum += samples[idx + c];
+                            }
+                            raw_mono_samples.push(sum / channels as f32);
+                            seg_count += 1;
+                            idx += channels * step;
+                            if seg_count >= segment_samples_target {
+                                break;
                             }
                         }
                     }
@@ -134,15 +146,15 @@ impl AudioFeatureExtractor {
 
         // Fallback to sequential decoding if 3-point sampling yielded insufficient samples
         if raw_mono_samples.is_empty() {
-            let mut sample_buf = None;
             while raw_mono_samples.len() < total_samples_target {
                 let packet = match format.next_packet() {
-                    Ok(p) => p,
+                    Ok(Some(p)) => p,
+                    Ok(None) => break,
                     Err(symphonia::core::errors::Error::ResetRequired) => continue,
                     Err(_) => break,
                 };
 
-                if packet.track_id() != track_id_spec {
+                if packet.track_id != track_id_spec {
                     continue;
                 }
 
@@ -151,28 +163,22 @@ impl AudioFeatureExtractor {
                     Err(_) => break,
                 };
 
-                if sample_buf.is_none() {
-                    let spec = *decoded.spec();
-                    sample_buf = Some(SampleBuffer::<f32>::new(decoded.capacity() as u64, spec));
-                }
+                temp_interleaved.clear();
+                decoded.copy_to_vec_interleaved(&mut temp_interleaved);
+                let samples = &temp_interleaved;
 
-                if let Some(buf) = &mut sample_buf {
-                    buf.copy_interleaved_ref(decoded);
-                    let samples = buf.samples();
-
-                    let step =
-                        (original_sample_rate as f32 / self.sample_rate as f32).max(1.0) as usize;
-                    let mut idx = 0;
-                    while idx + channels <= samples.len() {
-                        let mut sum = 0.0f32;
-                        for c in 0..channels {
-                            sum += samples[idx + c];
-                        }
-                        raw_mono_samples.push(sum / channels as f32);
-                        idx += channels * step;
-                        if raw_mono_samples.len() >= total_samples_target {
-                            break;
-                        }
+                let step =
+                    (original_sample_rate as f32 / self.sample_rate as f32).max(1.0) as usize;
+                let mut idx = 0;
+                while idx + channels <= samples.len() {
+                    let mut sum = 0.0f32;
+                    for c in 0..channels {
+                        sum += samples[idx + c];
+                    }
+                    raw_mono_samples.push(sum / channels as f32);
+                    idx += channels * step;
+                    if raw_mono_samples.len() >= total_samples_target {
+                        break;
                     }
                 }
             }

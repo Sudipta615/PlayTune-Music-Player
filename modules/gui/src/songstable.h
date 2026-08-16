@@ -151,6 +151,7 @@ private:
     bool m_gridPopulated = false;
     QHash<int, int> m_songIdToRow;
     bool m_songCountDirty = false;
+    QVector<QPushButton*> m_actionButtons;
 };
 
 #endif // SONGSTABLE_H

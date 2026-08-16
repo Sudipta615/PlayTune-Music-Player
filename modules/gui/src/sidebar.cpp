@@ -35,7 +35,7 @@ void SidebarWidget::setupUi() {
     logoLayout->setContentsMargins(5, 0, 5, 20);
 
     m_logoIcon = new QLabel(m_logoContainer);
-    m_logoIcon->setPixmap(QIcon(":/resources/icons/playtune_logo.png").pixmap(24, 24));
+    m_logoIcon->setPixmap(QIcon(":/resources/icons/logo.png").pixmap(24, 24));
     m_logoIcon->setCursor(Qt::PointingHandCursor);
     
     m_logoText = new QLabel("PlayTune", m_logoContainer);
@@ -157,21 +157,9 @@ void SidebarWidget::setupUi() {
 
     // Dynamic user-defined playlist list.
     m_playlistList = new QListWidget(this);
-    m_playlistList->setObjectName("UserPlaylistsList");
+    m_playlistList->setObjectName("SidebarPlaylists");
 
-    auto applyListStyle = [this](const ThemePalette& p) {
-        if (!m_playlistList) return;
-        m_playlistList->setStyleSheet(QString(
-            "QListWidget { background-color: transparent; border: none; color: %1; "
-            "font-size: 13px; outline: none; }"
-            "QListWidget::item { padding: 6px 8px; border-radius: 4px; }"
-            "QListWidget::item:hover { background-color: %2; color: %3; }"
-            "QListWidget::item:selected { background-color: %2; color: %4; font-weight: bold; }"
-        ).arg(p.secondaryText.name(), p.itemHoverBg.name(), p.primaryText.name(), p.secondaryAccent.name()));
-    };
-    applyListStyle(ThemeManager::instance().currentTheme());
-    connect(&ThemeManager::instance(), &ThemeManager::themeChanged, this, [applyListStyle, this](const ThemePalette& p) {
-        applyListStyle(p);
+    connect(&ThemeManager::instance(), &ThemeManager::themeChanged, this, [this](const ThemePalette&) {
         if (m_isCollapsed) {
             applyNavButtonStyles();
         }

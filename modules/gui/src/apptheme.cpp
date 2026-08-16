@@ -1,6 +1,7 @@
 #include "apptheme.h"
 #include "coverloader.h"
 #include <QSettings>
+#include <QDateTime>
 #include <QApplication>
 #include <QWidget>
 #include <QPainter>
@@ -23,10 +24,10 @@ ThemeManager::ThemeManager(QObject* parent) : QObject(parent) {
 }
 
 void ThemeManager::registerThemes() {
-    // ─── 1. Dark Premium (Purple) ───────────────────────────────────────────
+    // ─── 1. Dark Mode (Default) ─────────────────────────────────────────────
     ThemePalette dark;
     dark.id = "dark";
-    dark.name = "Dark Premium (Purple)";
+    dark.name = "Dark Mode";
     dark.isLight = false;
     dark.windowBg        = QColor("#0C0F1A");
     dark.sidebarBg       = QColor("#090C1C");
@@ -46,16 +47,14 @@ void ThemeManager::registerThemes() {
     dark.scrollbarHandle = QColor("#222842");
     dark.tooltipBg       = QColor("#0D1120");
     dark.tooltipBorder   = QColor("#8B2FC9");
-    dark.placeholderGradStart = QColor("#8B2FC9");
-    dark.placeholderGradEnd   = QColor("#FF2D78");
     dark.cardBgGradStart = QColor("#141828");
     dark.cardBgGradEnd   = QColor("#0C0F1E");
     m_themes["dark"] = dark;
 
-    // ─── 2. Light Premium ──────────────────────────────────────────────────
+    // ─── 2. Light Mode ──────────────────────────────────────────────────────
     ThemePalette light;
     light.id = "light";
-    light.name = "Light Premium";
+    light.name = "Light Mode";
     light.isLight = true;
     light.windowBg       = QColor("#F4F6FB");   // Soft cool white, NOT pure white
     light.sidebarBg      = QColor("#EAEEF8");   // Slightly blue-grey sidebar
@@ -75,127 +74,9 @@ void ThemeManager::registerThemes() {
     light.scrollbarHandle= QColor("#B8C3DF");
     light.tooltipBg      = QColor("#1A2040");   // Dark tooltip on light bg
     light.tooltipBorder  = QColor("#6C2BD9");
-    light.placeholderGradStart = QColor("#6C2BD9");
-    light.placeholderGradEnd   = QColor("#E91E8C");
     light.cardBgGradStart = QColor("#1E1B38");
     light.cardBgGradEnd   = QColor("#100E24");
     m_themes["light"] = light;
-
-    // ─── 3. Emerald Green ──────────────────────────────────────────────────
-    ThemePalette teal;
-    teal.id = "teal";
-    teal.name = "Emerald Green";
-    teal.isLight = false;
-    teal.windowBg       = QColor("#050F0C");   // Very deep emerald black
-    teal.sidebarBg      = QColor("#030C09");
-    teal.queueBg        = QColor("#030B08");
-    teal.cardBg         = QColor("#081810");
-    teal.cardBorder     = QColor("#0E2D1C");
-    teal.headerBg       = QColor("#061410");
-    teal.separatorColor = QColor("#0C2818");
-    teal.primaryText    = QColor("#E8FFF6");
-    teal.secondaryText  = QColor("#B8E8D4");
-    teal.mutedText      = QColor("#3D7A5C");
-    teal.primaryAccent  = QColor("#00C876");   // Rich emerald green
-    teal.secondaryAccent= QColor("#00FFB0");   // Bright mint highlight
-    teal.iconColor      = QColor("#C8F5E2");   // Mint-white icon tint
-    teal.itemHoverBg    = QColor("#0E3B24");   // Rich emerald hover
-    teal.itemSelectedBg = QColor("#165938");
-    teal.scrollbarHandle= QColor("#112E1E");
-    teal.tooltipBg      = QColor("#071A10");
-    teal.tooltipBorder  = QColor("#00C876");
-    teal.placeholderGradStart = QColor("#00C876");
-    teal.placeholderGradEnd   = QColor("#00FFB0");
-    teal.cardBgGradStart = QColor("#091F14");
-    teal.cardBgGradEnd   = QColor("#040E09");
-    m_themes["teal"] = teal;
-
-    // ─── 4. Sunset Amber ───────────────────────────────────────────────────
-    ThemePalette amber;
-    amber.id = "amber";
-    amber.name = "Sunset Amber";
-    amber.isLight = false;
-    amber.windowBg       = QColor("#0F0900");   // Ultra-deep warm black
-    amber.sidebarBg      = QColor("#0C0700");
-    amber.queueBg        = QColor("#0B0600");
-    amber.cardBg         = QColor("#180E00");
-    amber.cardBorder     = QColor("#2D1E00");
-    amber.headerBg       = QColor("#140B00");
-    amber.separatorColor = QColor("#261900");
-    amber.primaryText    = QColor("#FFF8EC");
-    amber.secondaryText  = QColor("#F0D9B0");
-    amber.mutedText      = QColor("#7A5A2A");
-    amber.primaryAccent  = QColor("#FF7700");   // Vivid burnt orange
-    amber.secondaryAccent= QColor("#FFB300");   // Rich golden amber
-    amber.iconColor      = QColor("#FFE4A0");   // Warm golden icon tint
-    amber.itemHoverBg    = QColor("#382200");   // Rich amber hover
-    amber.itemSelectedBg = QColor("#543300");
-    amber.scrollbarHandle= QColor("#302010");
-    amber.tooltipBg      = QColor("#1A0F00");
-    amber.tooltipBorder  = QColor("#FF7700");
-    amber.placeholderGradStart = QColor("#FF7700");
-    amber.placeholderGradEnd   = QColor("#FFB300");
-    amber.cardBgGradStart = QColor("#221400");
-    amber.cardBgGradEnd   = QColor("#100800");
-    m_themes["amber"] = amber;
-
-    // ─── 5. Electric Cyan ──────────────────────────────────────────────────
-    ThemePalette cyan;
-    cyan.id = "cyan";
-    cyan.name = "Electric Cyan";
-    cyan.isLight = false;
-    cyan.windowBg       = QColor("#030A14");
-    cyan.sidebarBg      = QColor("#02070F");
-    cyan.queueBg        = QColor("#020610");
-    cyan.cardBg         = QColor("#07111E");
-    cyan.cardBorder     = QColor("#0E2038");
-    cyan.headerBg       = QColor("#050E1A");
-    cyan.separatorColor = QColor("#0C2040");
-    cyan.primaryText    = QColor("#E8F4FF");
-    cyan.secondaryText  = QColor("#B0D0F0");
-    cyan.mutedText      = QColor("#3A5F8A");
-    cyan.primaryAccent  = QColor("#00CFFF");   // Electric cyan
-    cyan.secondaryAccent= QColor("#1A6EFF");   // Sapphire blue
-    cyan.iconColor      = QColor("#A8E8FF");   // Cyan-white icon tint
-    cyan.itemHoverBg    = QColor("#0E2E52");   // Rich cyan hover
-    cyan.itemSelectedBg = QColor("#16467A");
-    cyan.scrollbarHandle= QColor("#102840");
-    cyan.tooltipBg      = QColor("#040F20");
-    cyan.tooltipBorder  = QColor("#00CFFF");
-    cyan.placeholderGradStart = QColor("#00CFFF");
-    cyan.placeholderGradEnd   = QColor("#1A6EFF");
-    cyan.cardBgGradStart = QColor("#091828");
-    cyan.cardBgGradEnd   = QColor("#040C18");
-    m_themes["cyan"] = cyan;
-
-    // ─── 6. Crimson Rose ───────────────────────────────────────────────────
-    ThemePalette crimson;
-    crimson.id = "crimson";
-    crimson.name = "Crimson Rose";
-    crimson.isLight = false;
-    crimson.windowBg       = QColor("#100306");   // Ultra-deep crimson black
-    crimson.sidebarBg      = QColor("#0D0204");
-    crimson.queueBg        = QColor("#0C0204");
-    crimson.cardBg         = QColor("#1A060C");
-    crimson.cardBorder     = QColor("#320D18");
-    crimson.headerBg       = QColor("#150408");
-    crimson.separatorColor = QColor("#2E0C16");
-    crimson.primaryText    = QColor("#FFE8EF");
-    crimson.secondaryText  = QColor("#F0BFD0");
-    crimson.mutedText      = QColor("#7A3048");
-    crimson.primaryAccent  = QColor("#FF1A4A");   // Deep crimson-red
-    crimson.secondaryAccent= QColor("#FF4E90");   // Rose-pink highlight
-    crimson.iconColor      = QColor("#FFB8CC");   // Rose-white icon tint
-    crimson.itemHoverBg    = QColor("#3B0B1A");   // Rich crimson hover
-    crimson.itemSelectedBg = QColor("#5C1229");
-    crimson.scrollbarHandle= QColor("#380E1A");
-    crimson.tooltipBg      = QColor("#1C0508");
-    crimson.tooltipBorder  = QColor("#FF1A4A");
-    crimson.placeholderGradStart = QColor("#FF1A4A");
-    crimson.placeholderGradEnd   = QColor("#FF4E90");
-    crimson.cardBgGradStart = QColor("#230A12");
-    crimson.cardBgGradEnd   = QColor("#100306");
-    m_themes["crimson"] = crimson;
 
     m_currentPalette = m_themes["dark"];
 }
@@ -218,12 +99,8 @@ void ThemeManager::loadSavedTheme() {
 
 QList<QPair<QString, QString>> ThemeManager::availableThemes() const {
     QList<QPair<QString, QString>> list;
-    list.append(qMakePair(QString("dark"),    QString("Dark Premium (Purple)")));
-    list.append(qMakePair(QString("light"),   QString("Light Premium")));
-    list.append(qMakePair(QString("teal"),    QString("Emerald Green")));
-    list.append(qMakePair(QString("amber"),   QString("Sunset Amber")));
-    list.append(qMakePair(QString("cyan"),    QString("Electric Cyan")));
-    list.append(qMakePair(QString("crimson"), QString("Crimson Rose")));
+    list.append(qMakePair(QString("dark"),  QString("Dark Mode")));
+    list.append(qMakePair(QString("light"), QString("Light Mode")));
     return list;
 }
 
@@ -238,48 +115,92 @@ void ThemeManager::setTheme(const QString& themeId) {
     }
 
     static bool s_isChangingTheme = false;
+    static QString s_pendingThemeId;
+
     if (s_isChangingTheme) {
-        return; // Guard against re-entrant calls during rapid switching
+        s_pendingThemeId = themeId;
+        return; // Queue the latest requested theme without crashing
     }
     s_isChangingTheme = true;
+
+    qint64 t0 = QDateTime::currentMSecsSinceEpoch();
+    qDebug() << "[ThemeManager] setTheme START for theme:" << themeId;
 
     m_currentPalette = m_themes[themeId];
 
     QSettings settings("PlayTune", "Settings");
     settings.setValue("theme_id", themeId);
     settings.setValue("theme_text", m_currentPalette.name);
+    qDebug() << "[ThemeManager] settings saved in" << (QDateTime::currentMSecsSinceEpoch() - t0) << "ms";
 
     if (qApp) {
+        QFont font("Outfit", 10);
+        font.setStyleHint(QFont::SansSerif);
+        qApp->setFont(font);
+
+        QPalette pal = qApp->palette();
+        pal.setColor(QPalette::Window, m_currentPalette.windowBg);
+        pal.setColor(QPalette::WindowText, m_currentPalette.primaryText);
+        pal.setColor(QPalette::Base, m_currentPalette.cardBg);
+        pal.setColor(QPalette::AlternateBase, m_currentPalette.headerBg);
+        pal.setColor(QPalette::Text, m_currentPalette.primaryText);
+        pal.setColor(QPalette::Button, m_currentPalette.headerBg);
+        pal.setColor(QPalette::ButtonText, m_currentPalette.primaryText);
+        pal.setColor(QPalette::Highlight, m_currentPalette.primaryAccent);
+        pal.setColor(QPalette::HighlightedText, QColor("#FFFFFF"));
+        qApp->setPalette(pal);
+
+        qint64 t1 = QDateTime::currentMSecsSinceEpoch();
         QWidgetList topLevels = QApplication::topLevelWidgets();
         for (QWidget* w : topLevels) {
             if (w) w->setUpdatesEnabled(false);
         }
 
-        qApp->setStyleSheet(generateStylesheet());
+        QString qss = generateStylesheet();
+        qDebug() << "[ThemeManager] generateStylesheet took" << (QDateTime::currentMSecsSinceEpoch() - t1) << "ms";
 
+        qint64 t2 = QDateTime::currentMSecsSinceEpoch();
+        qApp->setStyleSheet(qss);
+        qDebug() << "[ThemeManager] qApp->setStyleSheet took" << (QDateTime::currentMSecsSinceEpoch() - t2) << "ms";
+
+        qint64 t3 = QDateTime::currentMSecsSinceEpoch();
+        emit themeChanged(m_currentPalette);
+        qDebug() << "[ThemeManager] emit themeChanged took" << (QDateTime::currentMSecsSinceEpoch() - t3) << "ms";
+
+        qint64 t4 = QDateTime::currentMSecsSinceEpoch();
         for (QWidget* w : topLevels) {
             if (w) {
                 w->setUpdatesEnabled(true);
                 w->update();
             }
         }
+        qDebug() << "[ThemeManager] topLevels update took" << (QDateTime::currentMSecsSinceEpoch() - t4) << "ms";
+    } else {
+        emit themeChanged(m_currentPalette);
     }
-
-    CoverLoader::instance().clearCache();
-    emit themeChanged(m_currentPalette);
+    qDebug() << "[ThemeManager] TOTAL setTheme time:" << (QDateTime::currentMSecsSinceEpoch() - t0) << "ms";
     s_isChangingTheme = false;
+
+    if (!s_pendingThemeId.isEmpty()) {
+        QString next = s_pendingThemeId;
+        s_pendingThemeId.clear();
+        QMetaObject::invokeMethod(this, [this, next]() {
+            setTheme(next);
+        }, Qt::QueuedConnection);
+    }
 }
 
 // ─── Icon Tinting ───────────────────────────────────────────────────────────
 
 QIcon ThemeManager::tintedIcon(const QString& resourcePath, const QColor& color) {
-    static QMap<QString, QIcon> s_iconCache;
+    static QHash<QString, QIcon> s_iconCache;
     QString cacheKey = resourcePath + "_" + color.name() + "_" + QString::number(color.alpha());
-    if (s_iconCache.contains(cacheKey)) {
-        return s_iconCache[cacheKey];
+    auto it = s_iconCache.find(cacheKey);
+    if (it != s_iconCache.end()) {
+        return it.value();
     }
     QIcon tinted = tintedIcon(QIcon(resourcePath), color);
-    s_iconCache[cacheKey] = tinted;
+    s_iconCache.insert(cacheKey, tinted);
     return tinted;
 }
 
@@ -319,9 +240,7 @@ QIcon ThemeManager::tintedIcon(const QIcon& source, const QColor& color) {
 
 // ─── Stylesheet Generation ──────────────────────────────────────────────────
 
-QString ThemeManager::generateStylesheet() const {
-    const auto& p = m_currentPalette;
-
+static QString buildStylesheetForTheme(const ThemePalette& p) {
     // Light-mode conditional values for the NowPlayingCard labels
     // On dark themes: labels have dark-glass backgrounds and white text
     // On light themes: labels are clean pill-shaped with theme colors
@@ -349,10 +268,10 @@ QString ThemeManager::generateStylesheet() const {
         : p.itemHoverBg.name();
     QString sidebarCheckedColor = p.secondaryAccent.name();
 
-    return QString(R"(
+    QString baseCss = QString(R"(
 /* Dynamic PlayTune Stylesheet — Active Theme: %1 */
 
-QWidget {
+QMainWindow, QDialog {
     font-family: "Outfit", "Inter", "Segoe UI", sans-serif;
     color: %2;
 }
@@ -884,6 +803,226 @@ QMenu::separator {
     background: %13;
     margin: 4px 8px;
 }
+
+QFrame#SongsCard {
+    background-color: %12;
+    border: 1px solid %13;
+    border-radius: 16px;
+}
+
+QFrame#SettingsCard {
+    background-color: %12;
+    border: 1px solid %13;
+    border-radius: 12px;
+}
+
+QFrame#SettingsDivider {
+    background-color: %13;
+    min-height: 1px;
+    max-height: 1px;
+    border: none;
+}
+
+QLabel#SettingsSectionHeader {
+    font-size: 11px;
+    font-weight: 700;
+    color: %11;
+    letter-spacing: 1px;
+    border: none;
+    background: transparent;
+}
+
+QLabel#SettingsTitleLabel {
+    font-size: 14px;
+    font-weight: 600;
+    color: %7;
+    border: none;
+    background: transparent;
+}
+
+QLabel#SettingsSubLabel {
+    font-size: 12px;
+    color: %8;
+    border: none;
+    background: transparent;
+}
+
+QFrame#AlbumsCard, QFrame#ArtistsCard, QFrame#FoldersCard {
+    background-color: %12;
+    border: 1px solid %13;
+    border-radius: 16px;
+}
+
+QLabel#ViewTitleLabel {
+    font-size: 22px;
+    font-weight: 600;
+    color: %7;
+    padding-bottom: 8px;
+    border: none;
+    background: transparent;
+}
+
+QPushButton#FavBtn {
+    border: none;
+    background: transparent;
+    color: #7E8494;
+    font-size: 16px;
+}
+QPushButton#FavBtn:hover {
+    color: #FF2A7A;
+}
+QPushButton#FavBtn[favorite="true"] {
+    color: #FF2A7A;
+}
+
+QFrame#CardFrame {
+    background-color: %12;
+    border: 1px solid %13;
+    border-radius: 14px;
+}
+QFrame#CardFrame:hover {
+    background-color: %9;
+    border: 1px solid %4;
+}
+QFrame#CardFrame[playing="true"] {
+    background-color: %10;
+    border: 1px solid %11;
+}
+
+QLabel#CardTitleLabel {
+    font-weight: 600;
+    font-size: 11px;
+    color: %2;
+    background: transparent;
+    border: none;
+}
+QLabel#CardTitleLabel[playing="true"] {
+    color: %11;
+}
+
+QLabel#CardSubtitleLabel {
+    font-size: 10px;
+    color: %8;
+    background: transparent;
+    border: none;
+}
+
+QLabel#SongTitleLabel {
+    font-size: 13px;
+    font-weight: 500;
+    color: %7;
+    background: transparent;
+    border: none;
+}
+
+QLabel#SongTitleLabel[playing="true"] {
+    font-weight: bold;
+    color: %11;
+}
+
+QPushButton#ToggleRightTopBtn {
+    background-color: %12;
+    color: %2;
+    border: 1px solid %13;
+    border-radius: 6px;
+    font-size: 12px;
+    font-weight: bold;
+}
+QPushButton#ToggleRightTopBtn:hover {
+    background-color: %9;
+    border-color: %4;
+    color: %7;
+}
+
+QFrame#WindowSeparator {
+    color: %27;
+    background-color: %27;
+    min-width: 1px;
+    max-width: 1px;
+    border: none;
+}
+
+QFrame#CardSeparator,
+QFrame[frameShape="4"],
+QFrame[frameShape="5"] {
+    color: %27;
+    background-color: %27;
+    border: none;
+    max-height: 1px;
+    min-height: 1px;
+    height: 1px;
+}
+
+QListWidget#SidebarPlaylists {
+    background-color: transparent;
+    border: none;
+    color: %2;
+    font-size: 13px;
+    outline: none;
+}
+QListWidget#SidebarPlaylists::item {
+    padding: 6px 8px;
+    border-radius: 4px;
+}
+QListWidget#SidebarPlaylists::item:hover {
+    background-color: %9;
+    color: %7;
+}
+QListWidget#SidebarPlaylists::item:selected {
+    background-color: %9;
+    color: %11;
+    font-weight: bold;
+}
+
+QLabel#MiniTitle {
+    font-size: 13px;
+    font-weight: bold;
+    color: %7;
+}
+QLabel#MiniArtistAlbum {
+    font-size: 11px;
+    color: %8;
+}
+QLabel#QueueFooterLabel {
+    color: %8;
+    font-size: 11px;
+    margin-left: 5px;
+}
+QLabel#QueueHeaderLabel {
+    color: %8;
+    font-size: 11px;
+    font-weight: bold;
+}
+QLabel#QueueVolumeLabel {
+    color: %8;
+    font-size: 11px;
+    min-width: 32px;
+    font-weight: 500;
+}
+QListWidget#QueueLyricsList {
+    background-color: %12;
+    border-radius: 10px;
+    border: 1px solid %13;
+    outline: 0;
+}
+QListWidget#QueueLyricsList::item {
+    padding: 10px 8px;
+}
+QListWidget#QueueLyricsList::item:hover {
+    background: %9;
+    border-radius: 6px;
+}
+QListWidget#QueueLyricsList::item:selected {
+    background: transparent;
+}
+QLabel#QueueUnsyncedLyrics {
+    background-color: %12;
+    border-radius: 10px;
+    border: 1px solid %13;
+    padding: 20px;
+    color: %7;
+    font-size: 13px;
+}
 )")
     .arg(p.name)                    // %1
     .arg(p.secondaryText.name())    // %2
@@ -910,38 +1049,147 @@ QMenu::separator {
     .arg(npTimeBorder)              // %23
     .arg(p.scrollbarHandle.name())  // %24
     .arg(p.queueBg.name())          // %25
-    .arg(npGrooveColor);            // %26
+    .arg(npGrooveColor)             // %26
+    .arg(p.separatorColor.name());  // %27
+
+    QString moodPillCss;
+    if (p.isLight) {
+        moodPillCss = QStringLiteral(
+"QLabel#SongMoodBadge {\n"
+"    border-radius: 6px;\n"
+"    padding: 3px 8px;\n"
+"    font-size: 10px;\n"
+"    font-weight: bold;\n"
+"    background-color: rgba(124, 58, 237, 0.16);\n"
+"    border: 1px solid rgba(124, 58, 237, 0.40);\n"
+"    color: #6D28D9;\n"
+"}\n"
+"QLabel#SongMoodBadge[mood=\"energetic\"], QLabel#SongMoodBadge[mood=\"sleep\"], QLabel#SongMoodBadge[mood=\"lofi\"] {\n"
+"    background-color: rgba(124, 58, 237, 0.16);\n"
+"    border: 1px solid rgba(124, 58, 237, 0.40);\n"
+"    color: #6D28D9;\n"
+"}\n"
+"QLabel#SongMoodBadge[mood=\"romantic\"] {\n"
+"    background-color: rgba(236, 72, 153, 0.16);\n"
+"    border: 1px solid rgba(236, 72, 153, 0.40);\n"
+"    color: #BE185D;\n"
+"}\n"
+"QLabel#SongMoodBadge[mood=\"happy\"] {\n"
+"    background-color: rgba(234, 179, 8, 0.22);\n"
+"    border: 1px solid rgba(202, 138, 4, 0.55);\n"
+"    color: #854D0E;\n"
+"}\n"
+"QLabel#SongMoodBadge[mood=\"calm\"] {\n"
+"    background-color: rgba(6, 182, 212, 0.16);\n"
+"    border: 1px solid rgba(6, 182, 212, 0.40);\n"
+"    color: #0369A1;\n"
+"}\n"
+"QLabel#SongMoodBadge[mood=\"party\"] {\n"
+"    background-color: rgba(168, 85, 247, 0.16);\n"
+"    border: 1px solid rgba(168, 85, 247, 0.40);\n"
+"    color: #7E22CE;\n"
+"}\n"
+"QLabel#SongMoodBadge[mood=\"nostalgic\"] {\n"
+"    background-color: rgba(217, 119, 6, 0.16);\n"
+"    border: 1px solid rgba(217, 119, 6, 0.40);\n"
+"    color: #C2410C;\n"
+"}\n"
+"QLabel#SongMoodBadge[mood=\"sad\"] {\n"
+"    background-color: rgba(99, 102, 241, 0.16);\n"
+"    border: 1px solid rgba(99, 102, 241, 0.40);\n"
+"    color: #4338CA;\n"
+"}\n"
+        );
+    } else {
+        moodPillCss = QStringLiteral(
+"QLabel#SongMoodBadge {\n"
+"    border-radius: 6px;\n"
+"    padding: 3px 8px;\n"
+"    font-size: 10px;\n"
+"    font-weight: bold;\n"
+"    background-color: rgba(168, 85, 247, 0.22);\n"
+"    border: 1px solid rgba(192, 132, 252, 0.65);\n"
+"    color: #F3E8FF;\n"
+"}\n"
+"QLabel#SongMoodBadge[mood=\"energetic\"], QLabel#SongMoodBadge[mood=\"sleep\"], QLabel#SongMoodBadge[mood=\"lofi\"] {\n"
+"    background-color: rgba(124, 58, 237, 0.25);\n"
+"    border: 1px solid rgba(167, 139, 250, 0.70);\n"
+"    color: #E9D5FF;\n"
+"}\n"
+"QLabel#SongMoodBadge[mood=\"romantic\"] {\n"
+"    background-color: rgba(236, 72, 153, 0.25);\n"
+"    border: 1px solid rgba(244, 114, 182, 0.70);\n"
+"    color: #FBCFE8;\n"
+"}\n"
+"QLabel#SongMoodBadge[mood=\"happy\"] {\n"
+"    background-color: rgba(234, 179, 8, 0.25);\n"
+"    border: 1px solid rgba(250, 204, 21, 0.70);\n"
+"    color: #FEF08A;\n"
+"}\n"
+"QLabel#SongMoodBadge[mood=\"calm\"] {\n"
+"    background-color: rgba(6, 182, 212, 0.25);\n"
+"    border: 1px solid rgba(56, 189, 248, 0.70);\n"
+"    color: #BAE6FD;\n"
+"}\n"
+"QLabel#SongMoodBadge[mood=\"party\"] {\n"
+"    background-color: rgba(168, 85, 247, 0.25);\n"
+"    border: 1px solid rgba(192, 132, 252, 0.70);\n"
+"    color: #F3E8FF;\n"
+"}\n"
+"QLabel#SongMoodBadge[mood=\"nostalgic\"] {\n"
+"    background-color: rgba(217, 119, 6, 0.25);\n"
+"    border: 1px solid rgba(251, 146, 60, 0.70);\n"
+"    color: #FFEDD5;\n"
+"}\n"
+"QLabel#SongMoodBadge[mood=\"sad\"] {\n"
+"    background-color: rgba(99, 102, 241, 0.25);\n"
+"    border: 1px solid rgba(129, 140, 248, 0.70);\n"
+"    color: #E0E7FF;\n"
+"}\n"
+        );
+    }
+
+    return baseCss + "\n" + moodPillCss;
+}
+
+QString ThemeManager::generateStylesheet() const {
+    static QString s_darkQss;
+    static QString s_lightQss;
+
+    if (m_currentPalette.isLight) {
+        if (s_lightQss.isEmpty()) {
+            s_lightQss = buildStylesheetForTheme(m_themes["light"]);
+        }
+        return s_lightQss;
+    } else {
+        if (s_darkQss.isEmpty()) {
+            s_darkQss = buildStylesheetForTheme(m_themes["dark"]);
+        }
+        return s_darkQss;
+    }
 }
 
 QPixmap ThemeManager::defaultAlbumArt(int size) const {
-    QPixmap cover(size, size);
-    cover.fill(Qt::transparent);
-
-    QPainter painter(&cover);
-    painter.setRenderHint(QPainter::Antialiasing);
-    painter.setRenderHint(QPainter::SmoothPixmapTransform);
-
-    // Theme-aware dual-accent gradient tile background
-    QLinearGradient bgGrad(0, 0, size, size);
-    bgGrad.setColorAt(0.0, m_currentPalette.placeholderGradStart);
-    bgGrad.setColorAt(1.0, m_currentPalette.placeholderGradEnd);
-    painter.fillRect(0, 0, size, size, bgGrad);
-
-    // Subtle inner border / glass glow
-    painter.setPen(QPen(QColor(255, 255, 255, 40), 1.5));
-    painter.setBrush(Qt::NoBrush);
-    painter.drawRect(1, 1, size - 2, size - 2);
-
-    // Center logo
-    QPixmap logo(":/resources/icons/playtune_logo.png");
-    if (!logo.isNull()) {
-        int logoSize = size * 0.52;
-        QPixmap scaledLogo = logo.scaled(logoSize, logoSize, Qt::KeepAspectRatio, Qt::SmoothTransformation);
-        int x = (size - scaledLogo.width()) / 2;
-        int y = (size - scaledLogo.height()) / 2;
-        painter.drawPixmap(x, y, scaledLogo);
+    static QPixmap s_baseCover;
+    if (s_baseCover.isNull()) {
+        s_baseCover.load(":/resources/images/placeholder_cover.png");
+        if (s_baseCover.isNull()) {
+            s_baseCover.load(":/resources/icons/logo.png");
+        }
+        if (s_baseCover.isNull()) {
+            s_baseCover.load(":/resources/icons/playtune_logo.png");
+        }
     }
-    return cover;
+
+    if (s_baseCover.isNull()) {
+        return QPixmap();
+    }
+
+    if (size <= 0 || (s_baseCover.width() == size && s_baseCover.height() == size)) {
+        return s_baseCover;
+    }
+
+    return s_baseCover.scaled(size, size, Qt::KeepAspectRatioByExpanding, Qt::SmoothTransformation);
 }
 
 // ─── Custom ComboBox Delegate with Hover Support ─────────────────────────────

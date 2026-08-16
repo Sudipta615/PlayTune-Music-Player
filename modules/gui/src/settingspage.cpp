@@ -73,7 +73,9 @@ void SettingsPageWidget::setupUi() {
         auto* textCol = new QVBoxLayout();
         textCol->setSpacing(2);
         auto* titleLbl = new QLabel(title, rowWidget);
+        titleLbl->setObjectName("SettingsTitleLabel");
         auto* subLbl   = new QLabel(subtitle, rowWidget);
+        subLbl->setObjectName("SettingsSubLabel");
         subLbl->setWordWrap(true);
         textCol->addWidget(titleLbl);
         textCol->addWidget(subLbl);
@@ -194,6 +196,7 @@ void SettingsPageWidget::setupUi() {
         cl->addWidget(hdr);
 
         auto* sep = new QFrame(card);
+        sep->setObjectName("CardSeparator");
         sep->setFrameShape(QFrame::HLine);
         m_cardSeparators.append(sep);
         cl->addWidget(sep);
@@ -209,6 +212,7 @@ void SettingsPageWidget::setupUi() {
         m_themeCombo->setToolTip("Select Application Visual Theme");
 
         auto* div1 = new QFrame(card);
+        div1->setObjectName("CardSeparator");
         div1->setFrameShape(QFrame::HLine);
         m_cardSeparators.append(div1);
 
@@ -216,6 +220,7 @@ void SettingsPageWidget::setupUi() {
         cl->addWidget(div1);
 
         auto* divMood = new QFrame(card);
+        divMood->setObjectName("CardSeparator");
         divMood->setFrameShape(QFrame::HLine);
         m_cardSeparators.append(divMood);
 
@@ -263,6 +268,7 @@ void SettingsPageWidget::setupUi() {
         cl->addWidget(hdr);
 
         auto* sep = new QFrame(card);
+        sep->setObjectName("CardSeparator");
         sep->setFrameShape(QFrame::HLine);
         m_cardSeparators.append(sep);
         cl->addWidget(sep);
@@ -360,6 +366,7 @@ void SettingsPageWidget::setupUi() {
         cl->addWidget(hdr);
 
         auto* sep = new QFrame(card);
+        sep->setObjectName("CardSeparator");
         sep->setFrameShape(QFrame::HLine);
         m_cardSeparators.append(sep);
         cl->addWidget(sep);
@@ -374,7 +381,7 @@ void SettingsPageWidget::setupUi() {
         c3Layout->addWidget(desc);
 
         m_foldersListWidget = new QListWidget(card3Content);
-        m_foldersListWidget->setFixedHeight(130);
+        m_foldersListWidget->setFixedHeight(220);
         m_foldersListWidget->setFrameShape(QFrame::NoFrame);
         m_foldersListWidget->setAlternatingRowColors(true);
         m_foldersListWidget->setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
@@ -413,6 +420,7 @@ void SettingsPageWidget::setupUi() {
         cl->addWidget(hdr);
 
         auto* sep = new QFrame(card);
+        sep->setObjectName("CardSeparator");
         sep->setFrameShape(QFrame::HLine);
         m_cardSeparators.append(sep);
         cl->addWidget(sep);
@@ -487,6 +495,7 @@ void SettingsPageWidget::setupUi() {
         cl->addWidget(hdr);
 
         auto* sep = new QFrame(card);
+        sep->setObjectName("CardSeparator");
         sep->setFrameShape(QFrame::HLine);
         m_cardSeparators.append(sep);
         cl->addWidget(sep);
@@ -511,33 +520,33 @@ void SettingsPageWidget::setupUi() {
         m_backendCombo->setFixedSize(220, 34);
         m_backendCombo->setToolTip("Select Audio Output Driver Backend (Exclusive Bit-Perfect or Shared Mode)");
 
-        auto* divB = new QFrame(card); divB->setFrameShape(QFrame::HLine);
+        auto* divB = new QFrame(card); divB->setObjectName("CardSeparator"); divB->setFrameShape(QFrame::HLine);
         m_cardSeparators.append(divB);
         cl->addWidget(createSettingRow(card, "Audio Output Driver", "Choose driver API (exclusive modes bypass OS mixer).", m_backendCombo, "audio output driver backend alsa wasapi asio coreaudio exclusive bitperfect hardware", divB));
         cl->addWidget(divB);
 
-        auto* div1 = new QFrame(card); div1->setFrameShape(QFrame::HLine);
+        auto* div1 = new QFrame(card); div1->setObjectName("CardSeparator"); div1->setFrameShape(QFrame::HLine);
         m_cardSeparators.append(div1);
         m_crossfadeToggle = new ToggleSwitch(card);
         m_crossfadeToggle->setToolTip("Toggle 3-Second Crossfade Between Track Transitions");
         cl->addWidget(createSettingRow(card, "Crossfade Transition", "Smoothly blend audio between tracks.", m_crossfadeToggle, "crossfade transition fade blend overlap mix", div1));
         cl->addWidget(div1);
 
-        auto* div2 = new QFrame(card); div2->setFrameShape(QFrame::HLine);
+        auto* div2 = new QFrame(card); div2->setObjectName("CardSeparator"); div2->setFrameShape(QFrame::HLine);
         m_cardSeparators.append(div2);
         m_normalizeToggle = new ToggleSwitch(card);
         m_normalizeToggle->setToolTip("Normalize Volume Levels Across Different Audio Tracks");
         cl->addWidget(createSettingRow(card, "Audio Normalization", "Balance volume levels across tracks.", m_normalizeToggle, "normalize volume replaygain loudness level ebu r128", div2));
         cl->addWidget(div2);
 
-        auto* div2b = new QFrame(card); div2b->setFrameShape(QFrame::HLine);
+        auto* div2b = new QFrame(card); div2b->setObjectName("CardSeparator"); div2b->setFrameShape(QFrame::HLine);
         m_cardSeparators.append(div2b);
         m_gaplessToggle = new ToggleSwitch(card);
         m_gaplessToggle->setToolTip("Enable Zero-Latency Gapless Playback Between Consecutive Tracks");
         cl->addWidget(createSettingRow(card, "Gapless Playback Mode", "Eliminate delays between consecutive tracks.", m_gaplessToggle, "gapless zero latency transition delay continuous", div2b));
         cl->addWidget(div2b);
 
-        auto* div2c = new QFrame(card); div2c->setFrameShape(QFrame::HLine);
+        auto* div2c = new QFrame(card); div2c->setObjectName("CardSeparator"); div2c->setFrameShape(QFrame::HLine);
         m_cardSeparators.append(div2c);
         m_crossfadeDurationSpin = new QSpinBox(card);
         m_crossfadeDurationSpin->setRange(500, 12000);
@@ -549,21 +558,21 @@ void SettingsPageWidget::setupUi() {
         cl->addWidget(createSettingRow(card, "Crossfade Duration", "Duration in ms (when Crossfade is ON).", m_crossfadeDurationSpin, "crossfade duration time length ms milliseconds", div2c));
         cl->addWidget(div2c);
 
-        auto* div2d = new QFrame(card); div2d->setFrameShape(QFrame::HLine);
+        auto* div2d = new QFrame(card); div2d->setObjectName("CardSeparator"); div2d->setFrameShape(QFrame::HLine);
         m_cardSeparators.append(div2d);
         m_cursorFollowToggle = new ToggleSwitch(card);
         m_cursorFollowToggle->setToolTip("Auto-scroll the songs table to follow the currently playing track.");
         cl->addWidget(createSettingRow(card, "Cursor Follows Playback", "Auto-scroll list to active playing song.", m_cursorFollowToggle, "cursor follow playback scroll auto active track song", div2d));
         cl->addWidget(div2d);
 
-        auto* div2e = new QFrame(card); div2e->setFrameShape(QFrame::HLine);
+        auto* div2e = new QFrame(card); div2e->setObjectName("CardSeparator"); div2e->setFrameShape(QFrame::HLine);
         m_cardSeparators.append(div2e);
         m_notificationsToggle = new ToggleSwitch(card);
         m_notificationsToggle->setToolTip("Show desktop notifications when the track changes.");
         cl->addWidget(createSettingRow(card, "Desktop Notifications", "Display popup notification on track change.", m_notificationsToggle, "notifications desktop popup alert toast notify", div2e));
         cl->addWidget(div2e);
 
-        auto* div2f = new QFrame(card); div2f->setFrameShape(QFrame::HLine);
+        auto* div2f = new QFrame(card); div2f->setObjectName("CardSeparator"); div2f->setFrameShape(QFrame::HLine);
         m_cardSeparators.append(div2f);
         m_trayToggle = new ToggleSwitch(card);
         m_trayToggle->setToolTip("Show PlayTune in the system tray for background playback.");
@@ -577,7 +586,7 @@ void SettingsPageWidget::setupUi() {
         connect(m_crossfadeToggle,     &ToggleSwitch::toggled, this, [this](bool c) { m_crossfadeEnabled = c; saveSettings(); emit crossfadeToggled(c); });
         connect(m_normalizeToggle,     &ToggleSwitch::toggled, this, [this](bool c) { m_normalizeEnabled = c; saveSettings(); emit normalizeToggled(c); });
         connect(m_gaplessToggle,       &ToggleSwitch::toggled, this, [this](bool c) { m_gaplessEnabled   = c; saveSettings(); emit gaplessToggled(c); });
-        connect(m_cursorFollowToggle,  &ToggleSwitch::toggled, this, [this](bool c) { m_cursorFollows    = c; saveSettings(); emit cursorFollowsToggled(c); });
+        connect(m_cursorFollowToggle,  &ToggleSwitch::toggled, this, [this](bool c) { m_cursorFollows    = c; AppSettings::instance().setCursorFollowsPlayback(c); saveSettings(); emit cursorFollowsToggled(c); });
         connect(m_notificationsToggle, &ToggleSwitch::toggled, this, [this](bool c) { m_notificationsEnabled = c; saveSettings(); emit notificationsToggled(c); });
         connect(m_trayToggle,          &ToggleSwitch::toggled, this, [this](bool c) { m_trayEnabled      = c; saveSettings(); emit trayToggled(c); });
         connect(m_minimizeToTrayToggle,&ToggleSwitch::toggled, this, [this](bool c) { m_minimizeToTray   = c; saveSettings(); emit minimizeToTrayToggled(c); });
@@ -607,6 +616,7 @@ void SettingsPageWidget::setupUi() {
         cl->addWidget(hdr);
 
         auto* sep = new QFrame(card);
+        sep->setObjectName("CardSeparator");
         sep->setFrameShape(QFrame::HLine);
         m_cardSeparators.append(sep);
         cl->addWidget(sep);
@@ -703,11 +713,12 @@ void SettingsPageWidget::loadSettings() {
     m_normalizeEnabled = settings.value("normalize", false).toBool();
     m_gaplessEnabled   = settings.value("gapless", true).toBool();
     m_cursorFollows    = settings.value("cursor_follows_playback", false).toBool();
+    AppSettings::instance().setCursorFollowsPlayback(m_cursorFollows);
     m_notificationsEnabled = settings.value("notifications_enabled", true).toBool();
     m_trayEnabled      = settings.value("tray_enabled", false).toBool();
     m_minimizeToTray   = settings.value("minimize_to_tray", false).toBool();
     int crossfade_ms   = settings.value("crossfade_duration_ms", 3000).toInt();
-    m_currentTheme     = settings.value("theme_text", "Dark Premium (Purple)").toString();
+    m_currentTheme     = settings.value("theme_text", "Dark Mode").toString();
     m_currentBackend   = settings.value("audio_backend", 0).toInt();
 
     if (m_tooltipToggle) {
@@ -791,19 +802,6 @@ void SettingsPageWidget::updateThemeStyles(const ThemePalette& p) {
     // Page background
     setStyleSheet(QString("QWidget#SettingsPage { background-color: %1; }").arg(p.windowBg.name()));
 
-    // ── Card backgrounds ──────────────────────────────────────────────────
-    const QString cardStyle = QString(
-        "QFrame#SettingsCard {"
-        "  background-color: %1;"
-        "  border: 1px solid %2;"
-        "  border-radius: 14px;"
-        "}"
-    ).arg(p.cardBg.name(), p.cardBorder.name());
-
-    for (auto* card : m_settingsCards) {
-        card->setStyleSheet(cardStyle);
-    }
-
     // Performance card keeps amber border regardless of theme
     if (m_performanceCard) {
         m_performanceCard->setStyleSheet(QString(
@@ -813,54 +811,6 @@ void SettingsPageWidget::updateThemeStyles(const ThemePalette& p) {
             "  border-radius: 14px;"
             "}"
         ).arg(p.cardBg.name()));
-    }
-
-    // ── Separator lines ───────────────────────────────────────────────────
-    const QString sepStyle = QString(
-        "QFrame { background-color: %1; max-height: 1px; min-height: 1px; border: none; }"
-    ).arg(p.cardBorder.name());
-
-    for (auto* sep : m_cardSeparators) {
-        sep->setStyleSheet(sepStyle);
-    }
-
-    // ── Page header ───────────────────────────────────────────────────────
-    if (m_pageTitle) {
-        m_pageTitle->setStyleSheet(QString(
-            "font-size: 24px; font-weight: 800; color: %1; letter-spacing: -0.5px; border: none; background: transparent;"
-        ).arg(p.primaryText.name()));
-    }
-    if (m_pageSub) {
-        m_pageSub->setStyleSheet(QString(
-            "font-size: 13px; color: %1; border: none; background: transparent;"
-        ).arg(p.mutedText.name()));
-    }
-
-    // ── Section headers (APPEARANCE, ADD MUSIC, LIBRARY FOLDERS, etc.) ───
-    const QString sectionHdrStyle = QString(
-        "font-size: 11px; font-weight: 700; color: %1; letter-spacing: 1px; border: none; background: transparent;"
-    ).arg(p.secondaryAccent.name());
-
-    for (auto* lbl : m_sectionHeaders) {
-        lbl->setStyleSheet(sectionHdrStyle);
-    }
-
-    // ── Setting row title labels (bold, primary text) ─────────────────────
-    const QString titleStyle = QString(
-        "font-size: 14px; font-weight: 600; color: %1; border: none; background: transparent;"
-    ).arg(p.primaryText.name());
-
-    for (auto* lbl : m_settingTitleLabels) {
-        lbl->setStyleSheet(titleStyle);
-    }
-
-    // ── Setting row subtitle labels (small, muted) ────────────────────────
-    const QString subStyle = QString(
-        "font-size: 12px; color: %1; border: none; background: transparent;"
-    ).arg(p.mutedText.name());
-
-    for (auto* lbl : m_settingSubLabels) {
-        lbl->setStyleSheet(subStyle);
     }
 
     // ── ComboBox styles ───────────────────────────────────────────────────

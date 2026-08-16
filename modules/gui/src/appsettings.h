@@ -23,10 +23,14 @@ public:
     bool isMoodColumnEnabled() const { return m_moodColumnEnabled; }
     void setMoodColumnEnabled(bool enabled) { m_moodColumnEnabled = enabled; }
 
+    bool isCursorFollowsPlayback() const { return m_cursorFollowsPlayback; }
+    void setCursorFollowsPlayback(bool enabled) { m_cursorFollowsPlayback = enabled; }
+
 private:
     AppSettings() = default;
     bool m_optimizedMode = false;
     bool m_moodColumnEnabled = true;
+    bool m_cursorFollowsPlayback = false;
 };
 
 #endif // APPSETTINGS_H

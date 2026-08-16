@@ -226,12 +226,10 @@ impl ConvolutionEngine {
     /// Load an impulse response from a WAV or FLAC file using symphonia.
     pub fn load_ir_from_file(&mut self, path: &Path) -> Result<(), ConvolutionError> {
         use symphonia::core::{
-            audio::Signal,
-            codecs::{DecoderOptions, CODEC_TYPE_NULL},
-            formats::FormatOptions,
+            codecs::audio::{AudioDecoderOptions, CODEC_ID_NULL_AUDIO},
+            formats::{probe::Hint, FormatOptions},
             io::MediaSourceStream,
             meta::MetadataOptions,
-            probe::Hint,
         };
 
         let file = std::fs::File::open(path).map_err(|e| {
@@ -246,103 +244,55 @@ impl ConvolutionEngine {
 
         let format_opts = FormatOptions::default();
         let metadata_opts = MetadataOptions::default();
-        let decoder_opts = DecoderOptions::default();
+        let decoder_opts = AudioDecoderOptions::default();
 
-        let probed = symphonia::default::get_probe()
-            .format(&hint, mss, &format_opts, &metadata_opts)
+        let mut format_reader = symphonia::default::get_probe()
+            .probe(&hint, mss, format_opts, metadata_opts)
             .map_err(|e| ConvolutionError::FileLoad(format!("Probe failed: {}", e)))?;
 
-        let track = probed
-            .format
+        let track = format_reader
             .tracks()
             .iter()
-            .find(|t| t.codec_params.codec != CODEC_TYPE_NULL)
+            .find(|t| {
+                t.codec_params
+                    .as_ref()
+                    .and_then(|cp| cp.audio())
+                    .is_some_and(|a| a.codec != CODEC_ID_NULL_AUDIO)
+            })
             .ok_or_else(|| ConvolutionError::FileLoad("No audio track found".to_string()))?;
 
         let track_id = track.id;
-        let codec_params = &track.codec_params;
-        let channels = codec_params.channels.map(|c| c.count()).unwrap_or(2);
+        let audio_params =
+            track.codec_params.as_ref().and_then(|cp| cp.audio()).ok_or_else(|| {
+                ConvolutionError::FileLoad("No audio codec parameters found".to_string())
+            })?;
 
-        let decoder = symphonia::default::get_codecs()
-            .make(codec_params, &decoder_opts)
+        let mut decoder = symphonia::default::get_codecs()
+            .make_audio_decoder(audio_params, &decoder_opts)
             .map_err(|e| ConvolutionError::FileLoad(format!("Cannot create decoder: {}", e)))?;
-
-        let mut format_reader = probed.format;
-        let mut decoder = decoder;
 
         // Decode the entire IR file
         let mut ir_samples: Vec<(f32, f32)> = Vec::new();
+        let mut temp_interleaved: Vec<f32> = Vec::new();
 
-        while let Ok(packet) = format_reader.next_packet() {
-            if packet.track_id() != track_id {
+        while let Ok(Some(packet)) = format_reader.next_packet() {
+            if packet.track_id != track_id {
                 continue;
             }
 
-            match decoder.decode(&packet) {
-                Ok(decoded) => {
-                    let frames = decoded.frames();
-                    match &decoded {
-                        symphonia::core::audio::AudioBufferRef::F32(buf) => {
-                            let buf = &**buf;
-                            for i in 0..frames {
-                                let l = buf.chan(0)[i];
-                                let r = if channels > 1 { buf.chan(1)[i] } else { l };
-                                ir_samples.push((l, r));
-                            }
-                        }
-                        symphonia::core::audio::AudioBufferRef::S16(buf) => {
-                            let buf = &**buf;
-                            for i in 0..frames {
-                                let l = buf.chan(0)[i] as f32 / 32768.0;
-                                let r =
-                                    if channels > 1 { buf.chan(1)[i] as f32 / 32768.0 } else { l };
-                                ir_samples.push((l, r));
-                            }
-                        }
-                        symphonia::core::audio::AudioBufferRef::S24(buf) => {
-                            let buf = &**buf;
-                            for i in 0..frames {
-                                // S24: 24-bit samples stored in i32 (sign-extended)
-                                // symphonia's i24 is a newtype i24(pub i32),
-                                // so we access the inner value via .0
-                                let l = buf.chan(0)[i].0 as f32 / 8388608.0; // 2^23
-                                let r = if channels > 1 {
-                                    buf.chan(1)[i].0 as f32 / 8388608.0
-                                } else {
-                                    l
-                                };
-                                ir_samples.push((l, r));
-                            }
-                        }
-                        symphonia::core::audio::AudioBufferRef::S32(buf) => {
-                            let buf = &**buf;
-                            for i in 0..frames {
-                                let l = buf.chan(0)[i] as f32 / 2147483648.0; // 2^31
-                                let r = if channels > 1 {
-                                    buf.chan(1)[i] as f32 / 2147483648.0
-                                } else {
-                                    l
-                                };
-                                ir_samples.push((l, r));
-                            }
-                        }
-                        symphonia::core::audio::AudioBufferRef::F64(buf) => {
-                            let buf = &**buf;
-                            for i in 0..frames {
-                                let l = buf.chan(0)[i] as f32;
-                                let r = if channels > 1 { buf.chan(1)[i] as f32 } else { l };
-                                ir_samples.push((l, r));
-                            }
-                        }
-                        _ => {
-                            // Remaining unsupported sample formats — output silence
-                            for _ in 0..frames {
-                                ir_samples.push((0.0, 0.0));
-                            }
-                        }
+            if let Ok(decoded) = decoder.decode(&packet) {
+                let planes = decoded.num_planes();
+                temp_interleaved.clear();
+                decoded.copy_to_vec_interleaved(&mut temp_interleaved);
+                if planes == 1 {
+                    for &s in &temp_interleaved {
+                        ir_samples.push((s, s));
+                    }
+                } else if planes >= 2 {
+                    for chunk in temp_interleaved.chunks_exact(planes) {
+                        ir_samples.push((chunk[0], chunk[1]));
                     }
                 }
-                Err(_) => continue,
             }
 
             if ir_samples.len() > self.max_ir_length {

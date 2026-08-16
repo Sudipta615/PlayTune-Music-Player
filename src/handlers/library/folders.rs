@@ -20,15 +20,43 @@ pub extern "C" fn rust_import_folder(folder_path: *const std::ffi::c_char) {
             if let Some(db_arc) = GLOBAL_DB.get() {
                 let db_clone = std::sync::Arc::clone(db_arc);
                 let path_string = path_str.to_string();
+                let path_buf = std::path::PathBuf::from(&path_string);
+                let folder_name =
+                    path_buf.file_name().and_then(|n| n.to_str()).unwrap_or("Folder").to_string();
+
+                let _ = db_clone.add_folder(&path_string, &folder_name, 0);
+                let _ = db_clone.set_setting("folders_configured", "1");
+                refresh_folders_view();
+
                 spawn_worker("playtune-import-folder", move || {
                     let _ = db_clone.unignore_paths_in_folder(&path_string);
 
                     let mut config = config::LibraryConfig::default();
-                    config.watch_dirs.push(std::path::PathBuf::from(&path_string));
+                    if let Ok(folders) = db_clone.get_all_folders() {
+                        for f in folders {
+                            let p = std::path::PathBuf::from(&f.path);
+                            if p.is_dir() && !config.watch_dirs.contains(&p) {
+                                config.watch_dirs.push(p);
+                            }
+                        }
+                    }
+                    if !config.watch_dirs.contains(&path_buf) {
+                        config.watch_dirs.push(path_buf);
+                    }
                     let temp_mgr = LibraryManager::new(db_clone.clone(), config);
+                    let mut last_ui_refresh = std::time::Instant::now();
+                    let mut last_added = 0;
                     let _ = temp_mgr.scan(|progress| {
                         if SHUTDOWN.load(Ordering::SeqCst) {
                             return;
+                        }
+                        if progress.files_added > last_added
+                            && last_ui_refresh.elapsed() >= std::time::Duration::from_millis(200)
+                        {
+                            last_added = progress.files_added;
+                            last_ui_refresh = std::time::Instant::now();
+                            invalidate_all_views();
+                            refresh_ui("all", None);
                         }
                         if progress.files_processed % 50 == 0 {
                             log::info!(
@@ -74,7 +102,7 @@ pub extern "C" fn rust_delete_folder(folder_id: std::ffi::c_int) {
             CURRENT_TRACK_LIST
                 .get()
                 .and_then(|l| l.try_lock())
-                .map_or(true, |list| !list.iter().any(|t| t.id == old_id))
+                .is_none_or(|list| !list.iter().any(|t| t.id == old_id))
         });
 
         if current_track_gone

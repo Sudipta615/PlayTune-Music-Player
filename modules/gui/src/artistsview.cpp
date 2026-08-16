@@ -39,28 +39,7 @@ void ArtistsViewWidget::setupUi() {
     gridLayout->setSpacing(12);
 
     auto* titleLabel = new QLabel("Artists");
-
-    auto applyTheme = [page0Card, titleLabel](const ThemePalette& p) {
-        if (page0Card) {
-            page0Card->setStyleSheet(QString(
-                "QFrame#ArtistsCard {"
-                "   background-color: %1;"
-                "   border: 1px solid %2;"
-                "   border-radius: 16px;"
-                "}"
-            ).arg(p.cardBg.name(), p.cardBorder.name()));
-        }
-        if (titleLabel) {
-            titleLabel->setStyleSheet(QString(
-                "font-size: 22px; font-weight: 600; color: %1; padding-bottom: 8px;"
-            ).arg(p.primaryText.name()));
-        }
-    };
-    applyTheme(ThemeManager::instance().currentTheme());
-    connect(&ThemeManager::instance(), &ThemeManager::themeChanged, this, [applyTheme](const ThemePalette& p) {
-        applyTheme(p);
-    });
-
+    titleLabel->setObjectName("ViewTitleLabel");
     gridLayout->addWidget(titleLabel);
 
     // Use the shared MediaGridWidget so the look & behaviour is identical

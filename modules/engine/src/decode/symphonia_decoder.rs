@@ -6,13 +6,12 @@
 use std::{fs::File, path::Path};
 
 use symphonia::core::{
-    codecs::{DecoderOptions, CODEC_TYPE_NULL},
+    codecs::audio::{AudioDecoder, AudioDecoderOptions, CODEC_ID_NULL_AUDIO},
     errors::Error as SymphoniaError,
-    formats::{FormatOptions, FormatReader, SeekMode, SeekTo},
+    formats::{probe::Hint, FormatOptions, FormatReader, SeekMode, SeekTo},
     io::MediaSourceStream,
-    meta::MetadataOptions,
-    probe::Hint,
-    units::Time,
+    meta::{MetadataOptions, StandardTag, StandardVisualKey},
+    units::{Time, Timestamp},
 };
 use thiserror::Error;
 
@@ -55,14 +54,14 @@ pub struct DecodedChunk {
 /// Symphonia-based audio decoder
 pub struct SymphoniaDecoder {
     format_reader: Box<dyn FormatReader>,
-    decoder: Box<dyn symphonia::core::codecs::Decoder>,
+    decoder: Box<dyn AudioDecoder>,
     track_id: u32,
     info: DecodeInfo,
     /// Reusable sample buffer for decoded output, passed across
     /// decode_next calls instead of allocating a new Vec each time.
     sample_buffer: Vec<f32>,
-    /// Symphonia sample buffer for safe format conversion
-    conversion_buffer: Option<symphonia::core::audio::SampleBuffer<f32>>,
+    /// Reusable scratch buffer for generic sample to f32 interleaved conversion
+    scratch_interleaved: Vec<f32>,
 }
 
 impl SymphoniaDecoder {
@@ -78,42 +77,47 @@ impl SymphoniaDecoder {
             hint.with_extension(ext);
         }
 
-        let format_opts = FormatOptions { enable_gapless: true, ..Default::default() };
-
+        let format_opts = FormatOptions::default();
         let metadata_opts = MetadataOptions::default();
-        let decoder_opts = DecoderOptions::default();
+        let decoder_opts = AudioDecoderOptions::default();
 
-        let probed = symphonia::default::get_probe()
-            .format(&hint, mss, &format_opts, &metadata_opts)
+        let format_reader = symphonia::default::get_probe()
+            .probe(&hint, mss, format_opts, metadata_opts)
             .map_err(|e| DecodeError::UnsupportedFormat(format!("Probe failed: {}", e)))?;
-
-        let format_reader = probed.format;
 
         let track = format_reader
             .tracks()
             .iter()
-            .find(|t| t.codec_params.codec != CODEC_TYPE_NULL)
+            .find(|t| {
+                t.codec_params
+                    .as_ref()
+                    .and_then(|cp| cp.audio())
+                    .is_some_and(|a| a.codec != CODEC_ID_NULL_AUDIO)
+            })
             .ok_or_else(|| DecodeError::UnsupportedFormat("No audio track found".to_string()))?;
 
         let track_id = track.id;
-        let codec_params = &track.codec_params;
+        let audio_params =
+            track.codec_params.as_ref().and_then(|cp| cp.audio()).ok_or_else(|| {
+                DecodeError::UnsupportedFormat("No audio codec params".to_string())
+            })?;
 
-        if let Some(delay) = codec_params.delay {
+        if let Some(delay) = track.delay {
             log::info!("Gapless metadata found: {} samples delay", delay);
         }
-        if let Some(padding) = codec_params.padding {
+        if let Some(padding) = track.padding {
             log::info!("Gapless metadata found: {} samples padding", padding);
         }
 
         let decoder = symphonia::default::get_codecs()
-            .make(codec_params, &decoder_opts)
+            .make_audio_decoder(audio_params, &decoder_opts)
             .map_err(|e| DecodeError::Decode(format!("Cannot create decoder: {}", e)))?;
 
-        let sample_rate = codec_params.sample_rate.unwrap_or(44100);
-        let src_channels = codec_params.channels.map(|c| c.count()).unwrap_or(2);
+        let sample_rate = audio_params.sample_rate.unwrap_or(44100);
+        let src_channels = audio_params.channels.as_ref().map(|c| c.count()).unwrap_or(2);
         if src_channels > 2 {
             log::warn!(
-                "File has {} channels; tc-engine supports up to 2 channels.                  Only the first two channels will be used.",
+                "File has {} channels; tc-engine supports up to 2 channels. Only the first two channels will be used.",
                 src_channels
             );
         }
@@ -121,8 +125,8 @@ impl SymphoniaDecoder {
 
         // calculation to prevent overflow with extremely large frame counts
         // (e.g. on 32-bit targets where n_frames could be near usize::MAX).
-        let duration_secs = codec_params
-            .n_frames
+        let duration_secs = track
+            .num_frames
             .map(|n| {
                 let n_frames = n as f32;
                 let rate = sample_rate as f32;
@@ -133,7 +137,7 @@ impl SymphoniaDecoder {
                 }
             })
             .unwrap_or(0.0);
-        let codec = format!("{:?}", codec_params.codec);
+        let codec = format!("{:?}", audio_params.codec);
 
         let info = DecodeInfo { sample_rate, channels, duration_secs, codec, bitrate_kbps: None };
 
@@ -143,7 +147,7 @@ impl SymphoniaDecoder {
             track_id,
             info,
             sample_buffer: Vec::with_capacity(4096 * channels),
-            conversion_buffer: None,
+            scratch_interleaved: Vec::with_capacity(4096 * src_channels),
         })
     }
 
@@ -159,10 +163,13 @@ impl SymphoniaDecoder {
 
         while frames_decoded < max_frames {
             let packet = match self.format_reader.next_packet() {
-                Ok(p) => p,
+                Ok(Some(p)) => p,
+                Ok(None) => {
+                    // End of stream
+                    break;
+                }
                 Err(SymphoniaError::IoError(ref e))
-                    if e.kind() == std::io::ErrorKind::UnexpectedEof
-                        || e.kind() == std::io::ErrorKind::UnexpectedEof =>
+                    if e.kind() == std::io::ErrorKind::UnexpectedEof =>
                 {
                     break;
                 }
@@ -182,39 +189,22 @@ impl SymphoniaDecoder {
                 Err(e) => return Err(DecodeError::Decode(format!("Packet read error: {}", e))),
             };
 
-            if packet.track_id() != self.track_id {
+            if packet.track_id != self.track_id {
                 continue;
             }
 
             match self.decoder.decode(&packet) {
                 Ok(decoded) => {
-                    let decoded_spec = *decoded.spec();
+                    let src_channels = decoded.num_planes();
                     let decoded_frames = decoded.frames();
 
-                    if self
-                        .conversion_buffer
-                        .as_ref()
-                        .is_none_or(|buf| buf.capacity() < decoded.capacity())
-                    {
-                        self.conversion_buffer =
-                            Some(symphonia::core::audio::SampleBuffer::<f32>::new(
-                                decoded.capacity() as u64,
-                                decoded_spec,
-                            ));
-                    }
-                    let conv_buf = if let Some(buf) = self.conversion_buffer.as_mut() {
-                        buf
-                    } else {
-                        return Err(DecodeError::Decode(
-                            "Conversion buffer failed to initialize".to_string(),
-                        ));
-                    };
-                    conv_buf.copy_interleaved_ref(decoded);
+                    self.scratch_interleaved.clear();
+                    decoded.copy_to_vec_interleaved(&mut self.scratch_interleaved);
 
-                    let frames = Self::extract_from_sample_buffer(
-                        conv_buf,
+                    let frames = Self::extract_from_interleaved_f32(
+                        &self.scratch_interleaved,
                         &mut self.sample_buffer,
-                        decoded_spec.channels.count(),
+                        src_channels,
                         self.info.channels,
                         decoded_frames,
                     );
@@ -256,16 +246,14 @@ impl SymphoniaDecoder {
         })
     }
 
-    /// Extract f32 samples from a SampleBuffer and handle downmixing/upmixing
-    fn extract_from_sample_buffer(
-        conv_buf: &symphonia::core::audio::SampleBuffer<f32>,
+    /// Extract f32 samples from an interleaved f32 slice and handle downmixing/upmixing
+    fn extract_from_interleaved_f32(
+        samples: &[f32],
         output: &mut Vec<f32>,
         src_channels: usize,
         target_channels: usize,
         frames: usize,
     ) -> usize {
-        let samples = conv_buf.samples();
-
         let actual_frames = (samples.len() / src_channels.max(1)).min(frames);
         if actual_frames < frames {
             log::warn!(
@@ -284,8 +272,6 @@ impl SymphoniaDecoder {
             let available = samples.len() / 2;
             let copy_frames = available.min(actual_frames);
             let copy_samples = copy_frames * 2;
-            // SAFETY: copy_frames <= actual_frames, copy_samples <= needed_samples
-            // (which we reserved), and copy_samples <= samples.len().
             output.extend_from_slice(&samples[..copy_samples]);
             return copy_frames;
         }
@@ -330,7 +316,8 @@ impl SymphoniaDecoder {
         // internally, but extremely large f32 values can overflow during
         // conversion. 24h is well beyond any real audio file.
         let clamped = position_secs.min(86400.0);
-        let seek_to = SeekTo::Time { time: Time::from(clamped), track_id: Some(self.track_id) };
+        let time = Time::try_from_secs_f64(clamped as f64).unwrap_or(Time::ZERO);
+        let seek_to = SeekTo::Time { time, track_id: Some(self.track_id) };
 
         self.format_reader
             .seek(SeekMode::Accurate, seek_to)
@@ -392,28 +379,24 @@ pub fn extract_cover_art_to_cache(path: &Path) -> Option<String> {
     let metadata_opts = MetadataOptions::default();
     let format_opts = FormatOptions::default();
 
-    if let Ok(mut probed) =
-        symphonia::default::get_probe().format(&hint, mss, &format_opts, &metadata_opts)
+    if let Ok(mut format_reader) =
+        symphonia::default::get_probe().probe(&hint, mss, format_opts, metadata_opts)
     {
         let mut visual_data = None;
         let mut ext_str = "jpg";
 
-        if let Some(metadata) = probed.metadata.get() {
-            if let Some(current) = metadata.current() {
-                if let Some(vis) = current.visuals().first() {
-                    visual_data = Some(vis.data.to_vec());
-                    if vis.media_type.contains("png") {
-                        ext_str = "png";
-                    }
-                }
-            }
-        }
+        if let Some(current) = format_reader.metadata().current() {
+            let visuals = &current.media.visuals;
+            let visual = visuals
+                .iter()
+                .find(|v| v.usage == Some(StandardVisualKey::FrontCover))
+                .or_else(|| visuals.iter().find(|v| v.usage.is_some()))
+                .or_else(|| visuals.first());
 
-        if visual_data.is_none() {
-            if let Some(metadata) = probed.format.metadata().current() {
-                if let Some(vis) = metadata.visuals().first() {
-                    visual_data = Some(vis.data.to_vec());
-                    if vis.media_type.contains("png") {
+            if let Some(vis) = visual {
+                visual_data = Some(vis.data.to_vec());
+                if let Some(ref mt) = vis.media_type {
+                    if mt.contains("png") {
                         ext_str = "png";
                     }
                 }
@@ -421,18 +404,11 @@ pub fn extract_cover_art_to_cache(path: &Path) -> Option<String> {
         }
 
         if let Some(data) = visual_data {
-            // Downscale the cover to a maximum of 300×300 px before
+            // Downscale the cover to a maximum of 200×200 px before
             // writing to disk. This caps the on-disk cover cache at
             // ~270 KB per album (vs. multi-MB for hi-res album scans),
             // which in turn caps the peak RAM when the CoverLoader
-            // decodes the file (the QImageReader::setScaledSize path
-            // still works, but starting from a 300×300 file is much
-            // faster than starting from a 2000×2000 file).
-            //
-            // We use the `image` crate (already a workspace dependency
-            // of `library`) to decode + resize + re-encode. If the
-            // decode fails (corrupt cover), we fall back to writing
-            // the raw bytes.
+            // decodes the file.
             const MAX_COVER_SIDE: u32 = 200;
             let final_bytes = {
                 let decoded = image::ImageReader::new(std::io::Cursor::new(data.as_slice()))
@@ -494,59 +470,46 @@ pub fn extract_track_metadata(path: &Path) -> (String, String, String, f64, Stri
         let metadata_opts = MetadataOptions::default();
         let format_opts = FormatOptions::default();
 
-        if let Ok(mut probed) =
-            symphonia::default::get_probe().format(&hint, mss, &format_opts, &metadata_opts)
+        if let Ok(mut format_reader) =
+            symphonia::default::get_probe().probe(&hint, mss, format_opts, metadata_opts)
         {
-            if let Some(track) = probed.format.tracks().first() {
-                if let Some(tb) = track.codec_params.time_base {
-                    if let Some(n_frames) = track.codec_params.n_frames {
-                        let time = tb.calc_time(n_frames);
-                        duration_secs = time.seconds as f64 + time.frac;
-                    }
-                }
-            }
-
-            if let Some(metadata) = probed.metadata.get() {
-                if let Some(current) = metadata.current() {
-                    for tag in current.tags() {
-                        let key_str = tag
-                            .std_key
-                            .map(|k| format!("{:?}", k).to_lowercase())
-                            .unwrap_or_else(|| tag.key.to_lowercase());
-                        if (key_str.contains("title") || key_str == "tracktitle")
-                            && !tag.value.to_string().is_empty()
-                        {
-                            title = tag.value.to_string();
-                        } else if key_str.contains("artist") && !tag.value.to_string().is_empty() {
-                            artist = tag.value.to_string();
-                        } else if key_str.contains("album") && !tag.value.to_string().is_empty() {
-                            album = tag.value.to_string();
+            if let Some(track) = format_reader.tracks().first() {
+                if let Some(tb) = track.time_base {
+                    if let Some(n_frames) = track.num_frames {
+                        if let Some(time) = tb.calc_time(Timestamp::new(n_frames as i64)) {
+                            duration_secs = time.as_secs_f64();
                         }
                     }
                 }
             }
 
-            if let Some(current) = probed.format.metadata().current() {
-                for tag in current.tags() {
-                    let key_str = tag
-                        .std_key
-                        .map(|k| format!("{:?}", k).to_lowercase())
-                        .unwrap_or_else(|| tag.key.to_lowercase());
-                    if (key_str.contains("title") || key_str == "tracktitle")
-                        && title == default_title
-                        && !tag.value.to_string().is_empty()
-                    {
-                        title = tag.value.to_string();
-                    } else if key_str.contains("artist")
-                        && artist == "Unknown Artist"
-                        && !tag.value.to_string().is_empty()
-                    {
-                        artist = tag.value.to_string();
-                    } else if key_str.contains("album")
-                        && album == "Unknown Album"
-                        && !tag.value.to_string().is_empty()
-                    {
-                        album = tag.value.to_string();
+            if let Some(current) = format_reader.metadata().current() {
+                for tag in &current.media.tags {
+                    if let Some(std) = &tag.std {
+                        match std {
+                            StandardTag::TrackTitle(val) if !val.is_empty() => {
+                                title = val.to_string();
+                            }
+                            StandardTag::Artist(val) if !val.is_empty() => {
+                                artist = val.to_string();
+                            }
+                            StandardTag::Album(val) if !val.is_empty() => {
+                                album = val.to_string();
+                            }
+                            _ => {}
+                        }
+                    } else {
+                        let key_str = tag.raw.key.to_lowercase();
+                        let val_str = tag.raw.value.to_string();
+                        if (key_str.contains("title") || key_str == "tracktitle")
+                            && !val_str.is_empty()
+                        {
+                            title = val_str;
+                        } else if key_str.contains("artist") && !val_str.is_empty() {
+                            artist = val_str;
+                        } else if key_str.contains("album") && !val_str.is_empty() {
+                            album = val_str;
+                        }
                     }
                 }
             }
@@ -562,14 +525,7 @@ pub fn extract_track_metadata(path: &Path) -> (String, String, String, f64, Stri
     (title, artist, album, duration_secs, duration_str)
 }
 
-///
-/// Recognised tag keys (case-insensitive):
-///  - REPLAYGAIN_TRACK_GAIN (dB)
-///  - REPLAYGAIN_ALBUM_GAIN (dB)
-///  - REPLAYGAIN_TRACK_PEAK (linear 0..1)
-///  - REPLAYGAIN_ALBUM_PEAK (linear 0..1)
-///  - R128_TRACK_GAIN (LUFS, encoded as the *8 per the EBU R128 tag spec)
-///  - R128_ALBUM_GAIN
+/// Extract ReplayGain / EBU R128 loudness metadata from file tags.
 pub fn extract_loudness_metadata(path: &Path) -> crate::dsp::loudness::LoudnessMetadata {
     use crate::dsp::loudness::LoudnessMetadata;
 
@@ -615,25 +571,42 @@ pub fn extract_loudness_metadata(path: &Path) -> crate::dsp::loudness::LoudnessM
         let metadata_opts = MetadataOptions::default();
         let format_opts = FormatOptions::default();
 
-        if let Ok(mut probed) =
-            symphonia::default::get_probe().format(&hint, mss, &format_opts, &metadata_opts)
+        if let Ok(mut format_reader) =
+            symphonia::default::get_probe().probe(&hint, mss, format_opts, metadata_opts)
         {
-            // Scan both the probe-level metadata and the format-level metadata,
-            // mirroring the order used in extract_track_metadata.
-            let mut visit = |current: &symphonia::core::meta::MetadataRevision| {
-                for tag in current.tags() {
-                    let key = tag.key.to_lowercase();
-                    let value = tag.value.to_string();
+            if let Some(current) = format_reader.metadata().current() {
+                for tag in &current.media.tags {
+                    if let Some(std) = &tag.std {
+                        match std {
+                            StandardTag::ReplayGainTrackGain(v) => {
+                                meta.replaygain_track_db = parse_f32(v);
+                            }
+                            StandardTag::ReplayGainAlbumGain(v) => {
+                                meta.replaygain_album_db = parse_f32(v);
+                            }
+                            StandardTag::ReplayGainTrackPeak(v) => {
+                                meta.replaygain_track_peak = parse_f32(v);
+                            }
+                            StandardTag::ReplayGainAlbumPeak(v) => {
+                                meta.replaygain_album_peak = parse_f32(v);
+                            }
+                            _ => {}
+                        }
+                    }
+                    let key = tag.raw.key.to_lowercase();
+                    let value = tag.raw.value.to_string();
                     if value.is_empty() {
                         continue;
                     }
-                    if key == "replaygain_track_gain" {
+                    if key == "replaygain_track_gain" && meta.replaygain_track_db.is_none() {
                         meta.replaygain_track_db = parse_f32(&value);
-                    } else if key == "replaygain_album_gain" {
+                    } else if key == "replaygain_album_gain" && meta.replaygain_album_db.is_none() {
                         meta.replaygain_album_db = parse_f32(&value);
-                    } else if key == "replaygain_track_peak" {
+                    } else if key == "replaygain_track_peak" && meta.replaygain_track_peak.is_none()
+                    {
                         meta.replaygain_track_peak = parse_f32(&value);
-                    } else if key == "replaygain_album_peak" {
+                    } else if key == "replaygain_album_peak" && meta.replaygain_album_peak.is_none()
+                    {
                         meta.replaygain_album_peak = parse_f32(&value);
                     } else if key == "r128_track_gain" {
                         meta.ebu_r128_loudness = parse_r128(&value);
@@ -646,15 +619,6 @@ pub fn extract_loudness_metadata(path: &Path) -> crate::dsp::loudness::LoudnessM
                         }
                     }
                 }
-            };
-
-            if let Some(metadata) = probed.metadata.get() {
-                if let Some(current) = metadata.current() {
-                    visit(current);
-                }
-            }
-            if let Some(current) = probed.format.metadata().current() {
-                visit(current);
             }
         }
     }

@@ -115,9 +115,20 @@ fn main() {
         println!("cargo:rustc-link-lib=dylib=stdc++");
     }
 
+    // 5. Embed application icon into Windows executable binary
+    #[cfg(target_os = "windows")]
+    {
+        let mut res = winres::WindowsResource::new();
+        res.set_icon("assets/logo.ico");
+        if let Err(e) = res.compile() {
+            println!("cargo:warning=Failed to compile Windows resource icon: {}", e);
+        }
+    }
+
     // Re-run build if C++ files or build script change
     println!("cargo:rerun-if-changed=build.rs");
     println!("cargo:rerun-if-changed=modules/gui");
+    println!("cargo:rerun-if-changed=assets/logo.ico");
     // These are read directly via std::env::var_os above for the Windows/macOS
     // Qt6 fallback path. Without declaring them, Cargo has no way to know the
     // build script's output depends on them, so it will reuse a stale cached

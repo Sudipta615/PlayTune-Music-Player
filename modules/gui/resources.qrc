@@ -1,7 +1,9 @@
 <RCC>
     <qresource prefix="/">
         <file>resources/style.qss</file>
+        <file>resources/icons/logo.png</file>
         <file>resources/icons/playtune_logo.png</file>
+        <file>resources/images/placeholder_cover.png</file>
         <file>resources/icons/home.png</file>
         <file>resources/icons/albums.png</file>
         <file>resources/icons/artists.png</file>

@@ -19,7 +19,7 @@ impl LibraryManager {
     ) -> Option<CoverArtData> {
         use symphonia::core::meta::StandardVisualKey;
 
-        let visuals = revision.visuals();
+        let visuals = &revision.media.visuals;
         let visual = visuals
             .iter()
             .find(|v| v.usage == Some(StandardVisualKey::FrontCover))
@@ -36,11 +36,12 @@ impl LibraryManager {
             );
             return None;
         }
-        let mime_type = if visual.media_type.is_empty() {
-            detect_image_mime(data)
-        } else {
-            visual.media_type.clone()
-        };
+        let mime_type = visual
+            .media_type
+            .as_deref()
+            .filter(|m| !m.is_empty())
+            .map(|m| m.to_string())
+            .unwrap_or_else(|| detect_image_mime(data));
 
         // Decode the source image. If the longest side exceeds 500 px,
         // downscale it before hashing + persisting. This caps the on-

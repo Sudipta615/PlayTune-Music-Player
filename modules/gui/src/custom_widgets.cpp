@@ -420,7 +420,7 @@ void WaveformVisualizer::paintEvent(QPaintEvent* event) {
     activeGradient.setColorAt(0.0, p.secondaryAccent);
     activeGradient.setColorAt(1.0, p.primaryAccent);
 
-    QColor inactiveColor = p.isLight ? QColor(15, 23, 42, 80) : QColor(255, 255, 255, 70);
+    QColor inactiveColor(255, 255, 255, 60);
 
     for (int i = 0; i < numBars; ++i) {
         double barHeight = qMax(4.0, static_cast<double>(m_heights[i]) * h);

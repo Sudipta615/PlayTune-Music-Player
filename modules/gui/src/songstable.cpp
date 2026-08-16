@@ -24,105 +24,6 @@
 
 namespace {
 
-static void applyMoodPillStyle(QLabel* badge, const QString& moodName) {
-    if (!badge || moodName.trimmed().isEmpty()) return;
-    QString lower = moodName.toLower().trimmed();
-    bool isLight = ThemeManager::instance().currentTheme().isLight;
-
-    QString bg, border, text;
-
-    if (isLight) {
-        bg = "rgba(124, 58, 237, 0.16)";
-        border = "rgba(124, 58, 237, 0.40)";
-        text = "#6D28D9";
-
-        if (lower == "energetic") {
-            bg = "rgba(124, 58, 237, 0.16)";
-            border = "rgba(124, 58, 237, 0.40)";
-            text = "#6D28D9";
-        } else if (lower == "romantic") {
-            bg = "rgba(236, 72, 153, 0.16)";
-            border = "rgba(236, 72, 153, 0.40)";
-            text = "#BE185D";
-        } else if (lower == "happy") {
-            bg = "rgba(234, 179, 8, 0.22)";
-            border = "rgba(202, 138, 4, 0.55)";
-            text = "#854D0E";
-        } else if (lower == "calm") {
-            bg = "rgba(6, 182, 212, 0.16)";
-            border = "rgba(6, 182, 212, 0.40)";
-            text = "#0369A1";
-        } else if (lower == "party") {
-            bg = "rgba(168, 85, 247, 0.16)";
-            border = "rgba(168, 85, 247, 0.40)";
-            text = "#7E22CE";
-        } else if (lower == "nostalgic") {
-            bg = "rgba(217, 119, 6, 0.16)";
-            border = "rgba(217, 119, 6, 0.40)";
-            text = "#C2410C";
-        } else if (lower == "sad") {
-            bg = "rgba(99, 102, 241, 0.16)";
-            border = "rgba(99, 102, 241, 0.40)";
-            text = "#4338CA";
-        } else if (lower == "sleep" || lower == "lofi") {
-            bg = "rgba(139, 92, 246, 0.16)";
-            border = "rgba(139, 92, 246, 0.40)";
-            text = "#6D28D9";
-        }
-    } else {
-        bg = "rgba(168, 85, 247, 0.22)";
-        border = "rgba(192, 132, 252, 0.65)";
-        text = "#F3E8FF";
-
-        if (lower == "energetic") {
-            bg = "rgba(124, 58, 237, 0.25)";
-            border = "rgba(167, 139, 250, 0.70)";
-            text = "#E9D5FF";
-        } else if (lower == "romantic") {
-            bg = "rgba(236, 72, 153, 0.25)";
-            border = "rgba(244, 114, 182, 0.70)";
-            text = "#FBCFE8";
-        } else if (lower == "happy") {
-            bg = "rgba(234, 179, 8, 0.25)";
-            border = "rgba(250, 204, 21, 0.70)";
-            text = "#FEF08A";
-        } else if (lower == "calm") {
-            bg = "rgba(6, 182, 212, 0.25)";
-            border = "rgba(56, 189, 248, 0.70)";
-            text = "#BAE6FD";
-        } else if (lower == "party") {
-            bg = "rgba(168, 85, 247, 0.25)";
-            border = "rgba(192, 132, 252, 0.70)";
-            text = "#F3E8FF";
-        } else if (lower == "nostalgic") {
-            bg = "rgba(217, 119, 6, 0.25)";
-            border = "rgba(251, 146, 60, 0.70)";
-            text = "#FFEDD5";
-        } else if (lower == "sad") {
-            bg = "rgba(99, 102, 241, 0.25)";
-            border = "rgba(129, 140, 248, 0.70)";
-            text = "#E0E7FF";
-        } else if (lower == "sleep" || lower == "lofi") {
-            bg = "rgba(139, 92, 246, 0.25)";
-            border = "rgba(167, 139, 250, 0.70)";
-            text = "#EDE9FE";
-        }
-    }
-
-    badge->setText(moodName.toUpper().trimmed());
-    badge->setStyleSheet(QString(
-        "QLabel {"
-        "   background-color: %1;"
-        "   color: %2;"
-        "   border: 1px solid %3;"
-        "   border-radius: 6px;"
-        "   padding: 3px 8px;"
-        "   font-size: 10px;"
-        "   font-weight: 700;"
-        "}"
-    ).arg(bg, text, border));
-}
-
 static QPixmap loadThumbnail(const QString& coverPath, bool requestAsync = false) {
     if (AppSettings::instance().isOptimizedMode()) {
         QPixmap def = getDefaultAlbumArt();
@@ -175,47 +76,19 @@ void SongsTableWidget::setupUi() {
     auto* cardFrame = new QFrame(this);
     cardFrame->setObjectName("SongsCard");
 
-    auto applyCardStyle = [cardFrame](const ThemePalette& p) {
-        cardFrame->setStyleSheet(QString(
-            "QFrame#SongsCard {"
-            "   background-color: %1;"
-            "   border: 1px solid %2;"
-            "   border-radius: 16px;"
-            "}"
-        ).arg(p.cardBg.name(), p.cardBorder.name()));
-    };
-    applyCardStyle(ThemeManager::instance().currentTheme());
-    connect(&ThemeManager::instance(), &ThemeManager::themeChanged, this, [this, applyCardStyle](const ThemePalette& p) {
-        applyCardStyle(p);
-        if (m_table) {
-            int rows = m_table->rowCount();
-            for (int r = 0; r < rows; ++r) {
-                if (auto* titleWidget = m_table->cellWidget(r, 1)) {
-                    if (auto* thumbLabel = titleWidget->findChild<QLabel*>("SongRowThumbLabel")) {
-                        QString path = thumbLabel->property("coverPath").toString();
-                        thumbLabel->setPixmap(loadThumbnail(path, false));
-                    }
-                }
-                if (auto* moodWidget = m_table->cellWidget(r, 2)) {
-                    if (auto* moodBadge = moodWidget->findChild<QLabel*>("SongMoodBadge")) {
-                        QString mood = moodBadge->property("moodName").toString();
-                        applyMoodPillStyle(moodBadge, mood);
-                    }
-                }
-                if (auto* actionWidget = m_table->cellWidget(r, 7)) {
-                    if (auto* actionBtn = actionWidget->findChild<QPushButton*>()) {
-                        actionBtn->setIcon(ThemeManager::tintedIcon(":/resources/icons/more.png", p.iconColor));
-                    }
-                }
-            }
-            if (auto* h = m_table->horizontalHeaderItem(5)) {
-                h->setIcon(ThemeManager::tintedIcon(":/resources/icons/recently_played.png", p.iconColor));
-            }
-            if (auto* h = m_table->horizontalHeaderItem(6)) {
-                h->setIcon(ThemeManager::tintedIcon(":/resources/icons/favorite.png", p.iconColor));
-            }
+    connect(&ThemeManager::instance(), &ThemeManager::themeChanged, this, [this](const ThemePalette& p) {
+        QIcon actionIcon = ThemeManager::tintedIcon(":/resources/icons/more.png", p.iconColor);
+        for (QPushButton* btn : m_actionButtons) {
+            if (btn) btn->setIcon(actionIcon);
+        }
+        if (auto* h = m_table->horizontalHeaderItem(5)) {
+            h->setIcon(ThemeManager::tintedIcon(":/resources/icons/recently_played.png", p.iconColor));
+        }
+        if (auto* h = m_table->horizontalHeaderItem(6)) {
+            h->setIcon(ThemeManager::tintedIcon(":/resources/icons/favorite.png", p.iconColor));
+        }
+        if (m_table && m_table->viewport()) {
             m_table->viewport()->update();
-            loadVisibleThumbnails();
         }
     });
 
@@ -522,6 +395,7 @@ void SongsTableWidget::setupUi() {
 }
 
 void SongsTableWidget::clearSongs() {
+    m_actionButtons.clear();
     m_eqIcons.clear();
     m_songIdToRow.clear();
     m_rows.clear();
@@ -605,7 +479,6 @@ void SongsTableWidget::addSong(int index, int songId, bool isFavorite, const QSt
 
     auto* titleLabel = new QLabel(title, titleContainer);
     titleLabel->setObjectName("SongTitleLabel");
-    titleLabel->setStyleSheet("font-weight: 500; font-size: 13px;");
 
     auto* eqIcon = new PlayingEqualizerIcon(titleContainer);
     eqIcon->setFixedSize(16, 12);
@@ -629,8 +502,8 @@ void SongsTableWidget::addSong(int index, int songId, bool isFavorite, const QSt
     if (!moodStr.isEmpty()) {
         auto* moodBadge = new QLabel(moodContainer);
         moodBadge->setObjectName("SongMoodBadge");
-        moodBadge->setProperty("moodName", moodStr);
-        applyMoodPillStyle(moodBadge, moodStr);
+        moodBadge->setProperty("mood", moodStr.toLower().trimmed());
+        moodBadge->setText(moodStr.toUpper().trimmed());
         moodLayout->addWidget(moodBadge);
     }
     m_table->setCellWidget(rowIdx, 2, moodContainer);
@@ -656,15 +529,17 @@ void SongsTableWidget::addSong(int index, int songId, bool isFavorite, const QSt
     favBtn->setFocusPolicy(Qt::NoFocus);
     favBtn->setProperty("rowIdx", rowIdx);
     favBtn->setProperty("colIdx", 6);
+    favBtn->setProperty("favorite", isFavorite);
     favBtn->installEventFilter(this);
-    favBtn->setStyleSheet(isFavorite ? "QPushButton { border: none; background: transparent; color: #FF2A7A; font-size: 16px; }" : "QPushButton { border: none; background: transparent; color: #7E8494; font-size: 16px; }");
     favBtn->setToolTip(isFavorite ? "Remove from Favorites" : "Add to Favorites");
     connect(favBtn, &QPushButton::clicked, this, [this, songId, favBtn, rowIdx]() {
         m_table->clearSelection();
         bool currentlyFav = (favBtn->text() == "♥");
         bool newFav = !currentlyFav;
         favBtn->setText(newFav ? "♥" : "♡");
-        favBtn->setStyleSheet(newFav ? "QPushButton { border: none; background: transparent; color: #FF2A7A; font-size: 16px; }" : "QPushButton { border: none; background: transparent; color: #7E8494; font-size: 16px; }");
+        favBtn->setProperty("favorite", newFav);
+        favBtn->style()->unpolish(favBtn);
+        favBtn->style()->polish(favBtn);
         favBtn->setToolTip(newFav ? "Remove from Favorites" : "Add to Favorites");
         const auto& cb = GuiBridgeManager::instance().callbacks();
         if (cb.on_toggle_favorite) cb.on_toggle_favorite(songId);
@@ -729,6 +604,7 @@ void SongsTableWidget::addSong(int index, int songId, bool isFavorite, const QSt
     actionLayout->setAlignment(Qt::AlignCenter);
     actionLayout->addWidget(actionBtn);
     m_table->setCellWidget(rowIdx, 7, actionContainer);
+    m_actionButtons.append(actionBtn);
 
     titleContainer->setAttribute(Qt::WA_TransparentForMouseEvents);
 
@@ -736,6 +612,11 @@ void SongsTableWidget::addSong(int index, int songId, bool isFavorite, const QSt
         m_playingTrackIdx = rowIdx;
         eqIcon->setVisible(true);
         eqIcon->setPlaying(m_isPlaying);
+        titleLabel->setProperty("playing", true);
+        titleLabel->style()->unpolish(titleLabel);
+        titleLabel->style()->polish(titleLabel);
+    } else {
+        titleLabel->setProperty("playing", false);
     }
 
     if (m_songCountLabel) {
@@ -789,7 +670,6 @@ void SongsTableWidget::setSongsBatch(QVector<SongRow> rows) {
 
             auto* titleLabel = new QLabel(r.title, titleContainer);
             titleLabel->setObjectName("SongTitleLabel");
-            titleLabel->setStyleSheet("font-weight: 500; font-size: 13px;");
 
             auto* eqIcon = new PlayingEqualizerIcon(titleContainer);
             eqIcon->setFixedSize(16, 12);
@@ -812,8 +692,8 @@ void SongsTableWidget::setSongsBatch(QVector<SongRow> rows) {
             if (!r.mood.isEmpty()) {
                 auto* moodBadge = new QLabel(moodContainer);
                 moodBadge->setObjectName("SongMoodBadge");
-                moodBadge->setProperty("moodName", r.mood);
-                applyMoodPillStyle(moodBadge, r.mood);
+                moodBadge->setProperty("mood", r.mood.toLower().trimmed());
+                moodBadge->setText(r.mood.toUpper().trimmed());
                 moodLayout->addWidget(moodBadge);
             }
             m_table->setCellWidget(i, 2, moodContainer);
@@ -839,15 +719,17 @@ void SongsTableWidget::setSongsBatch(QVector<SongRow> rows) {
             favBtn->setFocusPolicy(Qt::NoFocus);
             favBtn->setProperty("rowIdx", i);
             favBtn->setProperty("colIdx", 6);
+            favBtn->setProperty("favorite", r.isFavorite);
             favBtn->installEventFilter(this);
-            favBtn->setStyleSheet(r.isFavorite ? "QPushButton { border: none; background: transparent; color: #FF2A7A; font-size: 16px; }" : "QPushButton { border: none; background: transparent; color: #7E8494; font-size: 16px; }");
             favBtn->setToolTip(r.isFavorite ? "Remove from Favorites" : "Add to Favorites");
             connect(favBtn, &QPushButton::clicked, this, [this, songId = r.songId, favBtn, rowIdx = i]() {
                 m_table->clearSelection();
                 bool currentlyFav = (favBtn->text() == "♥");
                 bool newFav = !currentlyFav;
                 favBtn->setText(newFav ? "♥" : "♡");
-                favBtn->setStyleSheet(newFav ? "QPushButton { border: none; background: transparent; color: #FF2A7A; font-size: 16px; }" : "QPushButton { border: none; background: transparent; color: #7E8494; font-size: 16px; }");
+                favBtn->setProperty("favorite", newFav);
+                favBtn->style()->unpolish(favBtn);
+                favBtn->style()->polish(favBtn);
                 favBtn->setToolTip(newFav ? "Remove from Favorites" : "Add to Favorites");
                 const auto& cb = GuiBridgeManager::instance().callbacks();
                 if (cb.on_toggle_favorite) cb.on_toggle_favorite(songId);
@@ -912,19 +794,26 @@ void SongsTableWidget::setSongsBatch(QVector<SongRow> rows) {
             actionLayout->setAlignment(Qt::AlignCenter);
             actionLayout->addWidget(actionBtn);
             m_table->setCellWidget(i, 7, actionContainer);
+            m_actionButtons.append(actionBtn);
 
             if (r.songId == m_playingSongId && m_playingSongId != -1) {
                 m_playingTrackIdx = i;
                 eqIcon->setVisible(true);
                 eqIcon->setPlaying(m_isPlaying);
-                const auto& p = ThemeManager::instance().currentTheme();
-                titleLabel->setStyleSheet(QString("font-weight: bold; font-size: 13px; color: %1;").arg(p.secondaryAccent.name()));
+                titleLabel->setProperty("playing", true);
+                titleLabel->style()->unpolish(titleLabel);
+                titleLabel->style()->polish(titleLabel);
+            } else {
+                titleLabel->setProperty("playing", false);
             }
         }
     }
 
     if (m_playingTrackIdx >= 0) {
         refreshSingleRowStyle(m_playingTrackIdx);
+        if (AppSettings::instance().isCursorFollowsPlayback()) {
+            QTimer::singleShot(60, this, &SongsTableWidget::scrollToActive);
+        }
     }
 
     m_table->blockSignals(false);

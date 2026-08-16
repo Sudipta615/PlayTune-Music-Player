@@ -437,8 +437,7 @@ impl PlayTuneDb {
             if chunk.is_empty() {
                 continue;
             }
-            let placeholders =
-                std::iter::repeat("?").take(chunk.len()).collect::<Vec<_>>().join(",");
+            let placeholders = std::iter::repeat_n("?", chunk.len()).collect::<Vec<_>>().join(",");
             let sql = format!("DELETE FROM tracks WHERE id IN ({})", placeholders);
             let mut params_vec: Vec<Box<dyn rusqlite::ToSql>> = Vec::with_capacity(chunk.len());
             for id in chunk {
@@ -486,9 +485,8 @@ impl PlayTuneDb {
                 stmt.query_map([], |row| Ok((row.get::<_, i64>(0)?, row.get::<_, String>(1)?)))?;
             for r in rows {
                 let (id, path) = r?;
-                // Stale = path was tracked in DB but is NOT in the freshly-
-                // scanned on-disk set. This avoids per-file stat() calls.
-                if !on_disk.contains(path.as_str()) {
+                // Stale = path was not in current scan batch AND does not exist on disk
+                if !on_disk.contains(path.as_str()) && !std::path::Path::new(&path).exists() {
                     stale_ids.push(id);
                 }
             }
@@ -498,8 +496,7 @@ impl PlayTuneDb {
             if chunk.is_empty() {
                 continue;
             }
-            let placeholders =
-                std::iter::repeat("?").take(chunk.len()).collect::<Vec<_>>().join(",");
+            let placeholders = std::iter::repeat_n("?", chunk.len()).collect::<Vec<_>>().join(",");
             let sql = format!("DELETE FROM tracks WHERE id IN ({})", placeholders);
             let mut params_vec: Vec<Box<dyn rusqlite::ToSql>> = Vec::with_capacity(chunk.len());
             for id in chunk {

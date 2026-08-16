@@ -3,6 +3,7 @@
 #include "coverloader.h"
 #include "tageditordialog.h"
 #include "loudnessscannerdialog.h"
+#include "appsettings.h"
 #include <QSettings>
 #include <QEvent>
 #include <QCursor>
@@ -27,7 +28,10 @@ void SongsTableWidget::setPlayingSongId(int songId, bool playing) {
         }
         if (auto* titleCont = m_table->cellWidget(oldRow, 1)) {
             if (auto* titleLabel = titleCont->findChild<QLabel*>("SongTitleLabel")) {
-                titleLabel->setStyleSheet("font-weight: 500; font-size: 13px;");
+                titleLabel->setStyleSheet(""); // Clear any legacy inline stylesheet
+                titleLabel->setProperty("playing", false);
+                titleLabel->style()->unpolish(titleLabel);
+                titleLabel->style()->polish(titleLabel);
             }
         }
         refreshSingleRowStyle(oldRow);
@@ -40,8 +44,10 @@ void SongsTableWidget::setPlayingSongId(int songId, bool playing) {
         }
         if (auto* titleCont = m_table->cellWidget(m_playingTrackIdx, 1)) {
             if (auto* titleLabel = titleCont->findChild<QLabel*>("SongTitleLabel")) {
-                const auto& p = ThemeManager::instance().currentTheme();
-                titleLabel->setStyleSheet(QString("font-weight: bold; font-size: 13px; color: %1;").arg(p.secondaryAccent.name()));
+                titleLabel->setStyleSheet(""); // Clear any legacy inline stylesheet
+                titleLabel->setProperty("playing", true);
+                titleLabel->style()->unpolish(titleLabel);
+                titleLabel->style()->polish(titleLabel);
             }
         }
         refreshSingleRowStyle(m_playingTrackIdx);
@@ -52,11 +58,9 @@ void SongsTableWidget::setPlayingSongId(int songId, bool playing) {
     }
 
     if (m_playingTrackIdx >= 0 && m_playingTrackIdx < m_table->rowCount()) {
-        QSettings s;
-        bool cursorFollows = s.value("cursor_follows_playback", false).toBool();
-        if (cursorFollows) {
+        if (AppSettings::instance().isCursorFollowsPlayback()) {
             if (QTableWidgetItem* it = m_table->item(m_playingTrackIdx, 0)) {
-                m_table->scrollToItem(it, QAbstractItemView::EnsureVisible);
+                m_table->scrollToItem(it, QAbstractItemView::PositionAtCenter);
             }
         }
     }
@@ -275,7 +279,7 @@ void SongsTableWidget::setRatingForRow(int songId, int rating) {
 void SongsTableWidget::scrollToActive() {
     if (m_playingTrackIdx >= 0 && m_playingTrackIdx < m_table->rowCount()) {
         if (QTableWidgetItem* it = m_table->item(m_playingTrackIdx, 0)) {
-            m_table->scrollToItem(it, QAbstractItemView::EnsureVisible);
+            m_table->scrollToItem(it, QAbstractItemView::PositionAtCenter);
         }
     }
 }
@@ -298,11 +302,14 @@ void SongsTableWidget::resizeEvent(QResizeEvent* event) {
 
 void SongsTableWidget::showEvent(QShowEvent* event) {
     QWidget::showEvent(event);
-    QTimer::singleShot(0, this, [this]() {
+    QTimer::singleShot(50, this, [this]() {
         if (m_gridWidget) m_gridWidget->updateGridResponsive();
         loadVisibleThumbnails();
         if (m_playingSongId != -1) {
             setPlayingSongId(m_playingSongId, m_isPlaying);
+        }
+        if (AppSettings::instance().isCursorFollowsPlayback()) {
+            scrollToActive();
         }
     });
 }

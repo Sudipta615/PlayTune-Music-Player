@@ -19,7 +19,10 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
     if (!qApp->windowIcon().isNull()) {
         setWindowIcon(qApp->windowIcon());
     } else {
-        QPixmap basePixmap(":/resources/icons/playtune_logo.png");
+        QPixmap basePixmap(":/resources/icons/logo.png");
+        if (basePixmap.isNull()) {
+            basePixmap.load(":/resources/icons/playtune_logo.png");
+        }
         QIcon appIcon;
         static const int sizes[] = {16, 22, 24, 32, 48, 64, 128, 256, 512};
         for (int s : sizes) {
@@ -76,9 +79,8 @@ void MainWindow::setupUi() {
 
     // Vertical Separator 1
     m_sep1 = new QFrame(this);
+    m_sep1->setObjectName("WindowSeparator");
     m_sep1->setFrameShape(QFrame::VLine);
-    m_sep1->setFrameShadow(QFrame::Plain);
-    m_sep1->setStyleSheet("color: #242A3D; background-color: #242A3D; min-width: 1px; max-width: 1px; border: none;");
     mainLayout->addWidget(m_sep1);
 
     // 2. Center Panel (Search + Now Playing + Songs Table)
@@ -91,9 +93,10 @@ void MainWindow::setupUi() {
 
     // Search bar layout
     auto* searchLayout = new QHBoxLayout();
+    searchLayout->setSpacing(12);
     m_searchBar = new QLineEdit(this);
     m_searchBar->setObjectName("SearchBar");
-    m_searchBar->setPlaceholderText("Search for songs, artists, albums...");
+    m_searchBar->setPlaceholderText("Search songs, artists, albums...");
     m_searchBar->setToolTip("Search music library by song title, artist, or album (Ctrl+F / Return to search immediately)");
     m_searchAction = m_searchBar->addAction(
         ThemeManager::tintedIcon(":/resources/icons/search.png",
@@ -113,26 +116,10 @@ void MainWindow::setupUi() {
     searchLayout->addStretch(1);
 
     m_toggleRightTopBtn = new QPushButton("< Queue", this);
+    m_toggleRightTopBtn->setObjectName("ToggleRightTopBtn");
     m_toggleRightTopBtn->setFixedSize(76, 28);
     m_toggleRightTopBtn->setCursor(Qt::PointingHandCursor);
     m_toggleRightTopBtn->setToolTip("Expand Right Sidebar (Q)");
-    {
-        const auto& p = ThemeManager::instance().currentTheme();
-        m_toggleRightTopBtn->setStyleSheet(QString(
-            "QPushButton { background-color: %1; color: %2; border: 1px solid %3; border-radius: 6px; font-size: 12px; font-weight: bold; }"
-            "QPushButton:hover { background-color: %4; border-color: %5; color: %6; }"
-        ).arg(p.headerBg.name(), p.secondaryText.name(), p.cardBorder.name(),
-              p.itemHoverBg.name(), p.primaryAccent.name(), p.primaryText.name()));
-    }
-    connect(&ThemeManager::instance(), &ThemeManager::themeChanged, this, [this](const ThemePalette& p) {
-        if (m_toggleRightTopBtn) {
-            m_toggleRightTopBtn->setStyleSheet(QString(
-                "QPushButton { background-color: %1; color: %2; border: 1px solid %3; border-radius: 6px; font-size: 12px; font-weight: bold; }"
-                "QPushButton:hover { background-color: %4; border-color: %5; color: %6; }"
-            ).arg(p.headerBg.name(), p.secondaryText.name(), p.cardBorder.name(),
-                  p.itemHoverBg.name(), p.primaryAccent.name(), p.primaryText.name()));
-        }
-    });
     m_toggleRightTopBtn->setVisible(false);
     connect(m_toggleRightTopBtn, &QPushButton::clicked, this, [this]() {
         m_queueHiddenByUser = false;
@@ -176,9 +163,8 @@ void MainWindow::setupUi() {
 
     // Vertical Separator 2
     m_sep2 = new QFrame(this);
+    m_sep2->setObjectName("WindowSeparator");
     m_sep2->setFrameShape(QFrame::VLine);
-    m_sep2->setFrameShadow(QFrame::Plain);
-    m_sep2->setStyleSheet("color: #242A3D; background-color: #242A3D; min-width: 1px; max-width: 1px; border: none;");
     mainLayout->addWidget(m_sep2);
 
     // 3. Right Sidebar (Queue)

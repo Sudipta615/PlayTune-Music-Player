@@ -187,42 +187,7 @@ void MainWindow::connectBridge() {
         }
     });
 
-    auto applyThemeOverlay = [this](const ThemePalette& palette) {
-        if (m_sep1) {
-            m_sep1->setStyleSheet(QString("color: %1; background-color: %1; min-width: 1px; max-width: 1px; border: none;").arg(palette.separatorColor.name()));
-        }
-        if (m_sep2) {
-            m_sep2->setStyleSheet(QString("color: %1; background-color: %1; min-width: 1px; max-width: 1px; border: none;").arg(palette.separatorColor.name()));
-        }
-        if (m_toggleRightTopBtn) {
-            m_toggleRightTopBtn->setStyleSheet(
-                QString("QPushButton { background-color: %1; color: %2; border: 1px solid %3; border-radius: 6px; font-size: 12px; font-weight: bold; }"
-                        "QPushButton:hover { background-color: %4; border-color: %5; color: %6; }")
-                .arg(palette.headerBg.name())
-                .arg(palette.secondaryText.name())
-                .arg(palette.cardBorder.name())
-                .arg(palette.itemHoverBg.name())
-                .arg(palette.primaryAccent.name())
-                .arg(palette.primaryText.name())
-            );
-        }
-        if (m_searchBar) {
-            m_searchBar->setStyleSheet(
-                QString("QLineEdit#SearchBar { background-color: %1; border: 1px solid %2; border-radius: 10px; color: %3; padding: 8px 12px; font-size: 13px; }"
-                        "QLineEdit#SearchBar:hover { border: 1px solid %4; }"
-                        "QLineEdit#SearchBar:focus { border: 1px solid %5; }")
-                .arg(palette.headerBg.name())
-                .arg(palette.cardBorder.name())
-                .arg(palette.primaryText.name())
-                .arg(palette.primaryAccent.name())
-                .arg(palette.secondaryAccent.name())
-            );
-        }
-    };
-    applyThemeOverlay(ThemeManager::instance().currentTheme());
-    connect(&ThemeManager::instance(), &ThemeManager::themeChanged, this, [applyThemeOverlay](const ThemePalette& palette) {
-        applyThemeOverlay(palette);
-    });
+
 
     connect(m_settingsPage, &SettingsPageWidget::tooltipsToggled, this, [this](bool enabled) {
         if (m_toolTipController) {

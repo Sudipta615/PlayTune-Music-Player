@@ -11,7 +11,7 @@ use std::{
     collections::HashMap,
     path::{Path, PathBuf},
     sync::{atomic::Ordering, Arc},
-    time::{Duration, Instant, UNIX_EPOCH},
+    time::UNIX_EPOCH,
 };
 
 use config::LibraryConfig;
@@ -36,12 +36,6 @@ pub enum LibraryError {
 /// Supported audio file extensions
 const AUDIO_EXTENSIONS: &[&str] =
     &["mp3", "flac", "ogg", "opus", "wav", "aac", "m4a", "wma", "aiff", "ape", "alac"];
-
-/// Minimum interval between progress callback invocations.
-///
-/// For large libraries, invoking the callback for every file can overwhelm
-/// the UI thread. We throttle to at most one call per this duration.
-const PROGRESS_THROTTLE: Duration = Duration::from_millis(100);
 
 /// Progress information during a library scan
 #[derive(Debug, Clone)]
@@ -161,9 +155,9 @@ impl LibraryManager {
     }
 
     /// Scan the library directories for new and modified files.
-    pub fn scan<F: Fn(ScanProgress)>(
+    pub fn scan<F: FnMut(ScanProgress)>(
         &self,
-        progress_callback: F,
+        mut progress_callback: F,
     ) -> Result<ScanProgress, LibraryError> {
         self.cancel_flag.store(false, Ordering::Release);
 
@@ -200,6 +194,19 @@ impl LibraryManager {
             .into_iter()
             .map(|f| (f.path, f.id))
             .collect();
+
+        // Ensure all configured watch_dirs are registered in DB and folder_cache
+        for dir in &self.config.watch_dirs {
+            let path_str = dir.to_string_lossy().into_owned();
+            if let std::collections::hash_map::Entry::Vacant(e) =
+                folder_cache.entry(path_str.clone())
+            {
+                let name = dir.file_name().and_then(|n| n.to_str()).unwrap_or("Folder").to_string();
+                if let Ok(id) = self.db.add_folder(&path_str, &name, 0) {
+                    e.insert(id);
+                }
+            }
+        }
 
         let mut audio_files: Vec<PathBuf> = Vec::new();
         for dir in &self.config.watch_dirs {
@@ -241,27 +248,17 @@ impl LibraryManager {
 
         info!("Found {} audio files", audio_files.len());
 
-        const BATCH_SIZE: usize = 250;
-        let mut new_tracks: Vec<Track> = Vec::with_capacity(BATCH_SIZE);
-        let mut updated_tracks: Vec<Track> = Vec::with_capacity(BATCH_SIZE);
-        // Cover art pre-extracted alongside new_tracks; indices match
-        let mut pending_cover_art: Vec<Option<CoverArtData>> = Vec::with_capacity(BATCH_SIZE);
-        // Cover art ready to persist after album IDs are known
-        let mut cover_art_queue: Vec<(PathBuf, i64, CoverArtData)> = Vec::new();
+        use rayon::prelude::*;
 
-        let mut last_callback = Instant::now();
+        // Fast metadata pre-filtering (check modified time and ignored paths)
+        let mut items_to_extract: Vec<(PathBuf, i64, i64, bool)> =
+            Vec::with_capacity(audio_files.len());
 
         for path in &audio_files {
-            if self.cancel_flag.load(Ordering::Acquire) {
-                return Err(LibraryError::Cancelled);
-            }
-
-            // Throttled progress callback
-            let now = Instant::now();
-            if now.duration_since(last_callback) >= PROGRESS_THROTTLE {
-                progress.current_path = path.to_string_lossy().into_owned();
-                progress_callback(progress.clone());
-                last_callback = now;
+            let path_str = path.to_string_lossy().into_owned();
+            if ignored_paths.contains(&path_str) {
+                progress.files_processed += 1;
+                continue;
             }
 
             let file_metadata = match std::fs::metadata(path) {
@@ -281,73 +278,85 @@ impl LibraryManager {
                 .map(|d| d.as_secs() as i64)
                 .unwrap_or(0);
 
-            let path_str = path.to_string_lossy().into_owned();
-
-            if ignored_paths.contains(&path_str) {
-                progress.files_processed += 1;
-                continue;
-            }
-
             if let Some(&existing_mtime) = existing_tracks.get(&path_str) {
                 if existing_mtime >= file_modified {
                     progress.files_processed += 1;
                     continue;
                 }
-                // Modified file — update, skip cover re-extraction
-                match self.extract_track_info(path, file_size, file_modified) {
-                    Ok(mut track) => {
-                        track.folder_id = self.lookup_folder_id_with_cache(path, &mut folder_cache);
-                        updated_tracks.push(track);
-                    }
-                    Err(e) => {
-                        warn!("Failed to extract info for {}: {}", path.display(), e);
-                        progress.files_processed += 1;
-                        progress.files_failed += 1;
-                        continue;
-                    }
-                }
+                items_to_extract.push((path.clone(), file_size, file_modified, true));
             } else {
-                // New file — combined probe for metadata + cover art
-                match self.extract_track_info_with_cover(path, file_size, file_modified) {
-                    Ok((mut track, cover)) => {
-                        track.folder_id = self.lookup_folder_id_with_cache(path, &mut folder_cache);
-                        new_tracks.push(track);
-                        pending_cover_art.push(cover);
-                    }
-                    Err(e) => {
-                        warn!("Failed to extract info for {}: {}", path.display(), e);
-                        progress.files_processed += 1;
-                        progress.files_failed += 1;
-                        continue;
-                    }
-                }
+                items_to_extract.push((path.clone(), file_size, file_modified, false));
+            }
+        }
+
+        const BATCH_SIZE: usize = 128;
+        let mut cover_art_queue: Vec<(PathBuf, i64, CoverArtData)> = Vec::new();
+        type ExtractedItem = Result<(Track, Option<CoverArtData>, bool), (PathBuf, String)>;
+
+        for chunk in items_to_extract.chunks(BATCH_SIZE) {
+            if self.cancel_flag.load(Ordering::Acquire) {
+                return Err(LibraryError::Cancelled);
             }
 
-            progress.files_processed += 1;
+            let results: Vec<ExtractedItem> = chunk
+                .par_iter()
+                .map(|(path, file_size, file_modified, is_update)| {
+                    if *is_update {
+                        match self.extract_track_info(path, *file_size, *file_modified) {
+                            Ok(track) => Ok((track, None, true)),
+                            Err(e) => Err((path.clone(), e.to_string())),
+                        }
+                    } else {
+                        match self.extract_track_info_with_cover(path, *file_size, *file_modified) {
+                            Ok((track, cover)) => Ok((track, cover, false)),
+                            Err(e) => Err((path.clone(), e.to_string())),
+                        }
+                    }
+                })
+                .collect();
 
-            if new_tracks.len() >= BATCH_SIZE {
+            let mut batch_new: Vec<Track> = Vec::with_capacity(chunk.len());
+            let mut batch_updated: Vec<Track> = Vec::with_capacity(chunk.len());
+            let mut batch_pending_cover: Vec<Option<CoverArtData>> =
+                Vec::with_capacity(chunk.len());
+
+            for res in results {
+                match res {
+                    Ok((mut track, cover, is_update)) => {
+                        let track_path = Path::new(track.path.as_ref());
+                        track.folder_id =
+                            self.lookup_folder_id_with_cache(track_path, &mut folder_cache);
+                        if is_update {
+                            batch_updated.push(track);
+                        } else {
+                            batch_new.push(track);
+                            batch_pending_cover.push(cover);
+                        }
+                    }
+                    Err((err_path, err_msg)) => {
+                        warn!("Failed to extract info for {}: {}", err_path.display(), err_msg);
+                        progress.files_failed += 1;
+                    }
+                }
+                progress.files_processed += 1;
+            }
+
+            if !batch_new.is_empty() {
                 self.flush_new_batch(
-                    &mut new_tracks,
-                    &mut pending_cover_art,
+                    &mut batch_new,
+                    &mut batch_pending_cover,
                     &mut cover_art_queue,
                     &mut progress,
                 );
             }
-            if updated_tracks.len() >= BATCH_SIZE {
-                self.flush_updated_batch(&mut updated_tracks, &mut progress);
+            if !batch_updated.is_empty() {
+                self.flush_updated_batch(&mut batch_updated, &mut progress);
             }
-        }
 
-        if !new_tracks.is_empty() {
-            self.flush_new_batch(
-                &mut new_tracks,
-                &mut pending_cover_art,
-                &mut cover_art_queue,
-                &mut progress,
-            );
-        }
-        if !updated_tracks.is_empty() {
-            self.flush_updated_batch(&mut updated_tracks, &mut progress);
+            if let Some((path, _, _, _)) = chunk.last() {
+                progress.current_path = path.to_string_lossy().into_owned();
+            }
+            progress_callback(progress.clone());
         }
 
         let existing_paths: Vec<String> =

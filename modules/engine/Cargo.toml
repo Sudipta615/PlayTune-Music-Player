@@ -19,7 +19,15 @@ codec-wav = ["symphonia/wav"]
 codec-aac = ["symphonia/aac"]
 codec-pcm = ["symphonia/pcm"]
 codec-isomp4 = ["symphonia/isomp4"]
-all-codecs = ["codec-mp3", "codec-flac", "codec-ogg", "codec-wav", "codec-aac", "codec-pcm", "codec-isomp4"]
+all-codecs = [
+    "codec-mp3",
+    "codec-flac",
+    "codec-ogg",
+    "codec-wav",
+    "codec-aac",
+    "codec-pcm",
+    "codec-isomp4",
+]
 
 [dependencies]
 cpal = { workspace = true, optional = true }

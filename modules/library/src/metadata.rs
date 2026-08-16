@@ -36,8 +36,8 @@ impl super::LibraryManager {
         path: &Path,
     ) -> Option<(f32, u32, usize, FileTags, Option<CoverArtData>)> {
         use symphonia::core::{
-            codecs::CODEC_TYPE_NULL, formats::FormatOptions, io::MediaSourceStream,
-            meta::MetadataOptions, probe::Hint,
+            codecs::audio::CODEC_ID_NULL_AUDIO, formats::probe::Hint, formats::FormatOptions,
+            io::MediaSourceStream, meta::MetadataOptions,
         };
 
         let file = match std::fs::File::open(path) {
@@ -53,50 +53,120 @@ impl super::LibraryManager {
             hint.with_extension(ext);
         }
 
-        let mut probed = match symphonia::default::get_probe().format(
+        let mut format_reader = match symphonia::default::get_probe().probe(
             &hint,
             mss,
-            &FormatOptions::default(),
-            &MetadataOptions::default(),
+            FormatOptions::default(),
+            MetadataOptions::default(),
         ) {
-            Ok(p) => p,
+            Ok(p) => Some(p),
             Err(e) => {
                 log::warn!(
                     "probe_file: symphonia format probing failed for {}: {}",
                     path.display(),
                     e
                 );
-                return None;
+                None
             }
         };
 
-        let track =
-            match probed.format.tracks().iter().find(|t| t.codec_params.codec != CODEC_TYPE_NULL) {
-                Some(t) => t,
-                None => {
-                    log::warn!("probe_file: no playable audio track found in {}", path.display());
-                    return None;
+        let mut sample_rate = 0u32;
+        let mut channels = 0usize;
+        let mut duration = -1.0f32;
+        let mut tags = FileTags::default();
+        let mut cover_art = None;
+
+        if let Some(ref mut reader) = format_reader {
+            let track = reader.tracks().iter().find(|t| {
+                t.codec_params
+                    .as_ref()
+                    .and_then(|cp| cp.audio())
+                    .is_some_and(|a| a.codec != CODEC_ID_NULL_AUDIO)
+            });
+
+            if let Some(t) = track {
+                if let Some(audio_params) = t.codec_params.as_ref().and_then(|cp| cp.audio()) {
+                    sample_rate = audio_params.sample_rate.unwrap_or(0);
+                    channels = audio_params.channels.as_ref().map(|c| c.count()).unwrap_or(0);
                 }
-            };
+                if let (Some(num_frames), Some(tb)) = (t.num_frames, t.time_base) {
+                    if let Some(time) =
+                        tb.calc_time(symphonia::core::units::Timestamp::new(num_frames as i64))
+                    {
+                        duration = time.as_secs_f64() as f32;
+                    }
+                } else if let Some(num_frames) = t.num_frames {
+                    if sample_rate > 0 {
+                        duration = num_frames as f32 / sample_rate as f32;
+                    }
+                }
+            }
 
-        let codec_params = &track.codec_params;
-        let sample_rate = codec_params.sample_rate.unwrap_or(0);
-        let channels = codec_params.channels.map(|c| c.count()).unwrap_or(0);
+            let (extracted_tags, extracted_cover) =
+                Self::extract_tags_and_cover_from_format_reader(&mut **reader);
+            tags = extracted_tags;
+            cover_art = extracted_cover;
+        }
 
-        if sample_rate == 0 || channels == 0 {
-            warn!(
-                "File {} missing codec parameters (sample_rate={}, channels={}) — skipping",
-                path.display(),
-                sample_rate,
-                channels
-            );
+        // Secondary fallback / enrichment via lofty if duration/sample_rate/channels or tags are missing
+        if duration <= 0.0 || sample_rate == 0 || channels == 0 || tags.title.is_none() {
+            if let Ok(tagged_file) = lofty::read_from_path(path) {
+                use lofty::file::{AudioFile, TaggedFileExt};
+                let props = tagged_file.properties();
+                if duration <= 0.0 {
+                    let dur_s = props.duration().as_secs_f32();
+                    if dur_s > 0.0 {
+                        duration = dur_s;
+                    }
+                }
+                if sample_rate == 0 {
+                    if let Some(sr) = props.sample_rate() {
+                        sample_rate = sr;
+                    }
+                }
+                if channels == 0 {
+                    if let Some(ch) = props.channels() {
+                        channels = ch as usize;
+                    }
+                }
+                for tag in tagged_file.tags() {
+                    use lofty::tag::Accessor;
+                    if tags.title.is_none() {
+                        tags.title = tag.title().as_deref().map(|s| s.to_string());
+                    }
+                    if tags.artist.is_none() {
+                        tags.artist = tag.artist().as_deref().map(|s| s.to_string());
+                    }
+                    if tags.album.is_none() {
+                        tags.album = tag.album().as_deref().map(|s| s.to_string());
+                    }
+                    if tags.genre.is_none() {
+                        tags.genre = tag.genre().as_deref().map(|s| s.to_string());
+                    }
+                    if tags.year.is_none() {
+                        tags.year = tag.year().map(|y| y as i32);
+                    }
+                    if tags.track_number.is_none() {
+                        tags.track_number = tag.track().map(|t| t as i32);
+                    }
+                    if tags.disc_number.is_none() {
+                        tags.disc_number = tag.disk().map(|d| d as i32);
+                    }
+                }
+            }
+        }
+
+        if format_reader.is_none() && duration <= 0.0 {
             return None;
         }
 
-        let duration =
-            codec_params.n_frames.map(|n| n as f32 / sample_rate.max(1) as f32).unwrap_or(-1.0);
+        if sample_rate == 0 {
+            sample_rate = 44100;
+        }
+        if channels == 0 {
+            channels = 2;
+        }
 
-        let (tags, cover_art) = Self::extract_tags_and_cover_from_probed(&mut probed);
         Some((duration, sample_rate, channels, tags, cover_art))
     }
 
@@ -194,39 +264,23 @@ impl super::LibraryManager {
         })
     }
 
-    pub(crate) fn extract_tags_and_cover_from_probed(
-        probed: &mut symphonia::core::probe::ProbeResult,
+    pub(crate) fn extract_tags_and_cover_from_format_reader(
+        format_reader: &mut dyn symphonia::core::formats::FormatReader,
     ) -> (FileTags, Option<CoverArtData>) {
         let mut tags = FileTags::default();
         let mut cover: Option<CoverArtData> = None;
 
-        if let Some(mut metadata) = probed.metadata.get() {
-            if let Some(rev) = metadata.current() {
-                Self::read_tags_from_revision(rev, &mut tags);
-                if cover.is_none() {
-                    cover = Self::extract_visual_from_revision(rev);
-                }
-            }
-            if let Some(rev) = metadata.skip_to_latest() {
-                Self::read_tags_from_revision(rev, &mut tags);
-                if cover.is_none() {
-                    cover = Self::extract_visual_from_revision(rev);
-                }
+        let mut fmt_meta = format_reader.metadata();
+        if let Some(rev) = fmt_meta.current() {
+            Self::read_tags_from_revision(rev, &mut tags);
+            if cover.is_none() {
+                cover = Self::extract_visual_from_revision(rev);
             }
         }
-        {
-            let mut fmt_meta = probed.format.metadata();
-            if let Some(rev) = fmt_meta.current() {
-                Self::read_tags_from_revision(rev, &mut tags);
-                if cover.is_none() {
-                    cover = Self::extract_visual_from_revision(rev);
-                }
-            }
-            if let Some(rev) = fmt_meta.skip_to_latest() {
-                Self::read_tags_from_revision(rev, &mut tags);
-                if cover.is_none() {
-                    cover = Self::extract_visual_from_revision(rev);
-                }
+        if let Some(rev) = fmt_meta.skip_to_latest() {
+            Self::read_tags_from_revision(rev, &mut tags);
+            if cover.is_none() {
+                cover = Self::extract_visual_from_revision(rev);
             }
         }
         (tags, cover)
@@ -236,49 +290,78 @@ impl super::LibraryManager {
         revision: &symphonia::core::meta::MetadataRevision,
         tags: &mut FileTags,
     ) {
-        use symphonia::core::meta::StandardTagKey;
-        for tag in revision.tags() {
-            if let Some(std_key) = tag.std_key {
-                match std_key {
-                    StandardTagKey::TrackTitle if tags.title.is_none() => {
-                        tags.title = tag_value_to_string(&tag.value);
+        use symphonia::core::meta::StandardTag;
+        for tag in &revision.media.tags {
+            if let Some(std) = &tag.std {
+                match std {
+                    StandardTag::TrackTitle(s) if tags.title.is_none() => {
+                        tags.title = Some(s.to_string());
                     }
-                    StandardTagKey::Artist if tags.artist.is_none() => {
-                        tags.artist = tag_value_to_string(&tag.value);
+                    StandardTag::Artist(s) if tags.artist.is_none() => {
+                        tags.artist = Some(s.to_string());
                     }
-                    StandardTagKey::Album if tags.album.is_none() => {
-                        tags.album = tag_value_to_string(&tag.value);
+                    StandardTag::Album(s) if tags.album.is_none() => {
+                        tags.album = Some(s.to_string());
                     }
-                    StandardTagKey::AlbumArtist if tags.album_artist.is_none() => {
-                        tags.album_artist = tag_value_to_string(&tag.value);
+                    StandardTag::AlbumArtist(s) if tags.album_artist.is_none() => {
+                        tags.album_artist = Some(s.to_string());
                     }
-                    StandardTagKey::Genre if tags.genre.is_none() => {
-                        tags.genre = tag_value_to_string(&tag.value);
+                    StandardTag::Genre(s) if tags.genre.is_none() => {
+                        tags.genre = Some(s.to_string());
                     }
-                    StandardTagKey::Date if tags.year.is_none() => {
-                        tags.year = tag_value_to_year(&tag.value);
+                    StandardTag::ReleaseYear(y) if tags.year.is_none() => {
+                        tags.year = Some(*y as i32);
                     }
-                    StandardTagKey::TrackNumber if tags.track_number.is_none() => {
-                        tags.track_number = tag_value_to_i32(&tag.value);
+                    StandardTag::RecordingYear(y) if tags.year.is_none() => {
+                        tags.year = Some(*y as i32);
                     }
-                    StandardTagKey::DiscNumber if tags.disc_number.is_none() => {
-                        tags.disc_number = tag_value_to_i32(&tag.value);
+                    StandardTag::ReleaseDate(s) if tags.year.is_none() => {
+                        tags.year = s.split('-').next().and_then(|p| p.parse::<i32>().ok());
                     }
-                    StandardTagKey::Lyrics if tags.lyrics.is_none() => {
-                        tags.lyrics = tag_value_to_string(&tag.value);
+                    StandardTag::RecordingDate(s) if tags.year.is_none() => {
+                        tags.year = s.split('-').next().and_then(|p| p.parse::<i32>().ok());
+                    }
+                    StandardTag::TrackNumber(num) if tags.track_number.is_none() => {
+                        tags.track_number = Some(*num as i32);
+                    }
+                    StandardTag::DiscNumber(num) if tags.disc_number.is_none() => {
+                        tags.disc_number = Some(*num as i32);
+                    }
+                    StandardTag::Lyrics(s) if tags.lyrics.is_none() => {
+                        tags.lyrics = Some(s.to_string());
                     }
                     _ => {}
                 }
             }
             if tags.lyrics.is_none() {
-                let k_upper = tag.key.to_uppercase();
+                let k_upper = tag.raw.key.to_uppercase();
                 if k_upper == "LYRICS"
                     || k_upper == "UNSYNCEDLYRICS"
                     || k_upper == "USLT"
                     || k_upper == "SYLT"
                 {
-                    tags.lyrics = tag_value_to_string(&tag.value);
+                    tags.lyrics = raw_value_to_string(&tag.raw.value);
                 }
+            }
+            let k_upper = tag.raw.key.to_uppercase();
+            if tags.title.is_none() && (k_upper == "TITLE" || k_upper == "TIT2") {
+                tags.title = raw_value_to_string(&tag.raw.value);
+            }
+            if tags.artist.is_none() && (k_upper == "ARTIST" || k_upper == "TPE1") {
+                tags.artist = raw_value_to_string(&tag.raw.value);
+            }
+            if tags.album.is_none() && (k_upper == "ALBUM" || k_upper == "TALB") {
+                tags.album = raw_value_to_string(&tag.raw.value);
+            }
+            if tags.year.is_none() && (k_upper == "DATE" || k_upper == "YEAR" || k_upper == "TDRC")
+            {
+                tags.year = raw_value_to_year(&tag.raw.value);
+            }
+            if tags.track_number.is_none() && (k_upper == "TRACKNUMBER" || k_upper == "TRCK") {
+                tags.track_number = raw_value_to_i32(&tag.raw.value);
+            }
+            if tags.disc_number.is_none() && (k_upper == "DISCNUMBER" || k_upper == "TPOS") {
+                tags.disc_number = raw_value_to_i32(&tag.raw.value);
             }
         }
     }
@@ -287,23 +370,24 @@ impl super::LibraryManager {
         path: &Path,
         embedded_lyrics: Option<&str>,
     ) -> (Option<String>, Option<String>) {
-        use lofty::prelude::*;
         let is_synced = |s: &str| s.contains('[') && s.contains(':') && s.contains(']');
 
-        // 1. Check local sidecar .lrc file first
+        // 1. Check local sidecar .lrc file first if it exists
         let lrc_path = path.with_extension("lrc");
-        if let Ok(content) = std::fs::read_to_string(&lrc_path) {
-            let content = content.trim();
-            if !content.is_empty() {
-                if is_synced(content) {
-                    return (Some(content.to_string()), None);
-                } else {
-                    return (None, Some(content.to_string()));
+        if lrc_path.is_file() {
+            if let Ok(content) = std::fs::read_to_string(&lrc_path) {
+                let content = content.trim();
+                if !content.is_empty() {
+                    if is_synced(content) {
+                        return (Some(content.to_string()), None);
+                    } else {
+                        return (None, Some(content.to_string()));
+                    }
                 }
             }
         }
 
-        // 2. Check embedded lyrics from symphonia tags
+        // 2. Check embedded lyrics from tags
         if let Some(content) = embedded_lyrics {
             let content = content.trim();
             if !content.is_empty() {
@@ -311,22 +395,6 @@ impl super::LibraryManager {
                     return (Some(content.to_string()), None);
                 } else {
                     return (None, Some(content.to_string()));
-                }
-            }
-        }
-
-        // 3. Fallback: check lofty tags if embedded symphonia tags missed it
-        if let Ok(tagged_file) = lofty::read_from_path(path) {
-            for tag in tagged_file.tags() {
-                if let Some(content) = tag.get_string(&lofty::tag::ItemKey::Lyrics) {
-                    let content = content.trim();
-                    if !content.is_empty() {
-                        if is_synced(content) {
-                            return (Some(content.to_string()), None);
-                        } else {
-                            return (None, Some(content.to_string()));
-                        }
-                    }
                 }
             }
         }
@@ -339,30 +407,31 @@ impl super::LibraryManager {
     }
 }
 
-pub(crate) fn tag_value_to_string(value: &symphonia::core::meta::Value) -> Option<String> {
+pub(crate) fn raw_value_to_string(value: &symphonia::core::meta::RawValue) -> Option<String> {
     match value {
-        symphonia::core::meta::Value::String(s) => Some(s.clone()),
-        symphonia::core::meta::Value::UnsignedInt(u) => Some(u.to_string()),
-        symphonia::core::meta::Value::SignedInt(i) => Some(i.to_string()),
-        symphonia::core::meta::Value::Float(f) => Some(f.to_string()),
+        symphonia::core::meta::RawValue::String(s) => Some(s.to_string()),
+        symphonia::core::meta::RawValue::StringList(list) => list.first().map(|s| s.to_string()),
+        symphonia::core::meta::RawValue::UnsignedInt(u) => Some(u.to_string()),
+        symphonia::core::meta::RawValue::SignedInt(i) => Some(i.to_string()),
+        symphonia::core::meta::RawValue::Float(f) => Some(f.to_string()),
         _ => None,
     }
 }
 
-pub(crate) fn tag_value_to_i32(value: &symphonia::core::meta::Value) -> Option<i32> {
+pub(crate) fn raw_value_to_i32(value: &symphonia::core::meta::RawValue) -> Option<i32> {
     match value {
-        symphonia::core::meta::Value::SignedInt(i) => i32::try_from(*i).ok(),
-        symphonia::core::meta::Value::UnsignedInt(u) => i32::try_from(*u).ok(),
-        symphonia::core::meta::Value::String(s) => s.parse::<i32>().ok(),
+        symphonia::core::meta::RawValue::SignedInt(i) => i32::try_from(*i).ok(),
+        symphonia::core::meta::RawValue::UnsignedInt(u) => i32::try_from(*u).ok(),
+        symphonia::core::meta::RawValue::String(s) => s.parse::<i32>().ok(),
         _ => None,
     }
 }
 
-pub(crate) fn tag_value_to_year(value: &symphonia::core::meta::Value) -> Option<i32> {
+pub(crate) fn raw_value_to_year(value: &symphonia::core::meta::RawValue) -> Option<i32> {
     match value {
-        symphonia::core::meta::Value::SignedInt(i) => i32::try_from(*i).ok(),
-        symphonia::core::meta::Value::UnsignedInt(u) => i32::try_from(*u).ok(),
-        symphonia::core::meta::Value::String(s) => {
+        symphonia::core::meta::RawValue::SignedInt(i) => i32::try_from(*i).ok(),
+        symphonia::core::meta::RawValue::UnsignedInt(u) => i32::try_from(*u).ok(),
+        symphonia::core::meta::RawValue::String(s) => {
             if let Ok(y) = s.parse::<i32>() {
                 return Some(y);
             }

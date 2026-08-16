@@ -12,6 +12,7 @@
 #include <QDir>
 #include <QStandardPaths>
 #include <QFile>
+#include <QProcess>
 
 #include "appsettings.h"
 
@@ -57,16 +58,18 @@ namespace {
 
     QIcon createMultiSizeAppIcon() {
         QIcon icon;
-        // Load the source pixmap from resources.
-        QPixmap base(":/resources/icons/playtune_logo.png");
+        // Load the source pixmap from resources (logo.png).
+        QPixmap base(":/resources/icons/logo.png");
         if (base.isNull()) {
-            // Fallback: try loading directly as icon.
-            return QIcon(":/resources/icons/playtune_logo.png");
+            base.load(":/resources/icons/playtune_logo.png");
         }
-        // Add the native-size pixmap first (usually 512x512).
+        if (base.isNull()) {
+            return QIcon(":/resources/icons/logo.png");
+        }
+        // Add the native-size pixmap first (500x500).
         icon.addPixmap(base);
-        // Also add common taskbar sizes so the WM never needs to scale.
-        static const int sizes[] = {16, 22, 24, 32, 48, 64, 128, 256};
+        // Also add common taskbar / window manager sizes.
+        static const int sizes[] = {16, 22, 24, 32, 48, 64, 128, 256, 512};
         for (int s : sizes) {
             if (s != base.width()) {
                 icon.addPixmap(base.scaled(s, s, Qt::KeepAspectRatio, Qt::SmoothTransformation));
@@ -77,36 +80,56 @@ namespace {
 
 #if defined(__linux__) || defined(__unix__) || defined(__FreeBSD__)
     void ensure_linux_desktop_icon() {
-        QString iconDir = QStandardPaths::writableLocation(QStandardPaths::GenericDataLocation) + "/icons/hicolor/256x256/apps";
-        QDir().mkpath(iconDir);
-        QString iconPath = iconDir + "/playtune.png";
-        if (!QFile::exists(iconPath)) {
-            QPixmap pm(":/resources/icons/playtune_logo.png");
-            if (!pm.isNull()) {
-                pm.scaled(256, 256, Qt::KeepAspectRatio, Qt::SmoothTransformation).save(iconPath, "PNG");
+        QPixmap pm(":/resources/icons/logo.png");
+        if (pm.isNull()) {
+            pm.load(":/resources/icons/playtune_logo.png");
+        }
+        if (!pm.isNull()) {
+            QString dataLoc = QStandardPaths::writableLocation(QStandardPaths::GenericDataLocation);
+            // 1. Install all standard icon resolutions for hicolor theme
+            static const int sizes[] = {16, 22, 24, 32, 48, 64, 128, 256, 512};
+            for (int s : sizes) {
+                QString dir = QString("%1/icons/hicolor/%2x%2/apps").arg(dataLoc).arg(s);
+                QDir().mkpath(dir);
+                QPixmap scaled = pm.scaled(s, s, Qt::KeepAspectRatio, Qt::SmoothTransformation);
+                scaled.save(dir + "/playtune.png", "PNG");
+                scaled.save(dir + "/PlayTune.png", "PNG");
             }
+            // 2. Also install to ~/.local/share/pixmaps
+            QString pixmapsDir = dataLoc + "/pixmaps";
+            QDir().mkpath(pixmapsDir);
+            pm.scaled(256, 256, Qt::KeepAspectRatio, Qt::SmoothTransformation).save(pixmapsDir + "/playtune.png", "PNG");
+            pm.scaled(256, 256, Qt::KeepAspectRatio, Qt::SmoothTransformation).save(pixmapsDir + "/PlayTune.png", "PNG");
         }
 
         QString appDir = QStandardPaths::writableLocation(QStandardPaths::ApplicationsLocation);
         QDir().mkpath(appDir);
-        QString desktopPath = appDir + "/playtune.desktop";
-        if (!QFile::exists(desktopPath)) {
+        QString execPath = QCoreApplication::applicationFilePath();
+        QString desktopContent = QString(
+            "[Desktop Entry]\n"
+            "Name=PlayTune\n"
+            "GenericName=Music Player\n"
+            "Comment=Audiophile Fidelity Music Player\n"
+            "Exec=%1 %U\n"
+            "Icon=playtune\n"
+            "Terminal=false\n"
+            "Type=Application\n"
+            "Categories=AudioVideo;Audio;Player;Qt;\n"
+            "Keywords=Music;Player;Audio;DSP;Audiophile;\n"
+            "StartupWMClass=playtune\n"
+            "StartupNotify=true\n"
+        ).arg(execPath);
+
+        for (const QString& fname : {QStringLiteral("playtune.desktop"), QStringLiteral("PlayTune.desktop")}) {
+            QString desktopPath = appDir + "/" + fname;
             QFile f(desktopPath);
-            if (f.open(QIODevice::WriteOnly | QIODevice::Text)) {
-                QString content =
-                    "[Desktop Entry]\n"
-                    "Name=PlayTune\n"
-                    "Comment=Audiophile Fidelity Music Player\n"
-                    "Exec=" + QCoreApplication::applicationFilePath() + "\n"
-                    "Icon=playtune\n"
-                    "Terminal=false\n"
-                    "Type=Application\n"
-                    "Categories=AudioVideo;Audio;Player;Qt;\n"
-                    "StartupWMClass=playtune\n";
-                f.write(content.toUtf8());
+            if (f.open(QIODevice::WriteOnly | QIODevice::Text | QIODevice::Truncate)) {
+                f.write(desktopContent.toUtf8());
                 f.close();
             }
         }
+
+        QProcess::startDetached(QStringLiteral("update-desktop-database"), {appDir});
     }
 #endif
 }

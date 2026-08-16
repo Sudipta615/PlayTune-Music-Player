@@ -261,9 +261,29 @@ def main():
         draw_icon(name, fn)
     
     # Copy app logo from repo assets folder if present
-    logo_src = os.path.abspath(os.path.join(_SCRIPT_DIR, "..", "..", "assets", "playtune_logo.png"))
+    assets_dir = os.path.abspath(os.path.join(_SCRIPT_DIR, "..", "..", "assets"))
+    logo_src = os.path.join(assets_dir, "logo.png")
+    if not os.path.exists(logo_src):
+        logo_src = os.path.join(assets_dir, "playtune_logo.png")
+
     if os.path.exists(logo_src):
+        shutil.copy(logo_src, os.path.join(_ICONS_DIR, "logo.png"))
         shutil.copy(logo_src, os.path.join(_ICONS_DIR, "playtune_logo.png"))
+        
+        # Generate multi-resolution logo.ico for Windows executable embedding
+        try:
+            logo_img = Image.open(logo_src).convert("RGBA")
+            ico_path = os.path.join(assets_dir, "logo.ico")
+            logo_img.save(ico_path, format="ICO", sizes=[(16, 16), (24, 24), (32, 32), (48, 48), (64, 64), (128, 128), (256, 256)])
+            print(f"Generated {ico_path}")
+        except Exception as e:
+            print(f"Warning: Failed to generate logo.ico: {e}")
+
+    # Copy placeholder cover artwork from PlayTune.png
+    cover_src = os.path.join(assets_dir, "PlayTune.png")
+    if os.path.exists(cover_src):
+        shutil.copy(cover_src, os.path.join(_IMAGES_DIR, "placeholder_cover.png"))
+        print(f"Copied {cover_src} to placeholder_cover.png")
         
     print("Successfully generated all assets.")
 

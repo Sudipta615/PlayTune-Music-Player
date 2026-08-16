@@ -10,11 +10,11 @@
 #include <QFileInfo>
 
 void MainWindow::setupSystemTray() {
-    QSettings s;
+    QSettings s("PlayTune", "Settings");
     m_trayEnabled = s.value("tray_enabled", false).toBool();
     m_minimizeToTray = s.value("minimize_to_tray", false).toBool();
 
-    m_trayIcon = new QSystemTrayIcon(QIcon(":/resources/icons/playtune_logo.png"), this);
+    m_trayIcon = new QSystemTrayIcon(QIcon(":/resources/icons/logo.png"), this);
     m_trayIcon->setToolTip("PlayTune");
 
     m_trayMenu = new QMenu(this);

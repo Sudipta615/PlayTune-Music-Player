@@ -57,33 +57,7 @@ void FoldersViewWidget::setupUi() {
     m_table->horizontalHeader()->setSectionResizeMode(1, QHeaderView::Fixed);
     m_table->setColumnWidth(1, 120);
 
-    auto applyTheme = [this, page0Card, titleLabel](const ThemePalette& p) {
-        if (page0Card) {
-            page0Card->setStyleSheet(QString(
-                "QFrame#FoldersCard {"
-                "   background-color: %1;"
-                "   border: 1px solid %2;"
-                "   border-radius: 16px;"
-                "}"
-            ).arg(p.cardBg.name(), p.cardBorder.name()));
-        }
-        if (titleLabel) {
-            titleLabel->setStyleSheet(QString("font-size: 20px; font-weight: bold; color: %1;").arg(p.primaryText.name()));
-        }
-        if (m_table) {
-            m_table->setStyleSheet(QString(
-                "QTableWidget { background-color: transparent; color: %1; font-size: 14px; border: none; outline: none; }"
-                "QHeaderView::section { background-color: transparent; color: %2; font-size: 11px; font-weight: bold; padding: 8px 12px; border: none; border-bottom: 1px solid %3; }"
-                "QTableWidget::item { border-bottom: 1px solid %3; padding-left: 8px; padding-right: 8px; outline: none; }"
-                "QTableWidget::item:selected { background-color: %4; color: %5; border-radius: 8px; outline: none; }"
-                "QTableWidget::item:hover { background-color: %6; border-radius: 8px; outline: none; }"
-            ).arg(p.primaryText.name(), p.mutedText.name(), p.cardBorder.name(), p.itemSelectedBg.name(), p.secondaryAccent.name(), p.itemHoverBg.name()));
-        }
-    };
-    applyTheme(ThemeManager::instance().currentTheme());
-    connect(&ThemeManager::instance(), &ThemeManager::themeChanged, this, [applyTheme](const ThemePalette& p) {
-        applyTheme(p);
-    });
+    titleLabel->setObjectName("ViewTitleLabel");
 
     page0Layout->addWidget(m_table);
     m_stackedWidget->addWidget(page0Card); // index 0

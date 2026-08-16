@@ -732,10 +732,10 @@ impl AudioEngine {
     pub fn is_resampler_disabled(&self) -> bool {
         match &self.stream {
             Some(PlaybackStream::Single { resampler, .. }) => {
-                resampler.as_ref().map_or(true, |r| r.is_disabled())
+                resampler.as_ref().is_none_or(|r| r.is_disabled())
             }
             Some(PlaybackStream::Transitioning { incoming_resampler, .. }) => {
-                incoming_resampler.as_ref().map_or(true, |r| r.is_disabled())
+                incoming_resampler.as_ref().is_none_or(|r| r.is_disabled())
             }
             None => false,
         }
