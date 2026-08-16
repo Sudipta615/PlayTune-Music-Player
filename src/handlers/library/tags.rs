@@ -98,25 +98,8 @@ pub extern "C" fn playtune_update_track_tags(
                 log::info!("Successfully updated tags for track ID {}", updated_track.id);
                 invalidate_cover_cache(&updated_track.path);
                 invalidate_all_views();
-                let cover_path = {
-                    use std::collections::hash_map::DefaultHasher;
-                    use std::hash::{Hash, Hasher};
-                    let mut hasher = DefaultHasher::new();
-                    updated_track.path.hash(&mut hasher);
-                    let hash_id = hasher.finish();
-                    let base =
-                        dirs::data_local_dir().unwrap_or_else(|| std::path::PathBuf::from("."));
-                    let covers_dir = base.join("playtune").join("covers");
-                    let jpg = covers_dir.join(format!("{}.jpg", hash_id));
-                    let png = covers_dir.join(format!("{}.png", hash_id));
-                    if jpg.exists() {
-                        jpg.to_string_lossy().to_string()
-                    } else if png.exists() {
-                        png.to_string_lossy().to_string()
-                    } else {
-                        crate::app_state::cached_cover_path(&updated_track.path).unwrap_or_default()
-                    }
-                };
+                let cover_path =
+                    crate::app_state::cached_cover_path(&updated_track.path).unwrap_or_default();
 
                 bridge::update_track_metadata(
                     updated_track.id as i32,

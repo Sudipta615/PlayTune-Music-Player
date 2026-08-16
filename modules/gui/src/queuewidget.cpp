@@ -824,11 +824,10 @@ void QueueWidget::reorderQueueRow(int fromRow, int toRow) {
 
     m_queueTable->setCellWidget(toRow, 1, detailsContainer);
 
-    // Re-index all rows (1, 2, 3...) and keep UserRole aligned with row index
+    // Re-index all row number labels (1, 2, 3...)
     for (int r = 0; r < m_queueTable->rowCount(); ++r) {
         if (auto* it = m_queueTable->item(r, 0)) {
             it->setText(QString::number(r + 1));
-            it->setData(Qt::UserRole, r);
         }
     }
 

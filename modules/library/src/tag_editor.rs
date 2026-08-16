@@ -349,25 +349,7 @@ pub fn get_track_tags(db: &Database, track_id: i64) -> Result<TagEditRequest, Li
         }
     }
 
-    let cover_path = match dirs::cache_dir() {
-        Some(mut p) => {
-            p.push("playtune");
-            p.push("covers");
-            let jpg = p.join(format!("{}.jpg", track.id));
-            let png = p.join(format!("{}.png", track.id));
-            let webp = p.join(format!("{}.webp", track.id));
-            if jpg.exists() {
-                Some(jpg.to_string_lossy().to_string())
-            } else if png.exists() {
-                Some(png.to_string_lossy().to_string())
-            } else if webp.exists() {
-                Some(webp.to_string_lossy().to_string())
-            } else {
-                None
-            }
-        }
-        None => None,
-    };
+    let cover_path = engine::extract_cover_art_to_cache(path);
 
     Ok(TagEditRequest {
         track_id,

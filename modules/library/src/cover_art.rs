@@ -81,7 +81,7 @@ impl LibraryManager {
                         (data.to_vec(), w as i32, h as i32)
                     } else {
                         let new_bytes = buf.into_inner();
-                        (new_bytes, MAX_COVER_SIDE as i32, MAX_COVER_SIDE as i32)
+                        (new_bytes, scaled.width() as i32, scaled.height() as i32)
                     }
                 } else {
                     (data.to_vec(), w as i32, h as i32)

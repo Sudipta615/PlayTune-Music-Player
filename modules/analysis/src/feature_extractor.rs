@@ -397,20 +397,27 @@ impl AudioFeatureExtractor {
 
             for t in 0..n_f {
                 for b in 0..num_bins {
-                    // Harmonic: median along time axis
+                    // Harmonic: median along time axis (stack-allocated window up to 5)
                     let t_start = t.saturating_sub(2);
                     let t_end = (t + 3).min(n_f);
-                    let mut time_vals: Vec<f32> =
-                        (t_start..t_end).map(|i| mag_frames[i][b]).collect();
-                    time_vals.sort_by(|x, y| x.partial_cmp(y).unwrap_or(std::cmp::Ordering::Equal));
-                    let h_val = time_vals[time_vals.len() / 2];
+                    let mut time_buf = [0.0f32; 5];
+                    let time_len = t_end - t_start;
+                    for (idx, i) in (t_start..t_end).enumerate() {
+                        time_buf[idx] = mag_frames[i][b];
+                    }
+                    let time_slice = &mut time_buf[..time_len];
+                    time_slice.sort_by(|x, y| x.partial_cmp(y).unwrap_or(std::cmp::Ordering::Equal));
+                    let h_val = time_slice[time_len / 2];
 
-                    // Percussive: median along frequency axis
+                    // Percussive: median along frequency axis (stack-allocated window up to 5)
                     let b_start = b.saturating_sub(2);
                     let b_end = (b + 3).min(num_bins);
-                    let mut freq_vals: Vec<f32> = mag_frames[t][b_start..b_end].to_vec();
-                    freq_vals.sort_by(|x, y| x.partial_cmp(y).unwrap_or(std::cmp::Ordering::Equal));
-                    let p_val = freq_vals[freq_vals.len() / 2];
+                    let mut freq_buf = [0.0f32; 5];
+                    let freq_len = b_end - b_start;
+                    freq_buf[..freq_len].copy_from_slice(&mag_frames[t][b_start..b_end]);
+                    let freq_slice = &mut freq_buf[..freq_len];
+                    freq_slice.sort_by(|x, y| x.partial_cmp(y).unwrap_or(std::cmp::Ordering::Equal));
+                    let p_val = freq_slice[freq_len / 2];
 
                     harmonic_energy += h_val;
                     percussive_energy += p_val;

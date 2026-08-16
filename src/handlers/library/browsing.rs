@@ -85,16 +85,20 @@ pub extern "C" fn rust_filter_artist(artist_id: std::ffi::c_int) {
     });
 }
 
-pub extern "C" fn rust_set_rating(track_id: std::ffi::c_int, _rating: std::ffi::c_int) {
+pub extern "C" fn rust_set_rating(track_id: std::ffi::c_int, rating: std::ffi::c_int) {
     ffi_safe!({
         let Some(db) = GLOBAL_DB.get() else { return };
-        let current_rating =
-            db.get_track(track_id as i64).ok().flatten().map(|t| t.rating).unwrap_or(0);
-        let new_rating = if current_rating == -1 { 0 } else { -1 };
-        if let Err(e) = db.set_track_rating(track_id as i64, new_rating) {
-            log::error!("Failed to toggle dislike for track {}: {}", track_id, e);
+        let new_rating = if rating == -999 {
+            let current_rating =
+                db.get_track(track_id as i64).ok().flatten().map(|t| t.rating).unwrap_or(0);
+            if current_rating == -1 { 0 } else { -1 }
         } else {
-            log::info!("Track {} dislike toggled: {} → {}", track_id, current_rating, new_rating);
+            rating.clamp(-1, 5)
+        };
+        if let Err(e) = db.set_track_rating(track_id as i64, new_rating) {
+            log::error!("Failed to set rating for track {}: {}", track_id, e);
+        } else {
+            log::info!("Track {} rating updated to {}", track_id, new_rating);
             bridge::set_rating_for_row(track_id, new_rating);
         }
     });

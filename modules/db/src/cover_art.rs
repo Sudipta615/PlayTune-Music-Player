@@ -50,16 +50,15 @@ impl PlayTuneDb {
         mime_type: &str,
     ) -> Result<i64, DbError> {
         let conn = self.conn.lock();
-        conn.execute(
+        let rows_affected = conn.execute(
             "INSERT INTO cover_art (album_id, track_id, folder_id, data, data_hash, width, height, mime_type)
              VALUES (?, ?, ?, ?, ?, ?, ?, ?)
              ON CONFLICT(data_hash) DO NOTHING",
             params![album_id, track_id, folder_id, data, data_hash, width, height, mime_type],
         )?;
-        let last_id = conn.last_insert_rowid();
-        if last_id > 0 {
+        if rows_affected > 0 {
             // Fresh insert — return the new row id.
-            return Ok(last_id);
+            return Ok(conn.last_insert_rowid());
         }
         // CONFLICT path: the row already exists. Look it up by data_hash
         // so the caller can associate the existing cover with the current

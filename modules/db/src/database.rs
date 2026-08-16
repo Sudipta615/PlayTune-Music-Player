@@ -423,4 +423,70 @@ mod tests {
         let sad_tracks = db.get_tracks_by_mood("sad", 0.70).unwrap();
         assert_eq!(sad_tracks.len(), 0);
     }
+
+    #[test]
+    fn test_cover_art_conflict_handling() {
+        let db = PlayTuneDb::open_in_memory().unwrap();
+        let dummy_data = b"dummy-cover-bytes";
+        let hash = "hash12345";
+
+        let first_id = db
+            .insert_cover_art(None, None, None, Some(dummy_data), Some(hash), 500, 500, "image/jpeg")
+            .unwrap();
+        assert!(first_id > 0);
+
+        // Second insert with the exact same data_hash triggers ON CONFLICT
+        let second_id = db
+            .insert_cover_art(None, None, None, Some(dummy_data), Some(hash), 500, 500, "image/jpeg")
+            .unwrap();
+        // Must return the existing row ID, NOT a stale last_insert_rowid
+        assert_eq!(second_id, first_id);
+    }
+
+    #[test]
+    fn test_disliked_rating_query() {
+        let db = PlayTuneDb::open_in_memory().unwrap();
+        let track_id = db
+            .add_or_update_track(
+                "/music/bad_song.mp3",
+                "Disliked Track",
+                "Artist Z",
+                "Album Z",
+                180.0,
+                "3:00",
+                None,
+                0,
+            )
+            .unwrap();
+
+        db.set_track_rating(track_id, -1).unwrap();
+
+        let disliked = db.get_tracks_by_rating(-1, 10).unwrap();
+        assert_eq!(disliked.len(), 1);
+        assert_eq!(disliked[0].id, track_id);
+        assert_eq!(disliked[0].rating, -1);
+    }
+
+    #[test]
+    fn test_mood_scores_min_score_threshold() {
+        let scores_low = crate::models::TrackMoodScores {
+            track_id: 1,
+            happy: 0.20,
+            sad: 0.15,
+            calm: 0.10,
+            energetic: 0.25,
+            romantic: 0.05,
+            party: 0.12,
+            lofi: 0.01,
+        };
+
+        // When min_score = 0.50, no mood meets the threshold -> must return None
+        assert_eq!(scores_low.top_mood(0.50), None);
+
+        // When min_score = 0.20, "Energetic" (0.25) meets the threshold
+        assert_eq!(
+            scores_low.top_mood(0.20),
+            Some(("Energetic".to_string(), 0.25))
+        );
+    }
 }

@@ -125,7 +125,7 @@ pub fn scan_album_loudness(
 
     let mut track_results = Vec::with_capacity(tracks.len());
     let mut max_peak = 0.0f32;
-    let mut weighted_loudness_sum = 0.0f64;
+    let mut weighted_energy_sum = 0.0f64;
     let mut total_duration_secs = 0.0f64;
 
     for (track_id, path, title) in tracks {
@@ -133,25 +133,34 @@ pub fn scan_album_loudness(
         if result.peak > max_peak {
             max_peak = result.peak;
         }
-        // Approximate the track's duration from the LUFS measurement's
-        // internal block count. LoudnessNormalizer doesn't expose the
-        // duration directly, but we can recompute it from the file via
-        // SymphoniaDecoder if needed. To keep this function lightweight,
-        // we use the LUFS itself as a proxy for the block count: longer
-        // tracks have more blocks and contribute more to the album
-        // average. We fetch the actual duration via a quick probe below.
         let duration_secs = track_duration_seconds(path).unwrap_or(0.0);
-        weighted_loudness_sum += (result.lufs as f64) * duration_secs;
-        total_duration_secs += duration_secs;
+        let linear_energy = 10.0_f64.powf(result.lufs as f64 / 10.0);
+        if duration_secs > 0.0 {
+            weighted_energy_sum += linear_energy * duration_secs;
+            total_duration_secs += duration_secs;
+        }
         track_results.push(result);
     }
 
     let album_lufs = if total_duration_secs > 0.0 {
-        (weighted_loudness_sum / total_duration_secs) as f32
+        let avg_energy = weighted_energy_sum / total_duration_secs;
+        if avg_energy > 1e-10 {
+            (10.0 * avg_energy.log10()) as f32
+        } else {
+            -70.0f32
+        }
     } else {
-        // Fallback: simple mean of track LUFS values.
-        let sum: f32 = track_results.iter().map(|r| r.lufs).sum();
-        sum / track_results.len() as f32
+        // Fallback: mean of linear acoustic powers across tracks
+        let avg_energy: f64 = track_results
+            .iter()
+            .map(|r| 10.0_f64.powf(r.lufs as f64 / 10.0))
+            .sum::<f64>()
+            / track_results.len() as f64;
+        if avg_energy > 1e-10 {
+            (10.0 * avg_energy.log10()) as f32
+        } else {
+            -70.0f32
+        }
     };
     let album_rg_gain_db = -18.0 - album_lufs;
     let album_r128_gain_db = -23.0 - album_lufs;

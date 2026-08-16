@@ -272,8 +272,26 @@ void SongsTableWidget::populateAddToPlaylistMenu(QMenu* menu, int songId) {
 }
 
 void SongsTableWidget::setRatingForRow(int songId, int rating) {
-    Q_UNUSED(songId);
-    Q_UNUSED(rating);
+    auto it = m_songIdToRow.find(songId);
+    if (it != m_songIdToRow.end()) {
+        int row = it.value();
+        if (row >= 0 && row < m_table->rowCount()) {
+            if (auto* item = m_table->item(row, 0)) {
+                item->setData(Qt::UserRole + 1, rating);
+            }
+            if (auto* favContainer = m_table->cellWidget(row, 6)) {
+                if (auto* favBtn = favContainer->findChild<QPushButton*>("FavBtn")) {
+                    bool isFav = (rating > 0);
+                    favBtn->setText(isFav ? "♥" : "♡");
+                    favBtn->setProperty("favorite", isFav);
+                    favBtn->style()->unpolish(favBtn);
+                    favBtn->style()->polish(favBtn);
+                    favBtn->setToolTip(isFav ? "Remove from Favorites" : "Add to Favorites");
+                }
+            }
+            refreshSingleRowStyle(row);
+        }
+    }
 }
 
 void SongsTableWidget::scrollToActive() {

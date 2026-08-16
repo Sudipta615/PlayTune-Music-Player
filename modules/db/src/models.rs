@@ -133,7 +133,7 @@ pub struct TrackMoodScores {
 
 impl TrackMoodScores {
     /// Return the highest-scoring mood name and its score if it exceeds `min_score`.
-    /// Falls back to argmax if all scores are below `min_score`.
+    /// Returns `None` if all scores are below `min_score`.
     pub fn top_mood(&self, min_score: f32) -> Option<(String, f32)> {
         let moods = [
             ("Energetic", self.energetic),
@@ -161,11 +161,6 @@ impl TrackMoodScores {
             }
         }
 
-        best.or_else(|| {
-            moods
-                .into_iter()
-                .max_by(|a, b| a.1.partial_cmp(&b.1).unwrap_or(std::cmp::Ordering::Equal))
-        })
-        .map(|(name, score)| (name.to_string(), score))
+        best.map(|(name, score)| (name.to_string(), score))
     }
 }

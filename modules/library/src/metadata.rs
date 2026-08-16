@@ -370,7 +370,24 @@ impl super::LibraryManager {
         path: &Path,
         embedded_lyrics: Option<&str>,
     ) -> (Option<String>, Option<String>) {
-        let is_synced = |s: &str| s.contains('[') && s.contains(':') && s.contains(']');
+        let is_synced = |s: &str| {
+            s.lines().any(|line| {
+                let trimmed = line.trim();
+                if let Some(open) = trimmed.find('[') {
+                    if let Some(close) = trimmed[open..].find(']') {
+                        let tag = &trimmed[open + 1..open + close];
+                        if let Some(colon) = tag.find(':') {
+                            let (min_str, sec_str) = tag.split_at(colon);
+                            let sec_str = &sec_str[1..];
+                            let min_ok = !min_str.is_empty() && min_str.chars().all(|c| c.is_ascii_digit());
+                            let sec_ok = !sec_str.is_empty() && sec_str.chars().any(|c| c.is_ascii_digit());
+                            return min_ok && sec_ok;
+                        }
+                    }
+                }
+                false
+            })
+        };
 
         // 1. Check local sidecar .lrc file first if it exists
         let lrc_path = path.with_extension("lrc");

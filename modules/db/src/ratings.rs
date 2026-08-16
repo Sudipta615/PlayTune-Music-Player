@@ -16,14 +16,14 @@ impl PlayTuneDb {
         Ok(clamped)
     }
 
-    /// Return all tracks with a specific rating (1..=5). Pass `0` to fetch
-    /// unrated tracks. Used by autoplaylists.
+    /// Return all tracks with a specific rating (-1..=5). Pass `-1` for disliked tracks,
+    /// `0` for unrated tracks, and `1..=5` for rated tracks. Used by autoplaylists.
     pub fn get_tracks_by_rating(
         &self,
         rating: i32,
         limit: usize,
     ) -> Result<Vec<TrackRecord>, DbError> {
-        let clamped = rating.clamp(0, 5);
+        let clamped = rating.clamp(-1, 5);
         self.query_tracks(
             &format!(
                 "SELECT {} FROM tracks WHERE rating = ? ORDER BY play_count DESC, title ASC LIMIT ?",

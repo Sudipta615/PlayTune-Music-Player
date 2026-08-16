@@ -42,6 +42,36 @@ All developers and contributors **MUST** follow the standard 3-way (`x.y.z`) Sem
 
 ## 🗓️ Version History
 
+### [2.3.1] — 2026-08-16 — Comprehensive Codebase Audit, FFI Safety Hardening, Mathematical Corrections & Memory Optimizations
+
+#### Summary
+Completed a rigorous file-by-file audit of the entire PlayTune codebase covering core DSP, library scanning, database operations, FFI bridge safety, and Qt GUI interactions. Fixed SQLite `ON CONFLICT` row ID corruption on duplicate album art, restored `panic = "unwind"` in release profiles to protect C-ABI FFI boundaries, corrected logarithmic power summation for EBU R128 / ReplayGain album loudness scans, eliminated ~1.33 million heap allocations in mood feature extraction, resolved Up Next queue drag-and-drop song selection corruption, and enhanced synchronized LRC lyric detection.
+
+#### Fixed & Hardened
+- **SQLite Conflict RowID Protection (`modules/db/src/cover_art.rs`)**:
+  - Replaced ambiguous `conn.last_insert_rowid() > 0` check with `conn.changes() > 0` on `INSERT ... ON CONFLICT(data_hash) DO NOTHING`.
+  - Guaranteed that duplicate album art conflict paths look up and return the valid existing cover row ID rather than returning an unrelated previous rowid on that connection.
+- **FFI Boundary & Unwind Safety (`Cargo.toml`)**:
+  - Set `panic = "unwind"` across `[profile.release]` and `[profile.dist]`, ensuring `ffi_safe!` and `catch_unwind` guards across all C-ABI exported entrypoints (`playtune_write_loudness_results`, `playtune_update_track_tags`, `playtune_get_track_tags`, `playtune_get_track_lyrics`) catch panics safely and prevent unexpected process aborts in release builds.
+- **Logarithmic Acoustic Energy Summation (`modules/library/src/loudness_scanner.rs`)**:
+  - Corrected `scan_album_loudness()` to accumulate linear acoustic energy ($10^{\text{LUFS}/10}$) rather than performing linear arithmetic averages of logarithmic decibel values, adhering strictly to ITU-R BS.1770 / EBU R128 loudness standards.
+- **Mood Feature Extraction Zero-Allocation Optimization (`modules/analysis/src/feature_extractor.rs`)**:
+  - Replaced dynamic heap `Vec::with_capacity(5)` in the 666,880-iteration Harmonic vs. Percussive Ratio (HPR) loop with stack-allocated fixed arrays (`[f32; 5]`), eliminating ~1.33 million allocations per 30-second audio track.
+- **Up Next Queue Drag-and-Drop ID Preservation (`modules/gui/src/queuewidget.cpp`)**:
+  - Removed visual row re-indexing overwrite of `Qt::UserRole` in `QueueWidget::reorderQueueRow()`, preserving true database track IDs and fixing playback track mismatch upon clicking reordered queue items.
+- **Accurate Synced LRC Lyric Detection (`modules/library/src/metadata.rs`)**:
+  - Upgraded `extract_lyrics_for_track()` to validate standard timestamp patterns (`\[\d{1,2}:\d{2}`) rather than checking loose bracket characters, preventing plain text lyrics with annotations from being misidentified as synced LRC.
+- **Disliked Track Queries & Rating UI Updates (`modules/db/src/ratings.rs`, `src/handlers/library/browsing.rs`, `modules/gui/src/songstable_actions.cpp`)**:
+  - Expanded `get_tracks_by_rating()` clamping to `-1..=5` to allow querying disliked songs (`rating = -1`).
+  - Implemented `SongsTableWidget::setRatingForRow()` to update table row state and favorite button indicators live.
+- **Cover Art Dimensions & Unified Cache Access (`modules/library/src/cover_art.rs`, `modules/library/src/tag_editor.rs`, `src/handlers/library/tags.rs`)**:
+  - Returned true resized image width and height for non-square covers instead of hardcoded 500×500.
+  - Unified cover path resolution in `tag_editor` and `tags.rs` to use `engine::extract_cover_art_to_cache()` directly.
+- **Mood Confidence Threshold Enforcement (`modules/db/src/models.rs`)**:
+  - Removed unconditional `.or_else()` fallback in `TrackMoodScores::top_mood()`, ensuring `min_score` filtering is strictly honored.
+
+---
+
 ### [2.3.0] — 2026-08-16 — Streamlined Dark & Light Theming, Cursor-Follows-Playback System & Visual UI Polish
 
 #### Summary
