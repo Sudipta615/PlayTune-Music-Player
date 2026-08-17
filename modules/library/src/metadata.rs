@@ -379,8 +379,10 @@ impl super::LibraryManager {
                         if let Some(colon) = tag.find(':') {
                             let (min_str, sec_str) = tag.split_at(colon);
                             let sec_str = &sec_str[1..];
-                            let min_ok = !min_str.is_empty() && min_str.chars().all(|c| c.is_ascii_digit());
-                            let sec_ok = !sec_str.is_empty() && sec_str.chars().any(|c| c.is_ascii_digit());
+                            let min_ok =
+                                !min_str.is_empty() && min_str.chars().all(|c| c.is_ascii_digit());
+                            let sec_ok =
+                                !sec_str.is_empty() && sec_str.chars().any(|c| c.is_ascii_digit());
                             return min_ok && sec_ok;
                         }
                     }

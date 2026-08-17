@@ -431,13 +431,31 @@ mod tests {
         let hash = "hash12345";
 
         let first_id = db
-            .insert_cover_art(None, None, None, Some(dummy_data), Some(hash), 500, 500, "image/jpeg")
+            .insert_cover_art(
+                None,
+                None,
+                None,
+                Some(dummy_data),
+                Some(hash),
+                500,
+                500,
+                "image/jpeg",
+            )
             .unwrap();
         assert!(first_id > 0);
 
         // Second insert with the exact same data_hash triggers ON CONFLICT
         let second_id = db
-            .insert_cover_art(None, None, None, Some(dummy_data), Some(hash), 500, 500, "image/jpeg")
+            .insert_cover_art(
+                None,
+                None,
+                None,
+                Some(dummy_data),
+                Some(hash),
+                500,
+                500,
+                "image/jpeg",
+            )
             .unwrap();
         // Must return the existing row ID, NOT a stale last_insert_rowid
         assert_eq!(second_id, first_id);
@@ -484,9 +502,6 @@ mod tests {
         assert_eq!(scores_low.top_mood(0.50), None);
 
         // When min_score = 0.20, "Energetic" (0.25) meets the threshold
-        assert_eq!(
-            scores_low.top_mood(0.20),
-            Some(("Energetic".to_string(), 0.25))
-        );
+        assert_eq!(scores_low.top_mood(0.20), Some(("Energetic".to_string(), 0.25)));
     }
 }

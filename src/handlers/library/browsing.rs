@@ -91,7 +91,11 @@ pub extern "C" fn rust_set_rating(track_id: std::ffi::c_int, rating: std::ffi::c
         let new_rating = if rating == -999 {
             let current_rating =
                 db.get_track(track_id as i64).ok().flatten().map(|t| t.rating).unwrap_or(0);
-            if current_rating == -1 { 0 } else { -1 }
+            if current_rating == -1 {
+                0
+            } else {
+                -1
+            }
         } else {
             rating.clamp(-1, 5)
         };

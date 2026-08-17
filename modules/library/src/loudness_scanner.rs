@@ -151,11 +151,9 @@ pub fn scan_album_loudness(
         }
     } else {
         // Fallback: mean of linear acoustic powers across tracks
-        let avg_energy: f64 = track_results
-            .iter()
-            .map(|r| 10.0_f64.powf(r.lufs as f64 / 10.0))
-            .sum::<f64>()
-            / track_results.len() as f64;
+        let avg_energy: f64 =
+            track_results.iter().map(|r| 10.0_f64.powf(r.lufs as f64 / 10.0)).sum::<f64>()
+                / track_results.len() as f64;
         if avg_energy > 1e-10 {
             (10.0 * avg_energy.log10()) as f32
         } else {

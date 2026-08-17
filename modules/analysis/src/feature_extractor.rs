@@ -406,7 +406,8 @@ impl AudioFeatureExtractor {
                         time_buf[idx] = mag_frames[i][b];
                     }
                     let time_slice = &mut time_buf[..time_len];
-                    time_slice.sort_by(|x, y| x.partial_cmp(y).unwrap_or(std::cmp::Ordering::Equal));
+                    time_slice
+                        .sort_by(|x, y| x.partial_cmp(y).unwrap_or(std::cmp::Ordering::Equal));
                     let h_val = time_slice[time_len / 2];
 
                     // Percussive: median along frequency axis (stack-allocated window up to 5)
@@ -416,7 +417,8 @@ impl AudioFeatureExtractor {
                     let freq_len = b_end - b_start;
                     freq_buf[..freq_len].copy_from_slice(&mag_frames[t][b_start..b_end]);
                     let freq_slice = &mut freq_buf[..freq_len];
-                    freq_slice.sort_by(|x, y| x.partial_cmp(y).unwrap_or(std::cmp::Ordering::Equal));
+                    freq_slice
+                        .sort_by(|x, y| x.partial_cmp(y).unwrap_or(std::cmp::Ordering::Equal));
                     let p_val = freq_slice[freq_len / 2];
 
                     harmonic_energy += h_val;
